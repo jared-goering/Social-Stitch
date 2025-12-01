@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users can only access their own session data
+    match /sessions/{sessionId} {
+      allow read, write: if true; // For demo purposes - in production, use proper auth
+      
+      match /accounts/{platform} {
+        allow read, write: if true;
+      }
+    }
+    
+    // Saved styles collection
+    match /styles/{styleId} {
+      allow read, write: if true; // For demo purposes - in production, use proper auth
+    }
+  }
+}
+

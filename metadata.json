@@ -1,0 +1,5 @@
+{
+  "name": "SocialStitch",
+  "description": "An AI-powered apparel marketing suite. Upload t-shirt designs, generate lifestyle mockups using Gemini, create social media captions, and simulate publishing to Facebook and Instagram.",
+  "requestFramePermissions": []
+}
