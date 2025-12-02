@@ -3,8 +3,10 @@ import { UploadSection } from './components/UploadSection';
 import { MockupGenerator } from './components/MockupGenerator';
 import { CaptionReview } from './components/CaptionReview';
 import { StepIndicator } from './components/StepIndicator';
-import { AppStep, UploadedDesign, MockupOption } from './types';
-import { Shirt, Sparkles, CheckCheck, RotateCcw } from 'lucide-react';
+import { CalendarView } from './components/Calendar';
+import { AppStep, UploadedDesign, MockupOption, AppView } from './types';
+import { Shirt, Sparkles, CheckCheck, RotateCcw, Calendar, PlusCircle, CheckCircle } from 'lucide-react';
+import { isPopupWindow } from './services/socialAuthService';
 
 // Storage key for session persistence
 const STORAGE_KEY = 'socialstitch_session';
@@ -20,10 +22,45 @@ interface PersistedState {
 }
 
 export default function App() {
+  const [currentView, setCurrentView] = useState<AppView>('workflow');
   const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.UPLOAD);
   const [design, setDesign] = useState<UploadedDesign | null>(null);
   const [selectedMockups, setSelectedMockups] = useState<MockupOption[]>([]);
   const [hasPersistedSession, setHasPersistedSession] = useState(false);
+
+  // Check if this is an OAuth popup window
+  const urlParams = new URLSearchParams(window.location.search);
+  const isOAuthPopup = isPopupWindow() && (urlParams.get('auth_success') || urlParams.get('auth_error'));
+  
+  // If this is an OAuth popup, render a simple success/error message
+  if (isOAuthPopup) {
+    const success = urlParams.get('auth_success');
+    const error = urlParams.get('auth_error');
+    
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="text-center p-8">
+          {success ? (
+            <>
+              <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <CheckCircle size={32} />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">Connected Successfully!</h2>
+              <p className="text-slate-500">You can close this window now.</p>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 bg-gradient-to-br from-red-400 to-red-500 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <span className="text-2xl">✕</span>
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">Connection Failed</h2>
+              <p className="text-slate-500">{error ? decodeURIComponent(error) : 'Please try again.'}</p>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // Load persisted state on mount
   useEffect(() => {
@@ -139,7 +176,33 @@ export default function App() {
             </h1>
           </div>
           <div className="flex items-center gap-3">
-            {hasPersistedSession && currentStep !== AppStep.SUCCESS && (
+            {/* View Toggle */}
+            <div className="flex items-center bg-slate-100 rounded-full p-1 border border-slate-200">
+              <button
+                onClick={() => setCurrentView('workflow')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  currentView === 'workflow'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <PlusCircle size={12} />
+                Create
+              </button>
+              <button
+                onClick={() => setCurrentView('calendar')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  currentView === 'calendar'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <Calendar size={12} />
+                Calendar
+              </button>
+            </div>
+
+            {currentView === 'workflow' && hasPersistedSession && currentStep !== AppStep.SUCCESS && (
               <button
                 onClick={resetApp}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-medium text-slate-600 transition-colors"
@@ -157,80 +220,114 @@ export default function App() {
       </header>
 
       <main className="flex-1 bg-gradient-subtle py-12 px-4">
-        {currentStep !== AppStep.SUCCESS && (
-          <StepIndicator currentStep={currentStep} onStepClick={handleStepClick} />
+        {/* Calendar View */}
+        {currentView === 'calendar' && (
+          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <CalendarView 
+              onCreatePost={() => {
+                setCurrentView('workflow');
+                resetApp();
+              }}
+            />
+          </div>
         )}
 
-        <div className="max-w-6xl mx-auto">
-          {currentStep === AppStep.UPLOAD && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-10">
-                <h2 className="text-3xl font-display font-bold text-slate-900 mb-4">Start with your design</h2>
-                <p className="text-lg text-slate-500 max-w-2xl mx-auto leading-relaxed">
-                  Upload your t-shirt graphic (PNG recommended). Our Gemini AI models will handle the photography and copywriting.
-                </p>
-              </div>
-              <UploadSection onUpload={handleUpload} />
-            </div>
-          )}
+        {/* Workflow View */}
+        {currentView === 'workflow' && (
+          <>
+            {currentStep !== AppStep.SUCCESS && (
+              <StepIndicator currentStep={currentStep} onStepClick={handleStepClick} />
+            )}
 
-          {currentStep === AppStep.MOCKUP_GENERATION && design && (
-             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <MockupGenerator 
-                    design={design} 
-                    onMockupsSelected={handleMockupsSelection}
-                    onBack={resetApp}
-                />
-             </div>
-          )}
-
-          {currentStep === AppStep.CAPTIONING && selectedMockups.length > 0 && (
-             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <CaptionReview 
-                    mockups={selectedMockups}
-                    onSuccess={handleSuccess}
-                    onBack={() => setCurrentStep(AppStep.MOCKUP_GENERATION)}
-                />
-             </div>
-          )}
-
-          {currentStep === AppStep.SUCCESS && (
-            <div className="max-w-md mx-auto text-center animate-in zoom-in duration-500 py-12 relative">
-                {/* Celebration particles */}
-                <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                  {[...Array(12)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="confetti rounded-full"
-                      style={{
-                        left: `${10 + (i * 7)}%`,
-                        backgroundColor: ['#6366f1', '#f59e0b', '#10b981', '#f472b6', '#14b8a6'][i % 5],
-                        animationDelay: `${i * 0.15}s`,
-                        width: `${8 + (i % 3) * 4}px`,
-                        height: `${8 + (i % 3) * 4}px`,
-                      }}
-                    />
-                  ))}
-                </div>
-                
-                <div className="relative animate-success-bounce">
-                  <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-teal-500 text-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-500/30 animate-float">
-                      <CheckCheck size={48} />
+            <div className="max-w-6xl mx-auto">
+              {currentStep === AppStep.UPLOAD && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="text-center mb-10">
+                    <h2 className="text-3xl font-display font-bold text-slate-900 mb-4">Start with your design</h2>
+                    <p className="text-lg text-slate-500 max-w-2xl mx-auto leading-relaxed">
+                      Upload your t-shirt graphic (PNG recommended). Our Gemini AI models will handle the photography and copywriting.
+                    </p>
                   </div>
+                  <UploadSection onUpload={handleUpload} />
                 </div>
-                <h2 className="text-3xl font-display font-bold text-slate-900 mb-4">Posted Successfully!</h2>
-                <p className="text-slate-500 mb-8 leading-relaxed">
-                    Your content has been scheduled and posted to your selected social channels.
-                </p>
-                <button 
-                    onClick={resetApp}
-                    className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-8 py-3 rounded-xl font-semibold hover:from-indigo-700 hover:to-indigo-600 transition-all shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5"
-                >
-                    Create Another Post
-                </button>
+              )}
+
+              {currentStep === AppStep.MOCKUP_GENERATION && design && (
+                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <MockupGenerator 
+                        design={design} 
+                        onMockupsSelected={handleMockupsSelection}
+                        onBack={resetApp}
+                    />
+                 </div>
+              )}
+
+              {currentStep === AppStep.CAPTIONING && selectedMockups.length > 0 && (
+                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <CaptionReview 
+                        mockups={selectedMockups}
+                        onSuccess={handleSuccess}
+                        onBack={() => setCurrentStep(AppStep.MOCKUP_GENERATION)}
+                        onScheduled={() => {
+                          // Navigate to calendar view after scheduling
+                          setCurrentView('calendar');
+                          resetApp();
+                        }}
+                    />
+                 </div>
+              )}
+
+              {currentStep === AppStep.SUCCESS && (
+                <div className="max-w-md mx-auto text-center animate-in zoom-in duration-500 py-12 relative">
+                    {/* Celebration particles */}
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                      {[...Array(12)].map((_, i) => (
+                        <div
+                          key={i}
+                          className="confetti rounded-full"
+                          style={{
+                            left: `${10 + (i * 7)}%`,
+                            backgroundColor: ['#6366f1', '#f59e0b', '#10b981', '#f472b6', '#14b8a6'][i % 5],
+                            animationDelay: `${i * 0.15}s`,
+                            width: `${8 + (i % 3) * 4}px`,
+                            height: `${8 + (i % 3) * 4}px`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    
+                    <div className="relative animate-success-bounce">
+                      <div className="w-24 h-24 bg-gradient-to-br from-emerald-400 to-teal-500 text-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-emerald-500/30 animate-float">
+                          <CheckCheck size={48} />
+                      </div>
+                    </div>
+                    <h2 className="text-3xl font-display font-bold text-slate-900 mb-4">Posted Successfully!</h2>
+                    <p className="text-slate-500 mb-8 leading-relaxed">
+                        Your content has been published to your selected social channels.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <button 
+                          onClick={resetApp}
+                          className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-8 py-3 rounded-xl font-semibold hover:from-indigo-700 hover:to-indigo-600 transition-all shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5"
+                      >
+                          Create Another Post
+                      </button>
+                      <button 
+                          onClick={() => {
+                            setCurrentView('calendar');
+                            resetApp();
+                          }}
+                          className="bg-white text-slate-700 px-8 py-3 rounded-xl font-semibold border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                      >
+                          <Calendar size={18} />
+                          View Calendar
+                      </button>
+                    </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </main>
 
       <footer className="bg-white/50 backdrop-blur-sm border-t border-slate-200/50 py-6 mt-auto">

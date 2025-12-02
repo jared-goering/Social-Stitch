@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender } from '../types';
+import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup } from '../types';
 import { generateMockupImage, analyzeGarmentAndSuggestStyles } from '../services/geminiService';
-import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { saveMockupToFirebase, fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
+import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, Clock, Plus, Trash2 } from 'lucide-react';
 
 interface Props {
   design: UploadedDesign;
@@ -10,11 +11,11 @@ interface Props {
 }
 
 const PRESET_STYLES = [
-  "Streetwear urban vibe, downtown city background, golden hour lighting",
-  "Minimalist studio photography, white background, soft lighting",
-  "Outdoor adventure, hiking trail background, natural sunlight",
-  "Grunge aesthetic, brick wall background, moody lighting",
-  "Summer beach vibe, ocean background, bright sunny day"
+  "Walking through a busy city street, grabbing coffee, morning golden hour light, urban lifestyle",
+  "Relaxing at an outdoor café, reading or on phone, dappled sunlight through trees, candid moment",
+  "Hiking on a scenic trail, pausing to take in the view, natural adventure setting, active lifestyle",
+  "Hanging out with friends at a rooftop gathering, laughing and chatting, warm evening light",
+  "Browsing at a weekend farmers market or street fair, casual and relaxed, vibrant atmosphere"
 ];
 
 // Removed conflicting global declaration.
@@ -24,41 +25,129 @@ const PRESET_STYLES = [
 const MOCKUPS_STORAGE_KEY = 'socialstitch_mockups';
 const SUGGESTIONS_STORAGE_KEY = 'socialstitch_suggestions';
 const SELECTED_IDS_STORAGE_KEY = 'socialstitch_selected_ids';
+const MOCKUPS_DB_NAME = 'socialstitch_mockups_db';
+const MOCKUPS_DB_VERSION = 1;
+const MOCKUPS_STORE_NAME = 'mockups';
+
+// IndexedDB helper functions for storing large image data
+const openDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(MOCKUPS_DB_NAME, MOCKUPS_DB_VERSION);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(MOCKUPS_STORE_NAME)) {
+        db.createObjectStore(MOCKUPS_STORE_NAME);
+      }
+    };
+  });
+};
+
+const saveMockupsToIndexedDB = async (designId: string, mockups: MockupOption[]): Promise<void> => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction([MOCKUPS_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(MOCKUPS_STORE_NAME);
+    await new Promise<void>((resolve, reject) => {
+      const request = store.put({ designId, mockups }, designId);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('Failed to save mockups to IndexedDB:', error);
+    throw error;
+  }
+};
+
+const loadMockupsFromIndexedDB = async (designId: string): Promise<MockupOption[] | null> => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction([MOCKUPS_STORE_NAME], 'readonly');
+    const store = transaction.objectStore(MOCKUPS_STORE_NAME);
+    return new Promise<MockupOption[] | null>((resolve, reject) => {
+      const request = store.get(designId);
+      request.onsuccess = () => {
+        const data = request.result;
+        if (data && data.designId === designId) {
+          resolve(data.mockups || null);
+        } else {
+          resolve(null);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.error('Failed to load mockups from IndexedDB:', error);
+    return null;
+  }
+};
 
 export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, onBack }) => {
   const [customStyle, setCustomStyle] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedMockups, setGeneratedMockups] = useState<MockupOption[]>(() => {
-    // Initialize from sessionStorage
-    try {
-      const saved = sessionStorage.getItem(MOCKUPS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // Check if the saved mockups are for the current design
-        if (parsed.designId === design.id) {
-          return parsed.mockups || [];
+  const [generatedMockups, setGeneratedMockups] = useState<MockupOption[]>([]);
+  const [isLoadingMockups, setIsLoadingMockups] = useState(true);
+  
+  // Load mockups from IndexedDB on mount
+  useEffect(() => {
+    const loadMockups = async () => {
+      setIsLoadingMockups(true);
+      try {
+        // Try IndexedDB first (for large data)
+        const mockups = await loadMockupsFromIndexedDB(design.id);
+        if (mockups && mockups.length > 0) {
+          setGeneratedMockups(mockups);
+          setIsLoadingMockups(false);
+          return;
         }
+        
+        // Fallback to sessionStorage (for smaller data or compatibility)
+        const saved = sessionStorage.getItem(MOCKUPS_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.designId === design.id && parsed.mockups?.length > 0) {
+            setGeneratedMockups(parsed.mockups);
+            // Migrate to IndexedDB for future loads
+            try {
+              await saveMockupsToIndexedDB(design.id, parsed.mockups);
+            } catch (e) {
+              console.warn('Failed to migrate to IndexedDB:', e);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load saved mockups:', e);
+      } finally {
+        setIsLoadingMockups(false);
       }
-    } catch (e) {
-      console.error('Failed to load saved mockups:', e);
-    }
-    return [];
-  });
-  const [selectedMockupIds, setSelectedMockupIds] = useState<Set<string>>(() => {
-    // Initialize from sessionStorage
+    };
+    
+    loadMockups();
+  }, [design.id]);
+  const [selectedMockupIds, setSelectedMockupIds] = useState<Set<string>>(new Set());
+  
+  // Load selected IDs after mockups are loaded
+  useEffect(() => {
+    if (isLoadingMockups) return;
+    
     try {
       const saved = sessionStorage.getItem(SELECTED_IDS_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.designId === design.id) {
-          return new Set(parsed.ids || []);
+          // Filter selected IDs to only include those that exist in loaded mockups
+          const existingMockupIds = new Set(generatedMockups.map(m => m.id));
+          const savedIds = (parsed.ids || []).filter((id: string) => existingMockupIds.has(id));
+          setSelectedMockupIds(new Set(savedIds));
         }
       }
     } catch (e) {
       console.error('Failed to load selected IDs:', e);
     }
-    return new Set();
-  });
+  }, [isLoadingMockups, design.id, generatedMockups]);
   const [error, setError] = useState<string | null>(null);
   
   // Multi-select styles
@@ -102,18 +191,58 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   
   // Image modal/lightbox
   const [enlargedMockup, setEnlargedMockup] = useState<MockupOption | null>(null);
+  
+  // Cloud-saved mockups history
+  const [savedMockups, setSavedMockups] = useState<SavedMockup[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [isSavingToCloud, setIsSavingToCloud] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(true);
 
-  // Persist generated mockups to sessionStorage
+  // Persist generated mockups to IndexedDB (and sessionStorage as fallback)
   useEffect(() => {
-    try {
-      sessionStorage.setItem(MOCKUPS_STORAGE_KEY, JSON.stringify({
-        designId: design.id,
-        mockups: generatedMockups
-      }));
-    } catch (e) {
-      console.error('Failed to save mockups:', e);
+    if (isLoadingMockups || generatedMockups.length === 0) {
+      return; // Don't save during initial load or when empty
     }
-  }, [generatedMockups, design.id]);
+    
+    const saveMockups = async () => {
+      try {
+        // Save to IndexedDB (handles large data)
+        await saveMockupsToIndexedDB(design.id, generatedMockups);
+      } catch (e) {
+        console.error('Failed to save mockups to IndexedDB:', e);
+        // Fallback to sessionStorage (may fail if data is too large)
+        try {
+          sessionStorage.setItem(MOCKUPS_STORAGE_KEY, JSON.stringify({
+            designId: design.id,
+            mockups: generatedMockups
+          }));
+        } catch (sessionError: any) {
+          if (sessionError.name === 'QuotaExceededError') {
+            console.error('SessionStorage quota exceeded. Consider using IndexedDB.');
+            // Try to save a smaller version (just IDs and metadata, not full images)
+            try {
+              const mockupsMetadata = generatedMockups.map(m => ({
+                id: m.id,
+                styleDescription: m.styleDescription,
+                // Don't include imageUrl to save space
+              }));
+              sessionStorage.setItem(MOCKUPS_STORAGE_KEY, JSON.stringify({
+                designId: design.id,
+                mockups: mockupsMetadata,
+                metadataOnly: true
+              }));
+            } catch (metaError) {
+              console.error('Failed to save even metadata:', metaError);
+            }
+          } else {
+            console.error('Failed to save mockups to sessionStorage:', sessionError);
+          }
+        }
+      }
+    };
+    
+    saveMockups();
+  }, [generatedMockups, design.id, isLoadingMockups]);
 
   // Persist selected mockup IDs to sessionStorage
   useEffect(() => {
@@ -126,6 +255,19 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       console.error('Failed to save selected IDs:', e);
     }
   }, [selectedMockupIds, design.id]);
+
+  // Clean up selected IDs that don't exist in generatedMockups
+  useEffect(() => {
+    const existingIds = new Set(generatedMockups.map(m => m.id));
+    setSelectedMockupIds(prev => {
+      const filtered = new Set(Array.from(prev).filter(id => existingIds.has(id)));
+      // Only update if there's a difference to avoid infinite loops
+      if (filtered.size !== prev.size) {
+        return filtered;
+      }
+      return prev;
+    });
+  }, [generatedMockups]);
 
   // Persist AI suggestions to sessionStorage
   useEffect(() => {
@@ -140,6 +282,23 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       }
     }
   }, [aiSuggestions, design.id]);
+
+  // Fetch saved mockups history from Firebase on mount
+  useEffect(() => {
+    const loadHistory = async () => {
+      setIsLoadingHistory(true);
+      try {
+        const history = await fetchUserMockups();
+        setSavedMockups(history);
+      } catch (error) {
+        console.error('Failed to load mockup history:', error);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+    
+    loadHistory();
+  }, []);
 
   // Fetch AI suggestions when component mounts or design changes (only if not cached)
   useEffect(() => {
@@ -232,12 +391,12 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     setSelectedMockupIds(new Set());
   };
 
-  // Prompt variation suffixes to make each generation unique
+  // Prompt variation suffixes to make each generation unique - lifestyle focused
   const VARIATION_SUFFIXES = [
-    '',
-    ' The model has a confident, relaxed pose.',
-    ' Shot from a slightly different angle with dynamic composition.',
-    ' The model shows natural movement and expression.',
+    ' The person is walking through the scene, captured mid-stride.',
+    ' The person is laughing or smiling while looking away from camera, candid moment.',
+    ' Wide environmental shot showing more of the setting, person is smaller in frame doing an activity.',
+    ' The person is sitting casually, relaxed and interacting with something in their hands.',
   ];
 
   // Generate a single mockup (for quick generate)
@@ -256,13 +415,29 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       
       const base64Image = await generateMockupImage(design.base64, style, gender);
       const genderLabel = gender === 'male' ? '♂' : '♀';
+      const mockupId = crypto.randomUUID();
+      const styleDescription = `${style} ${genderLabel}`;
+      
       const newMockup: MockupOption = {
-        id: crypto.randomUUID(),
+        id: mockupId,
         imageUrl: base64Image,
-        styleDescription: `${style} ${genderLabel}`
+        styleDescription
       };
       setGeneratedMockups(prev => [...prev, newMockup]);
       setSelectedMockupIds(prev => new Set([...prev, newMockup.id]));
+      
+      // Save to Firebase in the background
+      setIsSavingToCloud(true);
+      try {
+        const savedMockup = await saveMockupToFirebase(mockupId, base64Image, styleDescription, design.id);
+        // Add to saved mockups list (at the beginning since it's newest)
+        setSavedMockups(prev => [savedMockup, ...prev]);
+      } catch (saveError) {
+        console.error('Failed to save mockup to cloud:', saveError);
+        // Don't show error to user - local generation succeeded
+      } finally {
+        setIsSavingToCloud(false);
+      }
     } catch (err: any) {
       if (err.message && err.message.includes("Requested entity was not found")) {
         const aistudio = (window as any).aistudio;
@@ -346,6 +521,34 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       if (successfulMockups.length > 0) {
         setGeneratedMockups(prev => [...prev, ...successfulMockups]);
         setSelectedMockupIds(prev => new Set([...prev, ...successfulMockups.map(m => m.id)]));
+        
+        // Save all successful mockups to Firebase in the background
+        setIsSavingToCloud(true);
+        try {
+          const saveResults = await Promise.allSettled(
+            successfulMockups.map(mockup => 
+              saveMockupToFirebase(mockup.id, mockup.imageUrl, mockup.styleDescription, design.id)
+            )
+          );
+          
+          const savedSuccessfully = saveResults
+            .filter((r): r is PromiseFulfilledResult<SavedMockup> => r.status === 'fulfilled')
+            .map(r => r.value);
+          
+          if (savedSuccessfully.length > 0) {
+            // Add to saved mockups list (at the beginning since they're newest)
+            setSavedMockups(prev => [...savedSuccessfully, ...prev]);
+          }
+          
+          const cloudFailedCount = saveResults.filter(r => r.status === 'rejected').length;
+          if (cloudFailedCount > 0) {
+            console.warn(`${cloudFailedCount} mockup(s) failed to save to cloud`);
+          }
+        } catch (saveError) {
+          console.error('Failed to save mockups to cloud:', saveError);
+        } finally {
+          setIsSavingToCloud(false);
+        }
       }
       
       if (failedCount > 0) {
@@ -408,6 +611,50 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     if (selectedMockups.length > 0) {
       onMockupsSelected(selectedMockups);
     }
+  };
+
+  // Add a saved mockup from history to the current carousel
+  const addFromHistory = (savedMockup: SavedMockup) => {
+    // Check if already in current mockups
+    if (generatedMockups.some(m => m.id === savedMockup.id)) {
+      // Already added, just select it
+      setSelectedMockupIds(prev => new Set([...prev, savedMockup.id]));
+      return;
+    }
+    
+    // Add to generated mockups and select it
+    const mockup: MockupOption = {
+      id: savedMockup.id,
+      imageUrl: savedMockup.imageUrl,
+      styleDescription: savedMockup.styleDescription
+    };
+    setGeneratedMockups(prev => [...prev, mockup]);
+    setSelectedMockupIds(prev => new Set([...prev, savedMockup.id]));
+  };
+
+  // Delete a mockup from history (Firebase)
+  const deleteFromHistory = async (mockupId: string) => {
+    try {
+      await deleteMockupFromFirebase(mockupId);
+      setSavedMockups(prev => prev.filter(m => m.id !== mockupId));
+    } catch (error) {
+      console.error('Failed to delete mockup from history:', error);
+    }
+  };
+
+  // Format relative time
+  const formatRelativeTime = (date: Date): string => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
   };
 
   return (
@@ -973,9 +1220,21 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             </div>
         )}
 
+        {/* Loading State */}
+        {isLoadingMockups && !isGenerating && (
+          <div className="flex-1 flex items-center justify-center text-center p-8">
+            <div>
+              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                <Loader2 size={28} className="text-slate-400 animate-spin" />
+              </div>
+              <p className="font-semibold text-slate-500 mb-1">Loading saved mockups...</p>
+            </div>
+          </div>
+        )}
+
         {/* Empty State */}
-        {generatedMockups.length === 0 && !isGenerating && !error && (
-             <div className="flex-1 flex items-center justify-center text-center p-8">
+        {!isLoadingMockups && generatedMockups.length === 0 && !isGenerating && !error && (
+             <div className={`flex items-center justify-center text-center p-8 ${(savedMockups.length === 0 && !isLoadingHistory) ? 'flex-1' : 'py-12'}`}>
                 <div>
                   <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
                     <Wand2 size={28} className="text-slate-300" />
@@ -1092,6 +1351,106 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             </div>
           </div>
         )}
+
+        {/* Previously Generated Section - Always visible */}
+        <div className="border-t border-slate-200 mt-auto">
+            {/* Section Header */}
+            <button
+              onClick={() => setHistoryExpanded(!historyExpanded)}
+              className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Clock size={14} className="text-slate-400" />
+                <span className="font-medium">Previously Generated</span>
+                {!isLoadingHistory && (
+                  <span className="text-xs text-slate-400">({savedMockups.length})</span>
+                )}
+                {isSavingToCloud && (
+                  <span className="flex items-center gap-1 text-xs text-indigo-500">
+                    <Loader2 size={10} className="animate-spin" />
+                    Saving...
+                  </span>
+                )}
+              </div>
+              <ChevronRight 
+                size={16} 
+                className={`text-slate-400 transition-transform ${historyExpanded ? 'rotate-90' : ''}`} 
+              />
+            </button>
+            
+            {/* History Content */}
+            {historyExpanded && (
+              <div className="px-4 pb-4">
+                {isLoadingHistory ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {[...Array(6)].map((_, idx) => (
+                      <div key={idx} className="aspect-square rounded-lg bg-slate-100 animate-pulse" />
+                    ))}
+                  </div>
+                ) : savedMockups.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-slate-400">
+                    No previously generated mockups
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                    {savedMockups.map((mockup) => {
+                      const isInCarousel = generatedMockups.some(m => m.id === mockup.id);
+                      return (
+                        <div 
+                          key={mockup.id}
+                          className="relative group aspect-square rounded-lg overflow-hidden bg-white border border-slate-200 hover:border-indigo-300 transition-all"
+                        >
+                          <img 
+                            src={mockup.imageUrl} 
+                            alt={mockup.styleDescription}
+                            className="w-full h-full object-cover"
+                          />
+                          
+                          {/* Overlay with actions */}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                            {/* Add to Carousel Button */}
+                            <button
+                              onClick={() => addFromHistory(mockup)}
+                              className={`
+                                p-2 rounded-lg transition-all
+                                ${isInCarousel 
+                                  ? 'bg-emerald-500 text-white' 
+                                  : 'bg-white text-slate-700 hover:bg-indigo-500 hover:text-white'
+                                }
+                              `}
+                              title={isInCarousel ? 'Already in carousel' : 'Add to carousel'}
+                            >
+                              {isInCarousel ? <Check size={16} /> : <Plus size={16} />}
+                            </button>
+                            {/* Delete Button */}
+                            <button
+                              onClick={() => deleteFromHistory(mockup.id)}
+                              className="p-2 rounded-lg bg-white text-slate-700 hover:bg-red-500 hover:text-white transition-all"
+                              title="Delete from history"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                          
+                          {/* Already Added Indicator */}
+                          {isInCarousel && (
+                            <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                              <Check size={10} className="text-white" strokeWidth={3} />
+                            </div>
+                          )}
+                          
+                          {/* Time indicator */}
+                          <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/70 to-transparent">
+                            <p className="text-white text-[10px] truncate">{formatRelativeTime(mockup.createdAt)}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
         {/* Bottom Action Bar */}
         {generatedMockups.length > 0 && (

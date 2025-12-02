@@ -14,6 +14,9 @@ import {
   postMultiPhotoToFacebook
 } from './meta';
 
+// Export scheduler functions
+export { processScheduledPosts, triggerScheduledPosts } from './scheduler';
+
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
@@ -66,7 +69,24 @@ const getConfig = () => {
  */
 export const authStart = functions.https.onRequest((req, res) => {
   const config = getConfig();
-  const { sessionId, platform } = req.query;
+  
+  // Debug: log raw query params
+  console.log('authStart - raw req.query:', JSON.stringify(req.query));
+  console.log('authStart - raw platform:', req.query.platform, 'type:', typeof req.query.platform);
+  
+  // Ensure sessionId and platform are strings (req.query can return arrays)
+  let sessionId = Array.isArray(req.query.sessionId) 
+    ? req.query.sessionId[0] 
+    : req.query.sessionId;
+  let platform = Array.isArray(req.query.platform) 
+    ? req.query.platform[0] 
+    : req.query.platform;
+  
+  // Force to string
+  sessionId = String(sessionId);
+  platform = String(platform);
+  
+  console.log('authStart - processed platform:', platform, 'type:', typeof platform);
 
   if (!sessionId || !platform) {
     res.status(400).json({ error: 'Missing sessionId or platform parameter' });
@@ -82,8 +102,8 @@ export const authStart = functions.https.onRequest((req, res) => {
   const oauthUrl = buildOAuthUrl(
     config.appId,
     redirectUri,
-    sessionId as string,
-    platform as 'facebook' | 'instagram'
+    String(sessionId),
+    String(platform) as 'facebook' | 'instagram'
   );
 
   res.redirect(oauthUrl);
@@ -110,7 +130,19 @@ export const authCallback = functions.https.onRequest(async (req, res) => {
 
   try {
     // Parse state to get sessionId and platform
-    const { sessionId, platform } = JSON.parse(state as string);
+    // Handle case where state might be an array
+    const stateStr = Array.isArray(state) ? state[0] : state;
+    const parsedState = JSON.parse(stateStr as string);
+    
+    // Ensure sessionId and platform are strings (handle arrays if somehow present)
+    const sessionId = Array.isArray(parsedState.sessionId) 
+      ? String(parsedState.sessionId[0]) 
+      : String(parsedState.sessionId);
+    const platform = Array.isArray(parsedState.platform) 
+      ? String(parsedState.platform[0]) 
+      : String(parsedState.platform);
+    
+    console.log('Auth callback - sessionId:', sessionId, 'platform:', platform, 'type:', typeof platform);
     const redirectUri = `${config.functionsUrl}/authCallback`;
 
     // Exchange code for short-lived token

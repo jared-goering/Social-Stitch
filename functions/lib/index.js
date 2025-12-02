@@ -36,11 +36,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.disconnectAccount = exports.postToInstagram = exports.postToFacebook = exports.getConnectedAccounts = exports.authCallback = exports.authStart = void 0;
+exports.disconnectAccount = exports.postCarouselToFacebook = exports.postCarouselToInstagram = exports.postToInstagram = exports.postToFacebook = exports.getConnectedAccounts = exports.authCallback = exports.authStart = exports.triggerScheduledPosts = exports.processScheduledPosts = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const cors_1 = __importDefault(require("cors"));
 const meta_1 = require("./meta");
+// Export scheduler functions
+var scheduler_1 = require("./scheduler");
+Object.defineProperty(exports, "processScheduledPosts", { enumerable: true, get: function () { return scheduler_1.processScheduledPosts; } });
+Object.defineProperty(exports, "triggerScheduledPosts", { enumerable: true, get: function () { return scheduler_1.triggerScheduledPosts; } });
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();
@@ -86,7 +90,20 @@ const getConfig = () => {
  */
 exports.authStart = functions.https.onRequest((req, res) => {
     const config = getConfig();
-    const { sessionId, platform } = req.query;
+    // Debug: log raw query params
+    console.log('authStart - raw req.query:', JSON.stringify(req.query));
+    console.log('authStart - raw platform:', req.query.platform, 'type:', typeof req.query.platform);
+    // Ensure sessionId and platform are strings (req.query can return arrays)
+    let sessionId = Array.isArray(req.query.sessionId)
+        ? req.query.sessionId[0]
+        : req.query.sessionId;
+    let platform = Array.isArray(req.query.platform)
+        ? req.query.platform[0]
+        : req.query.platform;
+    // Force to string
+    sessionId = String(sessionId);
+    platform = String(platform);
+    console.log('authStart - processed platform:', platform, 'type:', typeof platform);
     if (!sessionId || !platform) {
         res.status(400).json({ error: 'Missing sessionId or platform parameter' });
         return;
@@ -96,7 +113,7 @@ exports.authStart = functions.https.onRequest((req, res) => {
         return;
     }
     const redirectUri = `${config.functionsUrl}/authCallback`;
-    const oauthUrl = (0, meta_1.buildOAuthUrl)(config.appId, redirectUri, sessionId, platform);
+    const oauthUrl = (0, meta_1.buildOAuthUrl)(config.appId, redirectUri, String(sessionId), String(platform));
     res.redirect(oauthUrl);
 });
 /**
@@ -117,7 +134,17 @@ exports.authCallback = functions.https.onRequest(async (req, res) => {
     }
     try {
         // Parse state to get sessionId and platform
-        const { sessionId, platform } = JSON.parse(state);
+        // Handle case where state might be an array
+        const stateStr = Array.isArray(state) ? state[0] : state;
+        const parsedState = JSON.parse(stateStr);
+        // Ensure sessionId and platform are strings (handle arrays if somehow present)
+        const sessionId = Array.isArray(parsedState.sessionId)
+            ? String(parsedState.sessionId[0])
+            : String(parsedState.sessionId);
+        const platform = Array.isArray(parsedState.platform)
+            ? String(parsedState.platform[0])
+            : String(parsedState.platform);
+        console.log('Auth callback - sessionId:', sessionId, 'platform:', platform, 'type:', typeof platform);
         const redirectUri = `${config.functionsUrl}/authCallback`;
         // Exchange code for short-lived token
         const tokenResponse = await (0, meta_1.exchangeCodeForToken)(code, config.appId, config.appSecret, redirectUri);
@@ -288,6 +315,118 @@ exports.postToInstagram = functions.https.onRequest((req, res) => {
         catch (err) {
             console.error('Error posting to Instagram:', err);
             res.status(500).json({ error: 'Failed to post to Instagram' });
+        }
+    });
+});
+/**
+ * Post a carousel to Instagram Business Account
+ */
+exports.postCarouselToInstagram = functions.https.onRequest((req, res) => {
+    corsHandler(req, res, async () => {
+        if (req.method !== 'POST') {
+            res.status(405).json({ error: 'Method not allowed' });
+            return;
+        }
+        const { sessionId, imagesBase64, caption } = req.body;
+        if (!sessionId || !imagesBase64 || !Array.isArray(imagesBase64) || imagesBase64.length < 2 || !caption) {
+            res.status(400).json({ error: 'Missing required fields. Carousel requires at least 2 images.' });
+            return;
+        }
+        if (imagesBase64.length > 10) {
+            res.status(400).json({ error: 'Instagram carousel supports maximum 10 images.' });
+            return;
+        }
+        try {
+            // Get account from Firestore
+            const accountDoc = await db
+                .collection('sessions')
+                .doc(sessionId)
+                .collection('accounts')
+                .doc('instagram')
+                .get();
+            if (!accountDoc.exists) {
+                res.status(401).json({ error: 'Instagram account not connected' });
+                return;
+            }
+            const account = accountDoc.data();
+            if (!account.instagramId) {
+                res.status(400).json({ error: 'No Instagram Business Account linked' });
+                return;
+            }
+            // Step 1: Upload all images to Firebase Storage and get public URLs
+            console.log(`Uploading ${imagesBase64.length} images to Firebase Storage...`);
+            const publicUrls = [];
+            for (let i = 0; i < imagesBase64.length; i++) {
+                const publicUrl = await uploadImageToStorage(imagesBase64[i], sessionId);
+                publicUrls.push(publicUrl);
+                console.log(`Uploaded image ${i + 1}/${imagesBase64.length}: ${publicUrl}`);
+            }
+            // Step 2: Create carousel item containers for each image
+            console.log('Creating Instagram carousel item containers...');
+            const childrenIds = [];
+            for (const imageUrl of publicUrls) {
+                const container = await (0, meta_1.createInstagramCarouselItem)(account.instagramId, account.pageAccessToken, imageUrl);
+                childrenIds.push(container.id);
+                console.log(`Created carousel item: ${container.id}`);
+            }
+            // Step 3: Create the carousel container
+            console.log('Creating Instagram carousel container...');
+            const carouselContainer = await (0, meta_1.createInstagramCarouselContainer)(account.instagramId, account.pageAccessToken, childrenIds, caption);
+            console.log(`Created carousel container: ${carouselContainer.id}`);
+            // Step 4: Publish the carousel
+            console.log('Publishing Instagram carousel...');
+            const result = await (0, meta_1.publishInstagramMedia)(account.instagramId, account.pageAccessToken, carouselContainer.id);
+            res.json({ success: true, postId: result.id });
+        }
+        catch (err) {
+            console.error('Error posting carousel to Instagram:', err);
+            res.status(500).json({ error: 'Failed to post carousel to Instagram' });
+        }
+    });
+});
+/**
+ * Post a carousel/multi-photo to Facebook Page
+ */
+exports.postCarouselToFacebook = functions.https.onRequest((req, res) => {
+    corsHandler(req, res, async () => {
+        if (req.method !== 'POST') {
+            res.status(405).json({ error: 'Method not allowed' });
+            return;
+        }
+        const { sessionId, imagesBase64, caption } = req.body;
+        if (!sessionId || !imagesBase64 || !Array.isArray(imagesBase64) || imagesBase64.length < 2 || !caption) {
+            res.status(400).json({ error: 'Missing required fields. Multi-photo post requires at least 2 images.' });
+            return;
+        }
+        try {
+            // Get account from Firestore
+            const accountDoc = await db
+                .collection('sessions')
+                .doc(sessionId)
+                .collection('accounts')
+                .doc('facebook')
+                .get();
+            if (!accountDoc.exists) {
+                res.status(401).json({ error: 'Facebook account not connected' });
+                return;
+            }
+            const account = accountDoc.data();
+            // Upload all images to Firebase Storage and get public URLs
+            console.log(`Uploading ${imagesBase64.length} images to Firebase Storage...`);
+            const publicUrls = [];
+            for (let i = 0; i < imagesBase64.length; i++) {
+                const publicUrl = await uploadImageToStorage(imagesBase64[i], sessionId);
+                publicUrls.push(publicUrl);
+                console.log(`Uploaded image ${i + 1}/${imagesBase64.length}: ${publicUrl}`);
+            }
+            // Post multi-photo to Facebook
+            console.log('Creating Facebook multi-photo post...');
+            const result = await (0, meta_1.postMultiPhotoToFacebook)(account.pageId, account.pageAccessToken, publicUrls, caption);
+            res.json({ success: true, postId: result.post_id || result.id });
+        }
+        catch (err) {
+            console.error('Error posting carousel to Facebook:', err);
+            res.status(500).json({ error: 'Failed to post carousel to Facebook' });
         }
     });
 });

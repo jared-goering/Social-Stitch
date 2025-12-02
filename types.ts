@@ -18,6 +18,11 @@ export interface MockupOption {
   styleDescription: string;
 }
 
+export interface SavedMockup extends MockupOption {
+  createdAt: Date;
+  designId: string;
+}
+
 export interface GeneratedCaptions {
   facebook: string[];
   instagram: string[];
@@ -48,3 +53,39 @@ export interface SocialPost {
   images?: string[]; // For carousel posts with multiple images
   status: 'draft' | 'posted';
 }
+
+// Post status for scheduled posts
+export type PostStatus = 'scheduled' | 'published' | 'failed';
+
+// Scheduled post data structure (mirrors Firestore document)
+export interface ScheduledPost {
+  id: string;
+  sessionId: string;
+  platforms: SocialPlatform[];
+  scheduledFor: Date;
+  status: PostStatus;
+  captions: {
+    facebook?: string;
+    instagram?: string;
+  };
+  imageUrls: string[];
+  mockupData: MockupOption[];
+  createdAt: Date;
+  publishedAt?: Date;
+  error?: string;
+}
+
+// For creating a new scheduled post (without id, createdAt auto-generated)
+export interface CreateScheduledPostData {
+  platforms: SocialPlatform[];
+  scheduledFor: Date;
+  captions: {
+    facebook?: string;
+    instagram?: string;
+  };
+  imageUrls: string[];
+  mockupData: MockupOption[];
+}
+
+// App view modes
+export type AppView = 'workflow' | 'calendar';

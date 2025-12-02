@@ -9,5 +9,13 @@ service firebase.storage {
       allow read: if true;
       allow write: if true;
     }
+    match /mockups/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /scheduled/{allPaths=**} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }

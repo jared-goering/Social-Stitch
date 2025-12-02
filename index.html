@@ -138,6 +138,130 @@
       .animate-float {
         animation: float 3s ease-in-out infinite;
       }
+      
+      /* Calendar day hover animation */
+      .calendar-day {
+        transition: all 0.15s ease;
+      }
+      
+      .calendar-day:hover {
+        transform: scale(1.05);
+      }
+      
+      .calendar-day:active {
+        transform: scale(0.95);
+      }
+      
+      /* Slide-in animations for panels */
+      @keyframes slide-in-right {
+        from { 
+          opacity: 0;
+          transform: translateX(20px);
+        }
+        to { 
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+      
+      .animate-slide-in-right {
+        animation: slide-in-right 0.3s ease-out forwards;
+      }
+      
+      /* Status dot pulse */
+      @keyframes status-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      
+      .status-dot-pulse {
+        animation: status-pulse 2s ease-in-out infinite;
+      }
+      
+      /* Post card hover */
+      .post-card {
+        transition: all 0.2s ease;
+      }
+      
+      .post-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+      }
+      
+      /* Modal backdrop animation */
+      @keyframes fade-in-backdrop {
+        from { backdrop-filter: blur(0); background-color: rgba(0, 0, 0, 0); }
+        to { backdrop-filter: blur(4px); background-color: rgba(0, 0, 0, 0.6); }
+      }
+      
+      .modal-backdrop {
+        animation: fade-in-backdrop 0.2s ease forwards;
+      }
+      
+      /* Calendar grid animation */
+      @keyframes calendar-appear {
+        from { 
+          opacity: 0;
+          transform: scale(0.95);
+        }
+        to { 
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      
+      .calendar-grid {
+        animation: calendar-appear 0.4s ease-out forwards;
+      }
+      
+      /* Time slot selection */
+      .time-slot {
+        transition: all 0.15s ease;
+      }
+      
+      .time-slot:hover {
+        transform: translateY(-1px);
+      }
+      
+      /* Scrollbar styling */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+      }
+      
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 3px;
+      }
+      
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 3px;
+      }
+      
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+      
+      /* View toggle animation */
+      .view-toggle-btn {
+        transition: all 0.2s ease;
+      }
+      
+      .view-toggle-btn:hover:not(.active) {
+        background: rgba(255, 255, 255, 0.5);
+      }
+      
+      /* Shimmer loading effect */
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+      
+      .shimmer {
+        background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+      }
     </style>
   <script type="importmap">
 {

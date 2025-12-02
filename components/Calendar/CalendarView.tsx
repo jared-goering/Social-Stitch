@@ -1,0 +1,538 @@
+import React, { useState, useEffect } from 'react';
+import { ScheduledPost, PostStatus } from '../../types';
+import { 
+  subscribeToScheduledPosts, 
+  deleteScheduledPost, 
+  reschedulePost,
+  retryFailedPost,
+  groupPostsByDate,
+  getLocalDateKey
+} from '../../services/scheduledPostsService';
+import { PostCard, PostStatusDot } from './PostCard';
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Calendar as CalendarIcon, 
+  Clock, 
+  X,
+  Plus,
+  CheckCircle,
+  AlertCircle,
+  Loader2
+} from 'lucide-react';
+
+interface Props {
+  onCreatePost?: () => void;
+}
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+type FilterStatus = 'all' | PostStatus;
+
+export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [posts, setPosts] = useState<ScheduledPost[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterStatus>('all');
+  const [showRescheduleModal, setShowRescheduleModal] = useState<ScheduledPost | null>(null);
+
+  // Subscribe to real-time updates
+  useEffect(() => {
+    setLoading(true);
+    const unsubscribe = subscribeToScheduledPosts((updatedPosts) => {
+      setPosts(updatedPosts);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDay = firstDay.getDay();
+    
+    return { daysInMonth, startingDay, year, month };
+  };
+
+  const { daysInMonth, startingDay, year, month } = getDaysInMonth(currentMonth);
+
+  // Group posts by date
+  const postsByDate = groupPostsByDate(posts);
+
+  // Filter posts
+  const filteredPosts = filter === 'all' 
+    ? posts 
+    : posts.filter(p => p.status === filter);
+
+  // Get posts for a specific day
+  const getPostsForDay = (day: number): ScheduledPost[] => {
+    const dateKey = getLocalDateKey(new Date(year, month, day));
+    const dayPosts = postsByDate.get(dateKey) || [];
+    return filter === 'all' ? dayPosts : dayPosts.filter(p => p.status === filter);
+  };
+
+  // Get posts for selected date
+  const selectedDatePosts = selectedDate 
+    ? getPostsForDay(selectedDate.getDate())
+    : [];
+
+  // Status counts
+  const statusCounts = posts.reduce(
+    (acc, post) => {
+      acc[post.status]++;
+      return acc;
+    },
+    { scheduled: 0, published: 0, failed: 0 } as Record<PostStatus, number>
+  );
+
+  const handlePrevMonth = () => {
+    setCurrentMonth(new Date(year, month - 1));
+    setSelectedDate(null);
+  };
+
+  const handleNextMonth = () => {
+    setCurrentMonth(new Date(year, month + 1));
+    setSelectedDate(null);
+  };
+
+  const handleDayClick = (day: number) => {
+    const clickedDate = new Date(year, month, day);
+    if (selectedDate?.getTime() === clickedDate.getTime()) {
+      setSelectedDate(null);
+    } else {
+      setSelectedDate(clickedDate);
+    }
+  };
+
+  const handleDelete = async (post: ScheduledPost) => {
+    if (confirm('Are you sure you want to delete this scheduled post?')) {
+      await deleteScheduledPost(post.id);
+    }
+  };
+
+  const handleReschedule = (post: ScheduledPost) => {
+    setShowRescheduleModal(post);
+  };
+
+  const handleRetry = async (post: ScheduledPost) => {
+    await retryFailedPost(post.id);
+  };
+
+  const today = new Date();
+  const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
+
+  return (
+    <div className="min-h-[calc(100vh-8rem)]">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">Content Calendar</h1>
+            <p className="text-slate-500">Manage your scheduled posts and publishing history</p>
+          </div>
+          
+          {onCreatePost && (
+            <button
+              onClick={onCreatePost}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5 transition-all"
+            >
+              <Plus size={18} />
+              Create Post
+            </button>
+          )}
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <button
+            onClick={() => setFilter(filter === 'scheduled' ? 'all' : 'scheduled')}
+            className={`
+              p-4 rounded-xl border-2 transition-all
+              ${filter === 'scheduled' 
+                ? 'border-indigo-400 bg-indigo-50' 
+                : 'border-slate-200 bg-white hover:border-slate-300'
+              }
+            `}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'scheduled' ? 'bg-indigo-500' : 'bg-indigo-100'}`}>
+                <Clock size={18} className={filter === 'scheduled' ? 'text-white' : 'text-indigo-600'} />
+              </div>
+              <div className="text-left">
+                <p className="text-2xl font-bold text-slate-900">{statusCounts.scheduled}</p>
+                <p className="text-xs text-slate-500 font-medium">Scheduled</p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setFilter(filter === 'published' ? 'all' : 'published')}
+            className={`
+              p-4 rounded-xl border-2 transition-all
+              ${filter === 'published' 
+                ? 'border-emerald-400 bg-emerald-50' 
+                : 'border-slate-200 bg-white hover:border-slate-300'
+              }
+            `}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'published' ? 'bg-emerald-500' : 'bg-emerald-100'}`}>
+                <CheckCircle size={18} className={filter === 'published' ? 'text-white' : 'text-emerald-600'} />
+              </div>
+              <div className="text-left">
+                <p className="text-2xl font-bold text-slate-900">{statusCounts.published}</p>
+                <p className="text-xs text-slate-500 font-medium">Published</p>
+              </div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setFilter(filter === 'failed' ? 'all' : 'failed')}
+            className={`
+              p-4 rounded-xl border-2 transition-all
+              ${filter === 'failed' 
+                ? 'border-rose-400 bg-rose-50' 
+                : 'border-slate-200 bg-white hover:border-slate-300'
+              }
+            `}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'failed' ? 'bg-rose-500' : 'bg-rose-100'}`}>
+                <AlertCircle size={18} className={filter === 'failed' ? 'text-white' : 'text-rose-600'} />
+              </div>
+              <div className="text-left">
+                <p className="text-2xl font-bold text-slate-900">{statusCounts.failed}</p>
+                <p className="text-xs text-slate-500 font-medium">Failed</p>
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Calendar Grid */}
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          {/* Month Navigation */}
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={handlePrevMonth}
+              className="p-2 rounded-xl hover:bg-slate-100 transition-colors"
+            >
+              <ChevronLeft size={20} className="text-slate-600" />
+            </button>
+            
+            <h2 className="text-xl font-display font-bold text-slate-800">
+              {MONTHS[month]} {year}
+            </h2>
+            
+            <button
+              onClick={handleNextMonth}
+              className="p-2 rounded-xl hover:bg-slate-100 transition-colors"
+            >
+              <ChevronRight size={20} className="text-slate-600" />
+            </button>
+          </div>
+
+          {/* Day Headers */}
+          <div className="grid grid-cols-7 gap-1 mb-2">
+            {DAYS.map(day => (
+              <div key={day} className="text-center text-xs font-semibold text-slate-400 py-2">
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar Days */}
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-3" />
+                <p className="text-sm text-slate-500">Loading your posts...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-7 gap-1 calendar-grid">
+              {/* Empty cells for days before month starts */}
+              {Array.from({ length: startingDay }).map((_, i) => (
+                <div key={`empty-${i}`} className="aspect-square" />
+              ))}
+              
+                {/* Day cells */}
+              {Array.from({ length: daysInMonth }).map((_, i) => {
+                const day = i + 1;
+                const dayPosts = getPostsForDay(day);
+                const isToday = isCurrentMonth && today.getDate() === day;
+                const isSelected = selectedDate?.getDate() === day && 
+                                  selectedDate?.getMonth() === month &&
+                                  selectedDate?.getFullYear() === year;
+                const isPast = new Date(year, month, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                
+                // Get unique statuses for this day
+                const dayStatuses = [...new Set(dayPosts.map(p => p.status))];
+                
+                return (
+                  <button
+                    key={day}
+                    onClick={() => handleDayClick(day)}
+                    style={{ animationDelay: `${i * 15}ms` }}
+                    className={`
+                      calendar-day relative aspect-square p-1 rounded-xl flex flex-col items-center justify-start pt-2
+                      ${isSelected 
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105' 
+                        : isToday 
+                          ? 'bg-indigo-50 text-indigo-600 ring-2 ring-indigo-300'
+                          : isPast
+                            ? 'text-slate-300 hover:bg-slate-50 cursor-default'
+                            : 'text-slate-700 hover:bg-slate-100'
+                      }
+                    `}
+                  >
+                    <span className={`text-sm font-medium ${isSelected ? 'text-white' : ''}`}>
+                      {day}
+                    </span>
+                    
+                    {/* Post indicators */}
+                    {dayPosts.length > 0 && (
+                      <div className="flex items-center gap-0.5 mt-1">
+                        {dayStatuses.slice(0, 3).map((status, idx) => (
+                          <PostStatusDot 
+                            key={idx} 
+                            status={status} 
+                            count={dayPosts.filter(p => p.status === status).length}
+                          />
+                        ))}
+                        {dayPosts.length > 3 && (
+                          <span className={`text-[8px] ml-0.5 ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
+                            +{dayPosts.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Legend */}
+          <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-slate-100">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-indigo-500" />
+              <span className="text-xs text-slate-500">Scheduled</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-xs text-slate-500">Published</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-rose-500" />
+              <span className="text-xs text-slate-500">Failed</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Day Detail Panel */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sticky top-24">
+            {selectedDate ? (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-display font-bold text-slate-800">
+                      {selectedDate.toLocaleDateString('en-US', { weekday: 'long' })}
+                    </h3>
+                    <p className="text-sm text-slate-500">
+                      {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedDate(null)}
+                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {selectedDatePosts.length > 0 ? (
+                  <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                    {selectedDatePosts
+                      .sort((a, b) => a.scheduledFor.getTime() - b.scheduledFor.getTime())
+                      .map(post => (
+                        <PostCard
+                          key={post.id}
+                          post={post}
+                          compact
+                          onDelete={handleDelete}
+                          onReschedule={post.status === 'scheduled' ? handleReschedule : undefined}
+                          onRetry={post.status === 'failed' ? handleRetry : undefined}
+                        />
+                      ))
+                    }
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                      <CalendarIcon size={20} className="text-slate-400" />
+                    </div>
+                    <p className="text-sm text-slate-500 mb-4">No posts scheduled for this day</p>
+                    {onCreatePost && new Date(selectedDate) >= new Date(today.getFullYear(), today.getMonth(), today.getDate()) && (
+                      <button
+                        onClick={onCreatePost}
+                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 mx-auto"
+                      >
+                        <Plus size={14} />
+                        Create a post
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center mx-auto mb-3">
+                  <CalendarIcon size={20} className="text-indigo-500" />
+                </div>
+                <p className="text-sm font-medium text-slate-700 mb-1">Select a day</p>
+                <p className="text-xs text-slate-500">Click on a day to see scheduled posts</p>
+              </div>
+            )}
+          </div>
+
+          {/* Upcoming Posts */}
+          {!selectedDate && filteredPosts.filter(p => p.status === 'scheduled').length > 0 && (
+            <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+              <h3 className="font-display font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Clock size={16} className="text-indigo-500" />
+                Upcoming
+              </h3>
+              <div className="space-y-3">
+                {filteredPosts
+                  .filter(p => p.status === 'scheduled')
+                  .slice(0, 5)
+                  .map(post => (
+                    <PostCard
+                      key={post.id}
+                      post={post}
+                      compact
+                      onDelete={handleDelete}
+                      onReschedule={handleReschedule}
+                    />
+                  ))
+                }
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Reschedule Modal */}
+      {showRescheduleModal && (
+        <RescheduleModal
+          post={showRescheduleModal}
+          onClose={() => setShowRescheduleModal(null)}
+          onReschedule={async (newDate) => {
+            await reschedulePost(showRescheduleModal.id, newDate);
+            setShowRescheduleModal(null);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+// Simple reschedule modal
+const RescheduleModal: React.FC<{
+  post: ScheduledPost;
+  onClose: () => void;
+  onReschedule: (date: Date) => Promise<void>;
+}> = ({ post, onClose, onReschedule }) => {
+  const [date, setDate] = useState(post.scheduledFor.toISOString().split('T')[0]);
+  const [time, setTime] = useState(
+    post.scheduledFor.toTimeString().slice(0, 5)
+  );
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    const newDate = new Date(`${date}T${time}`);
+    if (newDate <= new Date()) {
+      alert('Please select a future date and time');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await onReschedule(newDate);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-display font-bold text-slate-900">Reschedule Post</h3>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              min={new Date().toISOString().split('T')[0]}
+              className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Time</label>
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-6">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Reschedule'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+

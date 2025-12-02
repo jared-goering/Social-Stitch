@@ -22,20 +22,32 @@ export const generateMockupImage = async (
 
   try {
     const prompt = `
-      You are a professional fashion photographer.
-      Task: Create a photorealistic lifestyle image featuring the EXACT garment shown in the reference image.
+      You are a lifestyle and editorial photographer capturing authentic, candid moments.
+      Task: Create a photorealistic LIFESTYLE image featuring someone wearing the EXACT garment shown in the reference image.
       
-      Instructions:
+      CRITICAL STYLE DIRECTION - LIFESTYLE NOT PORTRAIT:
+      - This is NOT a model photoshoot or fashion portrait. Avoid posed, model-centric shots where the person stares at the camera.
+      - Create a CANDID MOMENT - the person should be engaged in an activity, interacting with their environment, or captured mid-action.
+      - The person should feel like a character in a story, not a model on display.
+      - Show more of the environment and scene - the setting is just as important as the person.
+      - Use wider framing or environmental portraits rather than tight headshots.
+      - The person can be looking away, walking, laughing, reaching for something, sitting casually, etc.
+      
+      GARMENT INSTRUCTIONS:
       1. The reference image contains a specific piece of apparel (t-shirt/hoodie/top).
-      2. IMPORTANT - PRINT VISIBILITY: First, analyze where the main graphic/print/design is located on the garment:
-         - If the design is on the FRONT of the garment: Position the model FACING THE CAMERA so the front print is clearly visible.
-         - If the design is on the BACK of the garment: Position the model with their BACK TO THE CAMERA so the back print is visible.
-         - The print/design MUST be prominently visible in the final image. Do not show the blank side of the garment.
-      3. Dress a realistic model in this EXACT garment. ${genderInstruction}
-      4. CRITICAL: You must preserve the cut, style, fabric texture, color, and graphic design of the uploaded garment perfectly. Do not generate a generic t-shirt with the logo; use the actual shirt style provided.
-      5. Place the model in a setting matching this description: ${stylePrompt}.
-      6. Ensure high-quality lighting, realistic shadows, and natural skin textures.
-      7. Do not add any text overlays, watermarks, or extra graphics.
+      2. PRINT VISIBILITY: First, analyze where the main graphic/print/design is located on the garment:
+         - If the design is on the FRONT of the garment: Position the person so the front print is visible (but they don't need to face the camera directly).
+         - If the design is on the BACK of the garment: Position the person with their back partially or fully visible.
+         - The print/design should be visible but naturally integrated into the scene.
+      3. Dress a realistic person in this EXACT garment. ${genderInstruction}
+      4. CRITICAL: Preserve the cut, style, fabric texture, color, and graphic design of the uploaded garment perfectly. Do not generate a generic t-shirt.
+      
+      SCENE & MOOD:
+      5. Setting description: ${stylePrompt}
+      6. Add lifestyle elements: other people in background, environmental details, props that fit the scene, movement.
+      7. Lighting should feel natural and authentic to the setting - golden hour, overcast, natural window light, etc.
+      8. Capture a genuine moment - someone living their life, not posing for a photo.
+      9. Do not add any text overlays, watermarks, or extra graphics.
     `;
 
     const response = await ai.models.generateContent({
@@ -117,16 +129,26 @@ export const analyzeGarmentAndSuggestStyles = async (
       - Overall aesthetic (streetwear, casual, athletic, vintage, etc.)
       - Target demographic and use cases
       
-      Based on your analysis, suggest 5 unique photography/mockup styles that would 
+      Based on your analysis, suggest 5 unique LIFESTYLE photography scenes that would 
       best showcase this specific garment for social media marketing.
       
+      IMPORTANT - LIFESTYLE FOCUS:
+      - Suggest scenes where a person is DOING something, not just posing
+      - Include activities, environments, and candid moments
+      - Think editorial/documentary style, not model photoshoots
+      - The person should feel like they're living their life, captured in a moment
+      
       Each suggestion should include:
-      1. A catchy title (e.g., "Urban Streetwear", "Beach Vibes")
-      2. A detailed scene description with background, lighting, and mood
-      3. Brief reasoning on why this style complements the garment
+      1. A catchy title (e.g., "Morning Coffee Run", "Weekend Market Stroll")
+      2. A detailed LIFESTYLE scene description including:
+         - What activity the person is doing
+         - The environmental setting with specific details
+         - Lighting and time of day
+         - Mood and energy (relaxed, adventurous, cozy, etc.)
+      3. Brief reasoning on why this lifestyle context complements the garment
       
       Be creative and specific to THIS garment - don't give generic suggestions.
-      Consider color harmony, target audience, and seasonal appropriateness.
+      Consider color harmony, target audience, and lifestyle scenarios that fit the vibe.
     `;
 
     const response = await ai.models.generateContent({

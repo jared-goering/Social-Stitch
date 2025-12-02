@@ -14,6 +14,20 @@ service cloud.firestore {
     match /styles/{styleId} {
       allow read, write: if true; // For demo purposes - in production, use proper auth
     }
+    
+    // User mockups collection
+    match /users/{userId} {
+      allow read, write: if true; // For demo purposes - in production, use proper auth
+      
+      match /mockups/{mockupId} {
+        allow read, write: if true;
+      }
+    }
+    
+    // Scheduled posts collection
+    match /scheduledPosts/{postId} {
+      allow read, write: if true; // For demo purposes - in production, use proper auth
+    }
   }
 }
 

@@ -45,51 +45,61 @@ export function startOAuthFlow(platform: SocialPlatform): Promise<boolean> {
       return;
     }
 
+    let authDetected = false;
+    let lastKnownUrl = '';
+
     // Poll for popup close and check URL params
     const pollTimer = setInterval(() => {
       try {
-        // Check if popup is closed
-        if (popup.closed) {
-          clearInterval(pollTimer);
-          // Check current page URL for auth result
-          const urlParams = new URLSearchParams(window.location.search);
-          if (urlParams.get('auth_success') === platform) {
-            // Clean up URL
-            window.history.replaceState({}, '', window.location.pathname);
-            resolve(true);
-          } else {
-            resolve(false);
-          }
-        }
-        
         // Try to read popup location (will fail if on different origin)
         const popupUrl = popup.location.href;
-        if (popupUrl.includes(window.location.origin)) {
+        
+        // Only process if URL has changed and contains our origin
+        if (popupUrl && popupUrl !== lastKnownUrl && popupUrl.includes(window.location.origin)) {
+          lastKnownUrl = popupUrl;
+          
           const popupParams = new URLSearchParams(new URL(popupUrl).search);
           if (popupParams.get('auth_success')) {
+            authDetected = true;
             clearInterval(pollTimer);
             popup.close();
             resolve(true);
+            return;
           } else if (popupParams.get('auth_error')) {
-            clearInterval(pollTimer);
-            popup.close();
             const error = popupParams.get('auth_error');
             console.error('OAuth error:', error);
+            authDetected = true;
+            clearInterval(pollTimer);
+            popup.close();
             resolve(false);
+            return;
           }
         }
       } catch {
         // Cross-origin error - popup is still on Meta's domain, keep waiting
       }
-    }, 500);
+      
+      // Check if popup is closed
+      if (popup.closed && !authDetected) {
+        clearInterval(pollTimer);
+        // Give it one more second in case there's a race condition
+        setTimeout(() => {
+          if (!authDetected) {
+            resolve(false);
+          }
+        }, 1000);
+      }
+    }, 300); // Poll more frequently
 
     // Timeout after 5 minutes
     setTimeout(() => {
-      clearInterval(pollTimer);
-      if (!popup.closed) {
-        popup.close();
+      if (!authDetected) {
+        clearInterval(pollTimer);
+        if (!popup.closed) {
+          popup.close();
+        }
+        resolve(false);
       }
-      resolve(false);
     }, 5 * 60 * 1000);
   });
 }
@@ -236,6 +246,13 @@ export async function postToSocial(
 }
 
 /**
+ * Check if we're running in a popup window
+ */
+export function isPopupWindow(): boolean {
+  return window.opener !== null && window.opener !== window;
+}
+
+/**
  * Listen for auth result via URL params (called after popup redirect)
  */
 export function checkAuthResult(): { success: boolean; platform?: string; error?: string } {
@@ -243,8 +260,8 @@ export function checkAuthResult(): { success: boolean; platform?: string; error?
   const success = urlParams.get('auth_success');
   const error = urlParams.get('auth_error');
   
-  // Clean up URL params
-  if (success || error) {
+  // Don't clean up URL params if we're in a popup - the parent window needs to read them
+  if (!isPopupWindow() && (success || error)) {
     window.history.replaceState({}, '', window.location.pathname);
   }
 

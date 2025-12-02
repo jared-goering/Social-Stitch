@@ -312,6 +312,7 @@ export async function uploadImageForPosting(
 /**
  * Create an Instagram carousel item container (for carousel posts)
  * These containers don't have captions - the caption is on the parent carousel
+ * This function waits for the item to be ready before returning
  */
 export async function createInstagramCarouselItem(
   igUserId: string,
@@ -337,7 +338,13 @@ export async function createInstagramCarouselItem(
     throw new Error(`Failed to create IG carousel item: ${JSON.stringify(error)}`);
   }
 
-  return response.json();
+  const result = await response.json();
+  
+  // Wait for the carousel item to be ready before returning
+  // This is critical - carousel items must be FINISHED before being added to carousel container
+  await waitForMediaReady(result.id, accessToken);
+  
+  return result;
 }
 
 /**
