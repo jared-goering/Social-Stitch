@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MockupOption, GeneratedCaptions, SocialPlatform } from '../types';
+import { MockupOption, GeneratedCaptions, SocialPlatform, CaptionTone, CaptionGenerationOptions } from '../types';
 import { generateSocialCaptions } from '../services/geminiService';
 import { 
   startOAuthFlow, 
@@ -12,7 +12,7 @@ import {
 import { createScheduledPost, recordPublishedPost } from '../services/scheduledPostsService';
 import { CropModal } from './CropModal';
 import { ScheduleModal } from './Calendar/ScheduleModal';
-import { Facebook, Instagram, Loader2, Send, CheckCircle, Link as LinkIcon, Unlink, AlertCircle, ExternalLink, ChevronLeft, ChevronRight, Images, ArrowLeft, Check, Link2, Crop, Clock, GripVertical } from 'lucide-react';
+import { Facebook, Instagram, Loader2, Send, CheckCircle, Link as LinkIcon, Unlink, AlertCircle, ExternalLink, ChevronLeft, ChevronRight, Images, ArrowLeft, Check, Link2, Crop, Clock, GripVertical, ChevronDown, ChevronUp, RefreshCw, Sparkles } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -37,6 +37,17 @@ interface Props {
   onBack: () => void;
   onScheduled?: () => void;
 }
+
+// Tone preset options for the customization panel
+const tonePresets: { value: CaptionTone; label: string; emoji: string }[] = [
+  { value: 'default', label: 'Default', emoji: '✨' },
+  { value: 'professional', label: 'Professional', emoji: '💼' },
+  { value: 'casual', label: 'Casual', emoji: '😊' },
+  { value: 'funny', label: 'Funny', emoji: '😂' },
+  { value: 'inspiring', label: 'Inspiring', emoji: '🌟' },
+  { value: 'urgent', label: 'Urgent/FOMO', emoji: '🔥' },
+  { value: 'minimalist', label: 'Minimalist', emoji: '🎯' },
+];
 
 // Sortable thumbnail component for drag-and-drop reordering
 interface SortableThumbnailProps {
@@ -129,6 +140,37 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
   // Schedule modal state
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   
+  // Caption customization state - initialize from localStorage
+  const [showCustomizePanel, setShowCustomizePanel] = useState(false);
+  const [selectedTone, setSelectedTone] = useState<CaptionTone>(() => {
+    const saved = localStorage.getItem('captionPresets');
+    if (saved) {
+      try {
+        return JSON.parse(saved).tone || 'default';
+      } catch { return 'default'; }
+    }
+    return 'default';
+  });
+  const [customTone, setCustomTone] = useState(() => {
+    const saved = localStorage.getItem('captionPresets');
+    if (saved) {
+      try {
+        return JSON.parse(saved).customTone || '';
+      } catch { return ''; }
+    }
+    return '';
+  });
+  const [captionContext, setCaptionContext] = useState(() => {
+    const saved = localStorage.getItem('captionPresets');
+    if (saved) {
+      try {
+        return JSON.parse(saved).context || '';
+      } catch { return ''; }
+    }
+    return '';
+  });
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  
   // Reordering state - tracks the user's custom order
   const [reorderedMockups, setReorderedMockups] = useState<MockupOption[] | null>(null);
   
@@ -197,14 +239,39 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
     refreshAccounts();
   }, []);
 
-  // Generate captions based on the first mockup
+  // Persist caption presets to localStorage
+  useEffect(() => {
+    localStorage.setItem('captionPresets', JSON.stringify({
+      tone: selectedTone,
+      customTone,
+      context: captionContext
+    }));
+  }, [selectedTone, customTone, captionContext]);
+
+  // Generate captions based on the first mockup with saved preferences
   useEffect(() => {
     let mounted = true;
     const fetchCaptions = async () => {
       try {
         // Use the first mockup for caption generation
         const primaryMockup = mockups[0];
-        const result = await generateSocialCaptions(primaryMockup.styleDescription, primaryMockup.imageUrl);
+        
+        // Build options from saved preferences
+        const options: CaptionGenerationOptions = {};
+        if (customTone) {
+          options.customTone = customTone;
+        } else if (selectedTone !== 'default') {
+          options.tone = selectedTone;
+        }
+        if (captionContext) {
+          options.context = captionContext;
+        }
+        
+        const result = await generateSocialCaptions(
+          primaryMockup.styleDescription, 
+          primaryMockup.imageUrl,
+          Object.keys(options).length > 0 ? options : undefined
+        );
         if (mounted) {
           setCaptionOptions(result);
           // Initialize edited captions with the first option for each platform
@@ -222,6 +289,9 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
     };
     fetchCaptions();
     return () => { mounted = false; };
+  // Note: We intentionally only run this on mockups change, not on preference changes
+  // (regeneration is handled by the Regenerate button)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mockups]);
 
   // Carousel navigation
@@ -451,6 +521,49 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
       onScheduled();
     } else {
       onSuccess();
+    }
+  };
+
+  // Handle regenerating captions with customization options
+  const handleRegenerate = async () => {
+    setIsRegenerating(true);
+    
+    try {
+      const primaryMockup = mockups[0];
+      
+      // Build options from current customization state
+      const options: CaptionGenerationOptions = {};
+      
+      if (customTone) {
+        options.customTone = customTone;
+      } else if (selectedTone !== 'default') {
+        options.tone = selectedTone;
+      }
+      
+      if (captionContext) {
+        options.context = captionContext;
+      }
+      
+      const result = await generateSocialCaptions(
+        primaryMockup.styleDescription, 
+        primaryMockup.imageUrl,
+        options
+      );
+      
+      setCaptionOptions(result);
+      // Update edited captions with the first option for each platform
+      setEditedCaption({
+        facebook: result.facebook[0] || '',
+        instagram: result.instagram[0] || ''
+      });
+      setSelectedIndex({ facebook: 0, instagram: 0 });
+      
+      // Collapse the panel after successful regeneration
+      setShowCustomizePanel(false);
+    } catch (e) {
+      console.error('Error regenerating captions:', e);
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
@@ -809,6 +922,123 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Customize Captions Panel - Collapsible */}
+          <div className="mb-5">
+            <button
+              onClick={() => setShowCustomizePanel(!showCustomizePanel)}
+              className="w-full flex items-center justify-between p-3 rounded-xl border-2 border-dashed border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all text-sm group"
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-indigo-500" />
+                <span className="font-medium text-slate-700 group-hover:text-indigo-700">
+                  Customize & Regenerate Captions
+                </span>
+                {(selectedTone !== 'default' || customTone || captionContext) && (
+                  <span className="px-2 py-0.5 bg-indigo-100 text-indigo-600 text-xs font-medium rounded-full">
+                    Customized
+                  </span>
+                )}
+              </div>
+              {showCustomizePanel ? (
+                <ChevronUp size={18} className="text-slate-400 group-hover:text-indigo-500" />
+              ) : (
+                <ChevronDown size={18} className="text-slate-400 group-hover:text-indigo-500" />
+              )}
+            </button>
+
+            {/* Expandable Panel Content */}
+            <div className={`
+              overflow-hidden transition-all duration-300 ease-in-out
+              ${showCustomizePanel ? 'max-h-[500px] opacity-100 mt-3' : 'max-h-0 opacity-0'}
+            `}>
+              <div className="p-4 bg-gradient-to-br from-slate-50 to-indigo-50/30 rounded-xl border border-slate-200 space-y-4">
+                {/* Tone Presets */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                    Tone
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {tonePresets.map((preset) => (
+                      <button
+                        key={preset.value}
+                        onClick={() => {
+                          setSelectedTone(preset.value);
+                          if (preset.value !== 'default') setCustomTone(''); // Clear custom when preset selected
+                        }}
+                        className={`
+                          px-3 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5
+                          ${selectedTone === preset.value
+                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                          }
+                        `}
+                      >
+                        <span>{preset.emoji}</span>
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Tone Input */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                    Custom Tone <span className="font-normal text-slate-400">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customTone}
+                    onChange={(e) => {
+                      setCustomTone(e.target.value);
+                      if (e.target.value) setSelectedTone('default'); // Clear preset when custom entered
+                    }}
+                    placeholder="e.g., Playful and Gen-Z friendly, Luxury and exclusive..."
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all"
+                  />
+                </div>
+
+                {/* Context Input */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                    Additional Context <span className="font-normal text-slate-400">(optional)</span>
+                  </label>
+                  <textarea
+                    value={captionContext}
+                    onChange={(e) => setCaptionContext(e.target.value)}
+                    placeholder="e.g., This is a limited edition summer drop, mention 20% off sale, target young professionals..."
+                    rows={2}
+                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none resize-none transition-all"
+                  />
+                </div>
+
+                {/* Regenerate Button */}
+                <button
+                  onClick={handleRegenerate}
+                  disabled={isRegenerating}
+                  className={`
+                    w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all
+                    ${isRegenerating
+                      ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5'
+                    }
+                  `}
+                >
+                  {isRegenerating ? (
+                    <>
+                      <Loader2 className="animate-spin" size={16} />
+                      Regenerating Captions...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={16} />
+                      Regenerate Captions
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 

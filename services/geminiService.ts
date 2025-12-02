@@ -1,5 +1,16 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { GeneratedCaptions, StyleSuggestion, ModelGender } from "../types";
+import { GeneratedCaptions, StyleSuggestion, ModelGender, CaptionGenerationOptions, CaptionTone } from "../types";
+
+// Map tone presets to descriptive instructions
+const toneInstructions: Record<CaptionTone, string> = {
+  default: '',
+  professional: 'Write in a professional, polished tone. Use clear, confident language suitable for business audiences. Avoid slang and keep it sophisticated.',
+  casual: 'Write in a casual, friendly tone. Use conversational language like you\'re talking to a friend. Feel relaxed and approachable.',
+  funny: 'Write in a humorous, witty tone. Use puns, jokes, or playful language. Make readers smile or laugh while still showcasing the product.',
+  inspiring: 'Write in an inspiring, motivational tone. Use uplifting language that empowers and encourages. Create an emotional connection.',
+  urgent: 'Write with urgency and FOMO (fear of missing out). Use action words, limited-time language, and create excitement. Make readers feel they need to act now.',
+  minimalist: 'Write in a minimalist, clean tone. Use short, impactful phrases. Less is more - be concise and let the image speak.',
+};
 
 /**
  * Generates a lifestyle mockup based on the uploaded design.
@@ -182,7 +193,8 @@ export const analyzeGarmentAndSuggestStyles = async (
 
 export const generateSocialCaptions = async (
   styleDescription: string,
-  base64Mockup: string
+  base64Mockup: string,
+  options?: CaptionGenerationOptions
 ): Promise<GeneratedCaptions> => {
   // Always create a new instance to ensure the latest API key is used
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -211,10 +223,25 @@ export const generateSocialCaptions = async (
       required: ["facebook", "instagram"],
     };
 
+    // Build tone instruction
+    let toneInstruction = '';
+    if (options?.customTone) {
+      toneInstruction = `TONE INSTRUCTION: ${options.customTone}`;
+    } else if (options?.tone && options.tone !== 'default') {
+      toneInstruction = `TONE INSTRUCTION: ${toneInstructions[options.tone]}`;
+    }
+
+    // Build context instruction
+    const contextInstruction = options?.context 
+      ? `ADDITIONAL CONTEXT: ${options.context}` 
+      : '';
+
     const prompt = `
       Look at this fashion lifestyle image.
       Write 5 different social media caption options for EACH platform for this new apparel launch.
       The vibe is: ${styleDescription}.
+      ${toneInstruction ? `\n      ${toneInstruction}` : ''}
+      ${contextInstruction ? `\n      ${contextInstruction}` : ''}
       
       For each platform, create 5 UNIQUE captions with different approaches:
       1. One that's short and punchy

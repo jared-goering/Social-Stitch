@@ -28,6 +28,23 @@ export interface GeneratedCaptions {
   instagram: string[];
 }
 
+// Caption tone presets for AI generation
+export type CaptionTone = 
+  | 'default'
+  | 'professional'
+  | 'casual'
+  | 'funny'
+  | 'inspiring'
+  | 'urgent'
+  | 'minimalist';
+
+// Options for customizing caption generation
+export interface CaptionGenerationOptions {
+  tone?: CaptionTone;
+  customTone?: string;
+  context?: string;
+}
+
 export interface StyleSuggestion {
   title: string;
   description: string;
