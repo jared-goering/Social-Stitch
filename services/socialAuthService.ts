@@ -163,21 +163,55 @@ async function imageUrlToBase64(url: string): Promise<string> {
 }
 
 /**
- * Post content to a social platform
+ * Post content to a social platform (supports single image or carousel)
  */
 export async function postToSocial(
   platform: SocialPlatform,
-  imageUrl: string,
+  imageUrls: string | string[],
   caption: string
 ): Promise<{ success: boolean; postId?: string; error?: string }> {
   try {
-    const functionName = platform === 'facebook' ? 'postToFacebook' : 'postToInstagram';
+    // Normalize to array
+    const urls = Array.isArray(imageUrls) ? imageUrls : [imageUrls];
+    const isCarousel = urls.length > 1;
     
-    // Convert image to base64 if it's a local/blob URL
-    let imageBase64: string | undefined;
-    if (imageUrl.startsWith('blob:') || imageUrl.startsWith('data:') || imageUrl.includes('localhost')) {
-      console.log('Converting image to base64 for upload...');
-      imageBase64 = await imageUrlToBase64(imageUrl);
+    // Convert images to base64 if they're local/blob URLs
+    const imagesBase64: string[] = [];
+    for (const url of urls) {
+      if (url.startsWith('blob:') || url.startsWith('data:') || url.includes('localhost')) {
+        console.log('Converting image to base64 for upload...');
+        const base64 = await imageUrlToBase64(url);
+        imagesBase64.push(base64);
+      } else {
+        imagesBase64.push(url);
+      }
+    }
+    
+    // Choose endpoint based on carousel vs single
+    let functionName: string;
+    if (isCarousel) {
+      functionName = platform === 'facebook' ? 'postCarouselToFacebook' : 'postCarouselToInstagram';
+    } else {
+      functionName = platform === 'facebook' ? 'postToFacebook' : 'postToInstagram';
+    }
+    
+    // Build request body
+    const body: Record<string, unknown> = {
+      sessionId,
+      caption
+    };
+    
+    if (isCarousel) {
+      // For carousel, send array of images
+      body.imagesBase64 = imagesBase64;
+    } else {
+      // For single image, use existing format for backwards compatibility
+      const singleImage = imagesBase64[0];
+      if (singleImage.startsWith('data:') || singleImage.length > 500) {
+        body.imageBase64 = singleImage;
+      } else {
+        body.imageUrl = singleImage;
+      }
     }
     
     const response = await fetch(getFunctionUrl(functionName), {
@@ -185,12 +219,7 @@ export async function postToSocial(
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        sessionId,
-        imageUrl: imageBase64 ? undefined : imageUrl,
-        imageBase64,
-        caption
-      })
+      body: JSON.stringify(body)
     });
 
     const data = await response.json();

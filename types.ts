@@ -39,9 +39,12 @@ export enum AppStep {
 
 export type SocialPlatform = 'facebook' | 'instagram';
 
+export type ModelGender = 'male' | 'female' | 'both';
+
 export interface SocialPost {
   platform: SocialPlatform;
   content: string;
   image: string;
+  images?: string[]; // For carousel posts with multiple images
   status: 'draft' | 'posted';
 }

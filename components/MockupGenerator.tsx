@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { UploadedDesign, MockupOption, StyleSuggestion } from '../types';
+import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender } from '../types';
 import { generateMockupImage, analyzeGarmentAndSuggestStyles } from '../services/geminiService';
-import { Wand2, Loader2, ArrowRight, RefreshCcw, Key, Sparkles, Info } from 'lucide-react';
+import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Props {
   design: UploadedDesign;
-  onMockupSelected: (mockup: MockupOption) => void;
+  onMockupsSelected: (mockups: MockupOption[]) => void;
   onBack: () => void;
 }
 
@@ -20,20 +20,142 @@ const PRESET_STYLES = [
 // Removed conflicting global declaration.
 // window.aistudio is already defined in the environment, accessed via casting to avoid type mismatch errors.
 
-export const MockupGenerator: React.FC<Props> = ({ design, onMockupSelected, onBack }) => {
+// Storage keys for persistence
+const MOCKUPS_STORAGE_KEY = 'socialstitch_mockups';
+const SUGGESTIONS_STORAGE_KEY = 'socialstitch_suggestions';
+const SELECTED_IDS_STORAGE_KEY = 'socialstitch_selected_ids';
+
+export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, onBack }) => {
   const [customStyle, setCustomStyle] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedMockup, setGeneratedMockup] = useState<MockupOption | null>(null);
+  const [generatedMockups, setGeneratedMockups] = useState<MockupOption[]>(() => {
+    // Initialize from sessionStorage
+    try {
+      const saved = sessionStorage.getItem(MOCKUPS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Check if the saved mockups are for the current design
+        if (parsed.designId === design.id) {
+          return parsed.mockups || [];
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load saved mockups:', e);
+    }
+    return [];
+  });
+  const [selectedMockupIds, setSelectedMockupIds] = useState<Set<string>>(() => {
+    // Initialize from sessionStorage
+    try {
+      const saved = sessionStorage.getItem(SELECTED_IDS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.designId === design.id) {
+          return new Set(parsed.ids || []);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load selected IDs:', e);
+    }
+    return new Set();
+  });
   const [error, setError] = useState<string | null>(null);
   
+  // Multi-select styles
+  const [selectedStyles, setSelectedStyles] = useState<Set<string>>(new Set());
+  const [generationProgress, setGenerationProgress] = useState<{ current: number; total: number } | null>(null);
+  
   // AI-suggested styles
-  const [aiSuggestions, setAiSuggestions] = useState<StyleSuggestion[]>([]);
-  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(true);
+  const [aiSuggestions, setAiSuggestions] = useState<StyleSuggestion[]>(() => {
+    // Initialize from sessionStorage
+    try {
+      const saved = sessionStorage.getItem(SUGGESTIONS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.designId === design.id) {
+          return parsed.suggestions || [];
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load saved suggestions:', e);
+    }
+    return [];
+  });
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(() => {
+    // Don't show loading if we have cached suggestions
+    try {
+      const saved = sessionStorage.getItem(SUGGESTIONS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.designId === design.id && parsed.suggestions?.length > 0) {
+          return false;
+        }
+      }
+    } catch (e) {}
+    return true;
+  });
   const [expandedReasoning, setExpandedReasoning] = useState<number | null>(null);
+  
+  // Variations and gender selection
+  const [variationCount, setVariationCount] = useState<number>(2);
+  const [styleGenders, setStyleGenders] = useState<Map<string, ModelGender>>(new Map());
+  
+  // Image modal/lightbox
+  const [enlargedMockup, setEnlargedMockup] = useState<MockupOption | null>(null);
 
-  // Fetch AI suggestions when component mounts or design changes
+  // Persist generated mockups to sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(MOCKUPS_STORAGE_KEY, JSON.stringify({
+        designId: design.id,
+        mockups: generatedMockups
+      }));
+    } catch (e) {
+      console.error('Failed to save mockups:', e);
+    }
+  }, [generatedMockups, design.id]);
+
+  // Persist selected mockup IDs to sessionStorage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SELECTED_IDS_STORAGE_KEY, JSON.stringify({
+        designId: design.id,
+        ids: Array.from(selectedMockupIds)
+      }));
+    } catch (e) {
+      console.error('Failed to save selected IDs:', e);
+    }
+  }, [selectedMockupIds, design.id]);
+
+  // Persist AI suggestions to sessionStorage
+  useEffect(() => {
+    if (aiSuggestions.length > 0) {
+      try {
+        sessionStorage.setItem(SUGGESTIONS_STORAGE_KEY, JSON.stringify({
+          designId: design.id,
+          suggestions: aiSuggestions
+        }));
+      } catch (e) {
+        console.error('Failed to save suggestions:', e);
+      }
+    }
+  }, [aiSuggestions, design.id]);
+
+  // Fetch AI suggestions when component mounts or design changes (only if not cached)
   useEffect(() => {
     const fetchSuggestions = async () => {
+      // Check if we already have cached suggestions for this design
+      try {
+        const saved = sessionStorage.getItem(SUGGESTIONS_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.designId === design.id && parsed.suggestions?.length > 0) {
+            // Already have cached suggestions, skip fetching
+            return;
+          }
+        }
+      } catch (e) {}
+
       setIsLoadingSuggestions(true);
       try {
         const suggestions = await analyzeGarmentAndSuggestStyles(design.base64);
@@ -47,7 +169,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupSelected, onB
     };
 
     fetchSuggestions();
-  }, [design.base64]);
+  }, [design.base64, design.id]);
 
   const checkAndPromptForKey = async () => {
     // Cast to any to assume existence and structure as per instructions, avoiding type conflict
@@ -60,172 +182,734 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupSelected, onB
     }
   };
 
-  const handleGenerate = async (style: string) => {
-    setError(null);
-    setGeneratedMockup(null);
+  // Get gender for a style (default to 'both')
+  const getStyleGender = (style: string): ModelGender => {
+    return styleGenders.get(style) || 'both';
+  };
 
-    // Ensure user has selected a paid key for the Pro model
+  // Set gender for a style
+  const setStyleGender = (style: string, gender: ModelGender) => {
+    setStyleGenders(prev => {
+      const newMap = new Map(prev);
+      newMap.set(style, gender);
+      return newMap;
+    });
+  };
+
+  // Toggle style selection
+  const toggleStyleSelection = (style: string) => {
+    setSelectedStyles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(style)) {
+        newSet.delete(style);
+      } else {
+        newSet.add(style);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle mockup selection
+  const toggleMockupSelection = (mockupId: string) => {
+    setSelectedMockupIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(mockupId)) {
+        newSet.delete(mockupId);
+      } else {
+        newSet.add(mockupId);
+      }
+      return newSet;
+    });
+  };
+
+  // Select all generated mockups
+  const selectAllMockups = () => {
+    setSelectedMockupIds(new Set(generatedMockups.map(m => m.id)));
+  };
+
+  // Deselect all mockups
+  const deselectAllMockups = () => {
+    setSelectedMockupIds(new Set());
+  };
+
+  // Prompt variation suffixes to make each generation unique
+  const VARIATION_SUFFIXES = [
+    '',
+    ' The model has a confident, relaxed pose.',
+    ' Shot from a slightly different angle with dynamic composition.',
+    ' The model shows natural movement and expression.',
+  ];
+
+  // Generate a single mockup (for quick generate)
+  const handleQuickGenerate = async (style: string) => {
+    setError(null);
     await checkAndPromptForKey();
-    
     setIsGenerating(true);
+    setGenerationProgress({ current: 1, total: 1 });
     
     try {
-      const base64Image = await generateMockupImage(design.base64, style);
-      setGeneratedMockup({
+      // Get gender for this style, pick randomly for 'both' on single generation
+      const styleGender = getStyleGender(style);
+      const gender = styleGender === 'both' 
+        ? (Math.random() > 0.5 ? 'male' : 'female')
+        : styleGender;
+      
+      const base64Image = await generateMockupImage(design.base64, style, gender);
+      const genderLabel = gender === 'male' ? '♂' : '♀';
+      const newMockup: MockupOption = {
         id: crypto.randomUUID(),
         imageUrl: base64Image,
-        styleDescription: style
-      });
+        styleDescription: `${style} ${genderLabel}`
+      };
+      setGeneratedMockups(prev => [...prev, newMockup]);
+      setSelectedMockupIds(prev => new Set([...prev, newMockup.id]));
     } catch (err: any) {
-        // If we get a 404/not found related to project/key, prompt again
-        if (err.message && err.message.includes("Requested entity was not found")) {
-             const aistudio = (window as any).aistudio;
-             if (aistudio) {
-                 await aistudio.openSelectKey();
-                 setError("Please select a valid API Key from a paid project and try again.");
-             }
-        } else {
-             setError("Failed to generate mockup. Please try again.");
+      if (err.message && err.message.includes("Requested entity was not found")) {
+        const aistudio = (window as any).aistudio;
+        if (aistudio) {
+          await aistudio.openSelectKey();
+          setError("Please select a valid API Key from a paid project and try again.");
         }
+      } else {
+        setError("Failed to generate mockup. Please try again.");
+      }
     } finally {
       setIsGenerating(false);
+      setGenerationProgress(null);
+    }
+  };
+
+  // Generate all selected styles in parallel with variations
+  const handleGenerateSelected = async () => {
+    if (selectedStyles.size === 0) return;
+    
+    setError(null);
+    await checkAndPromptForKey();
+    setIsGenerating(true);
+    
+    const stylesToGenerate = Array.from(selectedStyles);
+    
+    // Build list of all generation tasks (style + variation + gender combinations)
+    type GenerationTask = { style: string; gender: ModelGender; variationIndex: number };
+    const tasks: GenerationTask[] = [];
+    
+    for (const style of stylesToGenerate) {
+      const styleGender = getStyleGender(style);
+      
+      for (let i = 0; i < variationCount; i++) {
+        let gender: ModelGender;
+        
+        if (styleGender === 'both') {
+          // Alternate between male and female for 'both'
+          // First half male, second half female (or alternate if odd)
+          if (variationCount === 1) {
+            gender = Math.random() > 0.5 ? 'male' : 'female';
+          } else {
+            gender = i < Math.ceil(variationCount / 2) ? 'male' : 'female';
+          }
+        } else {
+          gender = styleGender;
+        }
+        
+        tasks.push({ style, gender, variationIndex: i });
+      }
+    }
+    
+    setGenerationProgress({ current: 0, total: tasks.length });
+    
+    try {
+      // Generate all in parallel
+      const results = await Promise.allSettled(
+        tasks.map(async (task) => {
+          // Add variation to prompt for diversity
+          const variationSuffix = VARIATION_SUFFIXES[task.variationIndex % VARIATION_SUFFIXES.length];
+          const enhancedStyle = task.style + variationSuffix;
+          
+          const base64Image = await generateMockupImage(design.base64, enhancedStyle, task.gender);
+          setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
+          
+          const genderLabel = task.gender === 'male' ? '♂' : '♀';
+          return {
+            id: crypto.randomUUID(),
+            imageUrl: base64Image,
+            styleDescription: `${task.style} ${genderLabel}`
+          } as MockupOption;
+        })
+      );
+      
+      const successfulMockups = results
+        .filter((r): r is PromiseFulfilledResult<MockupOption> => r.status === 'fulfilled')
+        .map(r => r.value);
+      
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+      
+      if (successfulMockups.length > 0) {
+        setGeneratedMockups(prev => [...prev, ...successfulMockups]);
+        setSelectedMockupIds(prev => new Set([...prev, ...successfulMockups.map(m => m.id)]));
+      }
+      
+      if (failedCount > 0) {
+        setError(`${failedCount} mockup(s) failed to generate.`);
+      }
+      
+      // Clear selected styles after generation
+      setSelectedStyles(new Set());
+      
+    } catch (err: any) {
+      if (err.message && err.message.includes("Requested entity was not found")) {
+        const aistudio = (window as any).aistudio;
+        if (aistudio) {
+          await aistudio.openSelectKey();
+          setError("Please select a valid API Key from a paid project and try again.");
+        }
+      } else {
+        setError("Failed to generate mockups. Please try again.");
+      }
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress(null);
+    }
+  };
+
+  // Remove a mockup from the gallery
+  const removeMockup = (mockupId: string) => {
+    setGeneratedMockups(prev => prev.filter(m => m.id !== mockupId));
+    setSelectedMockupIds(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(mockupId);
+      return newSet;
+    });
+  };
+
+  // Regenerate AI suggestions
+  const regenerateSuggestions = async () => {
+    // Clear cached suggestions
+    try {
+      sessionStorage.removeItem(SUGGESTIONS_STORAGE_KEY);
+    } catch (e) {}
+    
+    // Clear current suggestions and show loading
+    setAiSuggestions([]);
+    setIsLoadingSuggestions(true);
+    
+    try {
+      const suggestions = await analyzeGarmentAndSuggestStyles(design.base64);
+      setAiSuggestions(suggestions);
+    } catch (err) {
+      console.error('Failed to fetch AI suggestions:', err);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  // Handle proceeding with selected mockups
+  const handleProceed = () => {
+    const selectedMockups = generatedMockups.filter(m => selectedMockupIds.has(m.id));
+    if (selectedMockups.length > 0) {
+      onMockupsSelected(selectedMockups);
     }
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
       {/* Left: Controls */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex items-center space-x-4 mb-6">
-          <img 
-            src={design.previewUrl} 
-            alt="Original Design" 
-            className="w-16 h-16 object-contain bg-slate-100 rounded-lg border"
-          />
-          <div>
-            <h3 className="font-semibold text-slate-800">Your Garment</h3>
-            <button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-800 underline">
+      <div className="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+        {/* Garment preview header */}
+        <div className="flex items-center gap-4 mb-5 pb-5 border-b border-slate-100">
+          <div className="relative">
+            <img 
+              src={design.previewUrl} 
+              alt="Original Design" 
+              className="w-14 h-14 object-cover bg-slate-100 rounded-xl border border-slate-200"
+            />
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
+              <Check size={10} className="text-white" strokeWidth={3} />
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-slate-800 text-sm">Your Garment</h3>
+            <button onClick={onBack} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
               Change upload
             </button>
           </div>
+          {/* Pro badge */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-full">
+            <Zap size={12} className="text-amber-500" />
+            <span className="text-xs font-medium text-amber-700">Pro</span>
+          </div>
         </div>
 
-        <div className="mb-6 p-4 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-800">
-            <p className="font-semibold flex items-center gap-2">
-                <Key size={14} />
-                Pro Model Active
-            </p>
-            <p className="mt-1">
-                Using <strong>Gemini 3 Pro Image (Nano Banana Pro)</strong> for high-fidelity garment preservation. 
-                <br/>Requires a paid API key.
-            </p>
-        </div>
-
-        <h4 className="font-medium text-slate-700 mb-3 flex items-center gap-2">
-          {isLoadingSuggestions ? (
-            <>
-              <Loader2 size={16} className="animate-spin text-indigo-500" />
-              Analyzing your garment...
-            </>
-          ) : aiSuggestions.length > 0 ? (
-            <>
-              <Sparkles size={16} className="text-amber-500" />
-              AI-Suggested Styles
-            </>
-          ) : (
-            'Choose a Vibe'
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-semibold text-slate-700 text-sm flex items-center gap-2">
+            {isLoadingSuggestions ? (
+              <>
+                <Loader2 size={14} className="animate-spin text-indigo-500" />
+                <span>Analyzing garment...</span>
+              </>
+            ) : aiSuggestions.length > 0 ? (
+              <>
+                <Sparkles size={14} className="text-amber-500" />
+                <span>AI-Suggested Styles</span>
+                <button
+                  onClick={regenerateSuggestions}
+                  disabled={isLoadingSuggestions}
+                  className="ml-1 p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                  title="Get new suggestions"
+                >
+                  <RefreshCcw size={12} />
+                </button>
+              </>
+            ) : (
+              'Choose a Vibe'
+            )}
+          </h4>
+          {selectedStyles.size > 0 && (
+            <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+              {selectedStyles.size} selected
+            </span>
           )}
-        </h4>
+        </div>
 
         {isLoadingSuggestions ? (
-          <div className="space-y-2 mb-6">
+          <div className="space-y-2 mb-5">
             {[...Array(5)].map((_, idx) => (
               <div 
                 key={idx} 
-                className="w-full h-14 rounded-lg bg-gradient-to-r from-slate-100 to-slate-50 animate-pulse"
-              />
+                className="w-full p-3 rounded-xl bg-slate-50 border border-slate-100"
+                style={{ animationDelay: `${idx * 100}ms` }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-5 h-5 rounded bg-slate-200 animate-pulse" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-3 w-full bg-slate-100 rounded animate-pulse" />
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         ) : aiSuggestions.length > 0 ? (
-          <div className="space-y-2 mb-6">
-            {aiSuggestions.map((suggestion, idx) => (
-              <div key={idx} className="group relative">
-                <button
-                  onClick={() => handleGenerate(suggestion.description)}
-                  disabled={isGenerating}
-                  className="w-full text-left p-3 rounded-lg border border-indigo-200 bg-gradient-to-r from-indigo-50/50 to-transparent hover:border-indigo-400 hover:bg-indigo-50 transition-all text-sm group"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <span className="font-medium text-indigo-700 block mb-0.5">
-                        {suggestion.title}
-                      </span>
-                      <span className="text-slate-600 text-xs line-clamp-2">
-                        {suggestion.description}
-                      </span>
+          <div className="space-y-2 mb-5 stagger-children">
+            {aiSuggestions.map((suggestion, idx) => {
+              const isSelected = selectedStyles.has(suggestion.description);
+              return (
+                <div key={idx} className="group relative">
+                  <div
+                    onClick={() => !isGenerating && toggleStyleSelection(suggestion.description)}
+                    className={`
+                      w-full text-left p-3 rounded-xl border-2 transition-all text-sm cursor-pointer
+                      ${isSelected 
+                        ? 'border-indigo-500 bg-indigo-50 shadow-sm shadow-indigo-500/10' 
+                        : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+                      }
+                    `}
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Checkbox */}
+                      <div
+                        className={`
+                          mt-0.5 w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center border-2 transition-all
+                          ${isSelected
+                            ? 'bg-indigo-600 border-indigo-600 text-white scale-110'
+                            : 'border-slate-300 group-hover:border-indigo-400'
+                          }
+                        `}
+                      >
+                        {isSelected && <Check size={12} strokeWidth={3} />}
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <span className={`font-semibold block mb-0.5 transition-colors ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>
+                              {suggestion.title}
+                            </span>
+                            <span className="text-slate-500 text-xs line-clamp-2 leading-relaxed">
+                              {suggestion.description}
+                            </span>
+                            {/* Gender Selector */}
+                            {isSelected && (
+                              <div className="flex items-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-[10px] text-slate-400 mr-1">Model:</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setStyleGender(suggestion.description, 'male')}
+                                  className={`p-1 rounded transition-all ${
+                                    getStyleGender(suggestion.description) === 'male'
+                                      ? 'bg-indigo-600 text-white'
+                                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                  }`}
+                                  title="Male model"
+                                >
+                                  <User size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setStyleGender(suggestion.description, 'female')}
+                                  className={`p-1 rounded transition-all ${
+                                    getStyleGender(suggestion.description) === 'female'
+                                      ? 'bg-pink-500 text-white'
+                                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                  }`}
+                                  title="Female model"
+                                >
+                                  <User size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setStyleGender(suggestion.description, 'both')}
+                                  className={`p-1 rounded transition-all ${
+                                    getStyleGender(suggestion.description) === 'both'
+                                      ? 'bg-purple-500 text-white'
+                                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                  }`}
+                                  title="One of each"
+                                >
+                                  <Users size={12} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedReasoning(expandedReasoning === idx ? null : idx);
+                              }}
+                              className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors opacity-50 hover:opacity-100"
+                              title="Why this style?"
+                            >
+                              <Info size={14} className="text-slate-400" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuickGenerate(suggestion.description);
+                              }}
+                              disabled={isGenerating}
+                              className="p-1.5 rounded-lg transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
+                              title="Quick generate this style"
+                            >
+                              <ArrowRight size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedReasoning(expandedReasoning === idx ? null : idx);
-                      }}
-                      className="p-1 hover:bg-indigo-100 rounded-full transition-colors flex-shrink-0"
-                      title="Why this style?"
-                    >
-                      <Info size={14} className="text-indigo-400" />
-                    </button>
                   </div>
-                </button>
-                {expandedReasoning === idx && (
-                  <div className="mt-1 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 animate-in slide-in-from-top-1">
-                    <span className="font-medium">Why this works: </span>
-                    {suggestion.reasoning}
-                  </div>
-                )}
-              </div>
-            ))}
+                  {expandedReasoning === idx && (
+                    <div className="mt-2 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-xl text-xs text-amber-700 animate-in slide-in-from-top-1">
+                      <span className="font-semibold text-amber-800">Why this works: </span>
+                      {suggestion.reasoning}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             
             {/* Show preset styles as fallback options */}
-            <details className="mt-4">
-              <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600 transition-colors">
+            <details className="mt-3 group/details">
+              <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600 transition-colors flex items-center gap-1">
+                <Play size={10} className="transition-transform group-open/details:rotate-90" />
                 Or try a preset style...
               </summary>
-              <div className="space-y-2 mt-2">
-                {PRESET_STYLES.map((style, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleGenerate(style)}
-                    disabled={isGenerating}
-                    className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-colors text-sm text-slate-600"
-                  >
-                    {style}
-                  </button>
-                ))}
+              <div className="space-y-2 mt-3">
+                {PRESET_STYLES.map((style, idx) => {
+                  const isSelected = selectedStyles.has(style);
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => !isGenerating && toggleStyleSelection(style)}
+                      className={`
+                        w-full text-left p-3 rounded-xl border-2 transition-all text-sm cursor-pointer group
+                        ${isSelected
+                          ? 'border-indigo-500 bg-indigo-50'
+                          : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+                        }
+                      `}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`
+                            w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center border-2 transition-all
+                            ${isSelected
+                              ? 'bg-indigo-600 border-indigo-600 text-white'
+                              : 'border-slate-300 group-hover:border-indigo-400'
+                            }
+                          `}
+                        >
+                          {isSelected && <Check size={12} strokeWidth={3} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-slate-600 text-xs block">
+                            {style}
+                          </span>
+                          {/* Gender Selector for preset styles */}
+                          {isSelected && (
+                            <div className="flex items-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-[10px] text-slate-400 mr-1">Model:</span>
+                              <button
+                                type="button"
+                                onClick={() => setStyleGender(style, 'male')}
+                                className={`p-1 rounded transition-all ${
+                                  getStyleGender(style) === 'male'
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                }`}
+                                title="Male model"
+                              >
+                                <User size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setStyleGender(style, 'female')}
+                                className={`p-1 rounded transition-all ${
+                                  getStyleGender(style) === 'female'
+                                    ? 'bg-pink-500 text-white'
+                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                }`}
+                                title="Female model"
+                              >
+                                <User size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setStyleGender(style, 'both')}
+                                className={`p-1 rounded transition-all ${
+                                  getStyleGender(style) === 'both'
+                                    ? 'bg-purple-500 text-white'
+                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                }`}
+                                title="One of each"
+                              >
+                                <Users size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuickGenerate(style);
+                          }}
+                          disabled={isGenerating}
+                          className="p-1.5 rounded-lg transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
+                          title="Quick generate this style"
+                        >
+                          <ArrowRight size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </details>
+
+            {/* Variations Selector */}
+            {selectedStyles.size > 0 && (
+              <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-600">Variations per style</span>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4].map((count) => (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => setVariationCount(count)}
+                        className={`w-7 h-7 rounded-lg text-xs font-semibold transition-all ${
+                          variationCount === count
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'
+                        }`}
+                      >
+                        {count}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  {variationCount === 1 
+                    ? 'Generate 1 image per style'
+                    : `Generate ${variationCount} variations to compare and choose the best`
+                  }
+                </p>
+              </div>
+            )}
+
+            {/* Generate Selected Button - Always visible */}
+            <button
+              onClick={handleGenerateSelected}
+              disabled={isGenerating || selectedStyles.size === 0}
+              className={`
+                w-full mt-3 py-3 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all
+                ${selectedStyles.size > 0
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                }
+              `}
+            >
+              <Images size={18} />
+              {selectedStyles.size > 0 
+                ? `Generate ${selectedStyles.size} Style${selectedStyles.size > 1 ? 's' : ''} × ${variationCount} var${variationCount > 1 ? 's' : ''}`
+                : 'Select styles to generate'
+              }
+            </button>
           </div>
         ) : (
-          <div className="space-y-2 mb-6">
-            {PRESET_STYLES.map((style, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleGenerate(style)}
-                disabled={isGenerating}
-                className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-colors text-sm text-slate-600"
-              >
-                {style}
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="space-y-2 mb-5">
+              {PRESET_STYLES.map((style, idx) => {
+                const isSelected = selectedStyles.has(style);
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => !isGenerating && toggleStyleSelection(style)}
+                    className={`
+                      w-full text-left p-3 rounded-xl border-2 transition-all text-sm cursor-pointer group
+                      ${isSelected
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+                      }
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`
+                          w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center border-2 transition-all
+                          ${isSelected
+                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                            : 'border-slate-300 group-hover:border-indigo-400'
+                          }
+                        `}
+                      >
+                        {isSelected && <Check size={12} strokeWidth={3} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-slate-600 text-xs block">
+                          {style}
+                        </span>
+                        {/* Gender Selector for preset styles */}
+                        {isSelected && (
+                          <div className="flex items-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-[10px] text-slate-400 mr-1">Model:</span>
+                            <button
+                              type="button"
+                              onClick={() => setStyleGender(style, 'male')}
+                              className={`p-1 rounded transition-all ${
+                                getStyleGender(style) === 'male'
+                                  ? 'bg-indigo-600 text-white'
+                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              }`}
+                              title="Male model"
+                            >
+                              <User size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setStyleGender(style, 'female')}
+                              className={`p-1 rounded transition-all ${
+                                getStyleGender(style) === 'female'
+                                  ? 'bg-pink-500 text-white'
+                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              }`}
+                              title="Female model"
+                            >
+                              <User size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setStyleGender(style, 'both')}
+                              className={`p-1 rounded transition-all ${
+                                getStyleGender(style) === 'both'
+                                  ? 'bg-purple-500 text-white'
+                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              }`}
+                              title="One of each"
+                            >
+                              <Users size={12} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleQuickGenerate(style);
+                        }}
+                        disabled={isGenerating}
+                        className="p-1.5 rounded-lg transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
+                        title="Quick generate this style"
+                      >
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Variations Selector */}
+            {selectedStyles.size > 0 && (
+              <div className="mb-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-600">Variations per style</span>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4].map((count) => (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => setVariationCount(count)}
+                        className={`w-7 h-7 rounded-lg text-xs font-semibold transition-all ${
+                          variationCount === count
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'
+                        }`}
+                      >
+                        {count}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  {variationCount === 1 
+                    ? 'Generate 1 image per style'
+                    : `Generate ${variationCount} variations to compare and choose the best`
+                  }
+                </p>
+              </div>
+            )}
+            
+            {/* Generate Selected Button - Always visible */}
+            <button
+              onClick={handleGenerateSelected}
+              disabled={isGenerating || selectedStyles.size === 0}
+              className={`
+                w-full py-3 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all
+                ${selectedStyles.size > 0
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                }
+              `}
+            >
+              <Images size={18} />
+              {selectedStyles.size > 0 
+                ? `Generate ${selectedStyles.size} Style${selectedStyles.size > 1 ? 's' : ''} × ${variationCount} var${variationCount > 1 ? 's' : ''}`
+                : 'Select styles to generate'
+              }
+            </button>
+          </>
         )}
 
-        <div className="relative mb-6">
+        <div className="relative my-5">
             <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-200"></div>
             </div>
-            <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-slate-500">Or describe your own</span>
+            <div className="relative flex justify-center">
+                <span className="px-3 bg-white text-xs text-slate-400 font-medium">Or describe your own</span>
             </div>
         </div>
 
@@ -235,71 +919,304 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupSelected, onB
                 value={customStyle}
                 onChange={(e) => setCustomStyle(e.target.value)}
                 placeholder="e.g. Cyberpunk neon city night..."
-                className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                className="flex-1 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all placeholder:text-slate-400"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && customStyle && !isGenerating) {
+                    handleQuickGenerate(customStyle);
+                    setCustomStyle('');
+                  }
+                }}
             />
             <button
-                onClick={() => handleGenerate(customStyle)}
+                onClick={() => {
+                  handleQuickGenerate(customStyle);
+                  setCustomStyle('');
+                }}
                 disabled={!customStyle || isGenerating}
-                className="bg-slate-800 text-white p-2 rounded-lg hover:bg-slate-900 disabled:opacity-50"
+                className="bg-slate-800 text-white p-2.5 rounded-xl hover:bg-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                title="Generate mockup"
             >
                 <ArrowRight size={20} />
             </button>
         </div>
       </div>
 
-      {/* Right: Preview Area */}
-      <div className="bg-slate-100 rounded-xl min-h-[500px] flex items-center justify-center relative overflow-hidden border-2 border-slate-200 border-dashed">
+      {/* Right: Gallery Area */}
+      <div className="lg:col-span-3 bg-gradient-to-b from-slate-50 to-slate-100/50 rounded-2xl min-h-[500px] flex flex-col relative overflow-hidden border border-slate-200">
         
+        {/* Generation Progress Overlay */}
         {isGenerating && (
-            <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center text-indigo-600">
-                <Loader2 className="animate-spin mb-3" size={48} />
-                <p className="font-medium">Generating Pro Quality Mockup...</p>
-                <p className="text-xs text-slate-500 mt-2">Gemini 3 Pro Image (Nano Banana Pro)</p>
-                <p className="text-xs text-slate-400 mt-1">This may take a moment</p>
-            </div>
-        )}
-
-        {!generatedMockup && !isGenerating && !error && (
-             <div className="text-center text-slate-400 p-8">
-                <Wand2 size={48} className="mx-auto mb-4 opacity-50" />
-                <p>Select a style to generate your first mockup</p>
-             </div>
-        )}
-
-        {error && !isGenerating && (
-             <div className="text-center text-red-500 p-8 max-w-sm">
-                <p>{error}</p>
-             </div>
-        )}
-
-        {generatedMockup && (
-            <div className="relative w-full h-full flex flex-col items-center">
-                <img 
-                    src={generatedMockup.imageUrl} 
-                    alt="Generated Mockup" 
-                    className="w-full h-auto object-contain max-h-[600px] shadow-lg"
-                />
-                <div className="absolute bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur border-t border-slate-200 flex justify-between items-center">
-                    <span className="text-sm font-medium text-slate-600">Looks good?</span>
-                    <div className="flex gap-2">
-                        <button 
-                            onClick={() => setGeneratedMockup(null)}
-                            className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium"
-                        >
-                            <RefreshCcw size={16} />
-                            Discard
-                        </button>
-                        <button 
-                            onClick={() => onMockupSelected(generatedMockup)}
-                            className="bg-indigo-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 shadow-sm"
-                        >
-                            Use This Mockup
-                        </button>
+            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+                <div className="text-center">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-indigo-500/30">
+                    <Loader2 className="animate-spin text-white" size={36} />
+                  </div>
+                  <p className="font-display font-semibold text-slate-800 text-lg mb-1">
+                    Generating {generationProgress && generationProgress.total > 1 ? 'Mockups' : 'Mockup'}...
+                  </p>
+                  {generationProgress && (
+                    <div className="mt-4 w-48 mx-auto">
+                      <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+                        <span>Progress</span>
+                        <span className="font-semibold text-indigo-600">{generationProgress.current} / {generationProgress.total}</span>
+                      </div>
+                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
+                          style={{ width: `${(generationProgress.current / generationProgress.total) * 100}%` }}
+                        />
+                      </div>
                     </div>
+                  )}
+                  <p className="text-xs text-slate-400 mt-4">Using Gemini 3 Pro for best results</p>
                 </div>
             </div>
         )}
+
+        {/* Empty State */}
+        {generatedMockups.length === 0 && !isGenerating && !error && (
+             <div className="flex-1 flex items-center justify-center text-center p-8">
+                <div>
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                    <Wand2 size={28} className="text-slate-300" />
+                  </div>
+                  <p className="font-semibold text-slate-500 mb-1">Select styles and generate mockups</p>
+                  <p className="text-xs text-slate-400 max-w-[200px] mx-auto leading-relaxed">
+                    Click the arrow to quick-generate, or select multiple and batch generate
+                  </p>
+                </div>
+             </div>
+        )}
+
+        {/* Error Message */}
+        {error && !isGenerating && (
+             <div className="p-4 mx-4 mt-4 bg-red-50 border border-red-200 rounded-xl text-center text-red-600 text-sm">
+                {error}
+             </div>
+        )}
+
+        {/* Gallery Grid */}
+        {generatedMockups.length > 0 && (
+          <div className="flex-1 overflow-auto p-4">
+            {/* Gallery Header */}
+            <div className="flex items-center justify-between mb-4 px-1">
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <Images size={14} className="text-slate-400" />
+                <span className="font-medium">{generatedMockups.length} mockup{generatedMockups.length > 1 ? 's' : ''}</span>
+                <span className="text-slate-300">•</span>
+                <span className="text-indigo-600 font-semibold">{selectedMockupIds.size} selected</span>
+              </div>
+              <div className="flex gap-2 text-xs">
+                <button
+                  onClick={selectAllMockups}
+                  className="text-indigo-600 font-medium hover:text-indigo-700"
+                >
+                  Select all
+                </button>
+                <span className="text-slate-300">|</span>
+                <button
+                  onClick={deselectAllMockups}
+                  className="text-slate-500 hover:text-slate-700"
+                >
+                  Deselect all
+                </button>
+              </div>
+            </div>
+
+            {/* Mockup Grid */}
+            <div className="grid grid-cols-2 gap-3 stagger-children">
+              {generatedMockups.map((mockup) => {
+                const isSelected = selectedMockupIds.has(mockup.id);
+                return (
+                  <div 
+                    key={mockup.id}
+                    className={`
+                      relative group rounded-xl overflow-hidden bg-white shadow-sm border-2 transition-all cursor-pointer hover-lift
+                      ${isSelected 
+                        ? 'border-indigo-500 shadow-md shadow-indigo-500/10' 
+                        : 'border-transparent hover:border-slate-200'
+                      }
+                    `}
+                    onClick={() => toggleMockupSelection(mockup.id)}
+                  >
+                    <img 
+                      src={mockup.imageUrl} 
+                      alt={mockup.styleDescription}
+                      className="w-full aspect-square object-cover"
+                    />
+                    
+                    {/* Selection Checkbox */}
+                    <div className={`
+                      absolute top-2.5 left-2.5 w-6 h-6 rounded-lg flex items-center justify-center transition-all
+                      ${isSelected
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'bg-white/90 backdrop-blur-sm border-2 border-slate-300 group-hover:border-indigo-400'
+                      }
+                    `}>
+                      {isSelected && <Check size={14} strokeWidth={3} />}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                      {/* Expand Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEnlargedMockup(mockup);
+                        }}
+                        className="w-6 h-6 rounded-lg bg-white/90 backdrop-blur-sm text-slate-700 flex items-center justify-center hover:bg-white hover:scale-110 transition-all shadow-sm"
+                        title="View larger"
+                      >
+                        <Maximize2 size={12} />
+                      </button>
+                      {/* Remove Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeMockup(mockup.id);
+                        }}
+                        className="w-6 h-6 rounded-lg bg-red-500/90 backdrop-blur-sm text-white flex items-center justify-center hover:bg-red-600 hover:scale-110 transition-all"
+                        title="Remove mockup"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    {/* Style Description */}
+                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+                      <p className="text-white text-xs line-clamp-2 font-medium">{mockup.styleDescription}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Bottom Action Bar */}
+        {generatedMockups.length > 0 && (
+          <div className="p-4 bg-white border-t border-slate-200 flex justify-between items-center">
+            <div className="text-sm text-slate-600">
+              {selectedMockupIds.size === 0 ? (
+                <span className="text-amber-600 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Select at least one mockup
+                </span>
+              ) : selectedMockupIds.size === 1 ? (
+                <span>Post as a <strong className="text-slate-800">single image</strong></span>
+              ) : (
+                <span>Post as a <strong className="text-indigo-600">carousel</strong> ({selectedMockupIds.size} images)</span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setGeneratedMockups([])}
+                className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-medium transition-colors"
+              >
+                <RefreshCcw size={14} />
+                Start Over
+              </button>
+              <button 
+                onClick={handleProceed}
+                disabled={selectedMockupIds.size === 0}
+                className={`
+                  px-5 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all
+                  ${selectedMockupIds.size > 0
+                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/20 hover:shadow-lg hover:-translate-y-0.5'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  }
+                `}
+              >
+                <CheckCircle size={16} />
+                Use {selectedMockupIds.size > 0 ? `${selectedMockupIds.size} Selected` : 'Selected'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Image Lightbox Modal */}
+      {enlargedMockup && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setEnlargedMockup(null)}
+        >
+          {/* Close button */}
+          <button
+            onClick={() => setEnlargedMockup(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all"
+          >
+            <X size={24} />
+          </button>
+
+          {/* Navigation arrows */}
+          {generatedMockups.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const currentIndex = generatedMockups.findIndex(m => m.id === enlargedMockup.id);
+                  const prevIndex = currentIndex === 0 ? generatedMockups.length - 1 : currentIndex - 1;
+                  setEnlargedMockup(generatedMockups[prevIndex]);
+                }}
+                className="absolute left-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all"
+              >
+                <ChevronLeft size={24} />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const currentIndex = generatedMockups.findIndex(m => m.id === enlargedMockup.id);
+                  const nextIndex = currentIndex === generatedMockups.length - 1 ? 0 : currentIndex + 1;
+                  setEnlargedMockup(generatedMockups[nextIndex]);
+                }}
+                className="absolute right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all"
+              >
+                <ChevronRight size={24} />
+              </button>
+            </>
+          )}
+
+          {/* Image container */}
+          <div 
+            className="relative max-w-4xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img 
+              src={enlargedMockup.imageUrl} 
+              alt={enlargedMockup.styleDescription}
+              className="max-w-full max-h-[75vh] object-contain rounded-xl shadow-2xl"
+            />
+            
+            {/* Image info bar */}
+            <div className="mt-4 flex items-center justify-between">
+              <div className="text-white">
+                <p className="text-sm font-medium">{enlargedMockup.styleDescription}</p>
+                <p className="text-xs text-white/60 mt-1">
+                  {generatedMockups.findIndex(m => m.id === enlargedMockup.id) + 1} of {generatedMockups.length}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    toggleMockupSelection(enlargedMockup.id);
+                  }}
+                  className={`
+                    px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all
+                    ${selectedMockupIds.has(enlargedMockup.id)
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white/10 text-white hover:bg-white/20'
+                    }
+                  `}
+                >
+                  <Check size={16} />
+                  {selectedMockupIds.has(enlargedMockup.id) ? 'Selected' : 'Select'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

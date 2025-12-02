@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { GeneratedCaptions, StyleSuggestion } from "../types";
+import { GeneratedCaptions, StyleSuggestion, ModelGender } from "../types";
 
 /**
  * Generates a lifestyle mockup based on the uploaded design.
@@ -7,10 +7,18 @@ import { GeneratedCaptions, StyleSuggestion } from "../types";
  */
 export const generateMockupImage = async (
   base64Design: string,
-  stylePrompt: string
+  stylePrompt: string,
+  gender?: ModelGender
 ): Promise<string> => {
   // Always create a new instance to ensure the latest API key is used
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  // Build gender instruction based on parameter
+  const genderInstruction = gender === 'male' 
+    ? 'The model should be male.'
+    : gender === 'female' 
+    ? 'The model should be female.'
+    : '';
 
   try {
     const prompt = `
@@ -18,12 +26,16 @@ export const generateMockupImage = async (
       Task: Create a photorealistic lifestyle image featuring the EXACT garment shown in the reference image.
       
       Instructions:
-      1. The reference image contains a specific piece of apparel (t-shirt/top).
-      2. Dress a realistic model in this EXACT garment. 
-      3. CRITICAL: You must preserve the cut, style, fabric texture, color, and graphic design of the uploaded garment perfectly. Do not generate a generic t-shirt with the logo; use the actual shirt style provided.
-      4. Place the model in a setting matching this description: ${stylePrompt}.
-      5. Ensure high-quality lighting, realistic shadows, and natural skin textures.
-      6. Do not add any text overlays, watermarks, or extra graphics.
+      1. The reference image contains a specific piece of apparel (t-shirt/hoodie/top).
+      2. IMPORTANT - PRINT VISIBILITY: First, analyze where the main graphic/print/design is located on the garment:
+         - If the design is on the FRONT of the garment: Position the model FACING THE CAMERA so the front print is clearly visible.
+         - If the design is on the BACK of the garment: Position the model with their BACK TO THE CAMERA so the back print is visible.
+         - The print/design MUST be prominently visible in the final image. Do not show the blank side of the garment.
+      3. Dress a realistic model in this EXACT garment. ${genderInstruction}
+      4. CRITICAL: You must preserve the cut, style, fabric texture, color, and graphic design of the uploaded garment perfectly. Do not generate a generic t-shirt with the logo; use the actual shirt style provided.
+      5. Place the model in a setting matching this description: ${stylePrompt}.
+      6. Ensure high-quality lighting, realistic shadows, and natural skin textures.
+      7. Do not add any text overlays, watermarks, or extra graphics.
     `;
 
     const response = await ai.models.generateContent({

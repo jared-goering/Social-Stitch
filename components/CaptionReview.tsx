@@ -9,15 +9,15 @@ import {
   checkAuthResult,
   AccountsMap 
 } from '../services/socialAuthService';
-import { Facebook, Instagram, Loader2, Send, CheckCircle, Link as LinkIcon, Unlink, AlertCircle, ExternalLink } from 'lucide-react';
+import { Facebook, Instagram, Loader2, Send, CheckCircle, Link as LinkIcon, Unlink, AlertCircle, ExternalLink, ChevronLeft, ChevronRight, Images, ArrowLeft, Check } from 'lucide-react';
 
 interface Props {
-  mockup: MockupOption;
+  mockups: MockupOption[];
   onSuccess: () => void;
   onBack: () => void;
 }
 
-export const CaptionReview: React.FC<Props> = ({ mockup, onSuccess, onBack }) => {
+export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack }) => {
   const [captionOptions, setCaptionOptions] = useState<GeneratedCaptions>({ facebook: [], instagram: [] });
   const [selectedIndex, setSelectedIndex] = useState<{ facebook: number; instagram: number }>({ facebook: 0, instagram: 0 });
   const [editedCaption, setEditedCaption] = useState<{ facebook: string; instagram: string }>({ facebook: '', instagram: '' });
@@ -25,6 +25,10 @@ export const CaptionReview: React.FC<Props> = ({ mockup, onSuccess, onBack }) =>
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [selectedPlatform, setSelectedPlatform] = useState<SocialPlatform>('instagram');
+  
+  // Carousel navigation state
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const isCarousel = mockups.length > 1;
   
   const [accounts, setAccounts] = useState<AccountsMap>({
     instagram: { connected: false, username: '' },
@@ -49,12 +53,14 @@ export const CaptionReview: React.FC<Props> = ({ mockup, onSuccess, onBack }) =>
     refreshAccounts();
   }, []);
 
-  // Generate captions
+  // Generate captions based on the first mockup
   useEffect(() => {
     let mounted = true;
     const fetchCaptions = async () => {
       try {
-        const result = await generateSocialCaptions(mockup.styleDescription, mockup.imageUrl);
+        // Use the first mockup for caption generation
+        const primaryMockup = mockups[0];
+        const result = await generateSocialCaptions(primaryMockup.styleDescription, primaryMockup.imageUrl);
         if (mounted) {
           setCaptionOptions(result);
           // Initialize edited captions with the first option for each platform
@@ -72,7 +78,16 @@ export const CaptionReview: React.FC<Props> = ({ mockup, onSuccess, onBack }) =>
     };
     fetchCaptions();
     return () => { mounted = false; };
-  }, [mockup]);
+  }, [mockups]);
+
+  // Carousel navigation
+  const goToPrevImage = () => {
+    setCurrentImageIndex(prev => (prev > 0 ? prev - 1 : mockups.length - 1));
+  };
+
+  const goToNextImage = () => {
+    setCurrentImageIndex(prev => (prev < mockups.length - 1 ? prev + 1 : 0));
+  };
 
   const refreshAccounts = async () => {
     const fetchedAccounts = await getConnectedAccounts();
@@ -113,9 +128,11 @@ export const CaptionReview: React.FC<Props> = ({ mockup, onSuccess, onBack }) =>
     setPostError(null);
     
     try {
+      // Pass all image URLs for carousel support
+      const imageUrls = mockups.map(m => m.imageUrl);
       const result = await postToSocial(
         selectedPlatform,
-        mockup.imageUrl,
+        imageUrls,
         editedCaption[selectedPlatform]
       );
 
@@ -155,73 +172,176 @@ export const CaptionReview: React.FC<Props> = ({ mockup, onSuccess, onBack }) =>
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-slate-500">
-        <Loader2 className="animate-spin mb-4 text-indigo-600" size={40} />
-        <p>Writing engaging captions for you...</p>
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mb-5 shadow-lg shadow-indigo-500/30">
+          <Loader2 className="animate-spin text-white" size={28} />
+        </div>
+        <p className="font-display font-semibold text-slate-800 text-lg">Writing engaging captions...</p>
+        <p className="text-sm text-slate-400 mt-1">Tailored for your audience</p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left: Image Preview */}
       <div className="lg:col-span-1">
-        <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 sticky top-24">
-          <img 
-            src={mockup.imageUrl} 
-            alt="Final Mockup" 
-            className="w-full rounded-lg"
-          />
-          <div className="mt-4 flex gap-2">
-            <button 
-              onClick={onBack}
-              className="w-full py-2 text-sm text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg transition-colors"
-            >
-              Back to Styles
-            </button>
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 sticky top-24">
+          {/* Carousel indicator badge */}
+          {isCarousel && (
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 rounded-full">
+                <Images size={12} className="text-indigo-600" />
+                <span className="text-xs font-semibold text-indigo-600">Carousel</span>
+              </div>
+              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                {currentImageIndex + 1} / {mockups.length}
+              </span>
+            </div>
+          )}
+          
+          {/* Main Image with Navigation */}
+          <div className="relative group rounded-xl overflow-hidden">
+            <img 
+              src={mockups[currentImageIndex].imageUrl} 
+              alt={`Mockup ${currentImageIndex + 1}`}
+              className="w-full aspect-square object-cover"
+            />
+            
+            {/* Navigation Arrows */}
+            {isCarousel && (
+              <>
+                <button
+                  onClick={goToPrevImage}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl bg-white/90 backdrop-blur-sm text-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-white shadow-lg"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <button
+                  onClick={goToNextImage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-xl bg-white/90 backdrop-blur-sm text-slate-700 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-white shadow-lg"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </>
+            )}
           </div>
+          
+          {/* Thumbnail Strip */}
+          {isCarousel && (
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {mockups.map((mockup, idx) => (
+                <button
+                  key={mockup.id}
+                  onClick={() => setCurrentImageIndex(idx)}
+                  className={`
+                    flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-all
+                    ${idx === currentImageIndex 
+                      ? 'border-indigo-500 shadow-md shadow-indigo-500/20' 
+                      : 'border-transparent hover:border-slate-300 opacity-60 hover:opacity-100'
+                    }
+                  `}
+                >
+                  <img 
+                    src={mockup.imageUrl} 
+                    alt={`Thumbnail ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Dot Indicators */}
+          {isCarousel && (
+            <div className="flex justify-center gap-1.5 mt-3">
+              {mockups.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentImageIndex(idx)}
+                  className={`
+                    h-1.5 rounded-full transition-all
+                    ${idx === currentImageIndex 
+                      ? 'bg-indigo-600 w-4' 
+                      : 'bg-slate-200 w-1.5 hover:bg-slate-300'
+                    }
+                  `}
+                />
+              ))}
+            </div>
+          )}
+
+          <button 
+            onClick={onBack}
+            className="w-full mt-4 py-2.5 text-sm text-slate-600 hover:text-slate-800 border border-slate-200 hover:border-slate-300 rounded-xl transition-all flex items-center justify-center gap-2"
+          >
+            <ArrowLeft size={16} />
+            Back to Styles
+          </button>
         </div>
       </div>
 
       {/* Right: Caption Editor */}
-      <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-        {/* Platform Tabs */}
-        <div className="flex border-b border-slate-200">
+      <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+        {/* Platform Tabs - Redesigned */}
+        <div className="flex p-2 gap-2 bg-slate-50 border-b border-slate-100">
           <button
             onClick={() => { setSelectedPlatform('instagram'); setAuthError(null); setPostError(null); }}
-            className={`flex-1 py-4 flex items-center justify-center gap-2 font-medium transition-colors ${selectedPlatform === 'instagram' ? 'text-pink-600 border-b-2 border-pink-600 bg-pink-50' : 'text-slate-500 hover:bg-slate-50'}`}
+            className={`
+              flex-1 py-3 flex items-center justify-center gap-2 font-semibold text-sm rounded-xl transition-all
+              ${selectedPlatform === 'instagram' 
+                ? 'bg-white text-pink-600 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
+              }
+            `}
           >
-            <Instagram size={20} />
+            <Instagram size={18} />
             Instagram
-            {accounts.instagram.connected && <CheckCircle size={14} className="text-emerald-500" />}
+            {accounts.instagram.connected && (
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            )}
           </button>
           <button
             onClick={() => { setSelectedPlatform('facebook'); setAuthError(null); setPostError(null); }}
-            className={`flex-1 py-4 flex items-center justify-center gap-2 font-medium transition-colors ${selectedPlatform === 'facebook' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' : 'text-slate-500 hover:bg-slate-50'}`}
+            className={`
+              flex-1 py-3 flex items-center justify-center gap-2 font-semibold text-sm rounded-xl transition-all
+              ${selectedPlatform === 'facebook' 
+                ? 'bg-white text-blue-600 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
+              }
+            `}
           >
-            <Facebook size={20} />
+            <Facebook size={18} />
             Facebook
-            {accounts.facebook.connected && <CheckCircle size={14} className="text-emerald-500" />}
+            {accounts.facebook.connected && (
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            )}
           </button>
         </div>
 
-        {/* Connection Status Bar */}
-        <div className={`px-6 py-3 border-b border-slate-100 flex items-center justify-between text-sm ${currentAccount.connected ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-slate-600'}`}>
+        {/* Connection Status Bar - Cleaner */}
+        <div className={`
+          px-5 py-2.5 flex items-center justify-between text-sm
+          ${currentAccount.connected 
+            ? 'bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100' 
+            : 'bg-slate-50 border-b border-slate-100'
+          }
+        `}>
           <div className="flex items-center gap-2">
             {currentAccount.connected ? (
               <>
-                <CheckCircle size={16} />
-                <span>Connected as <strong>{currentAccount.username}</strong></span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="text-slate-600">Connected as <span className="font-semibold text-emerald-700">{currentAccount.username}</span></span>
               </>
             ) : (
               <>
-                <AlertCircle size={16} className="text-amber-500" />
-                <span>Account not connected</span>
+                <AlertCircle size={14} className="text-amber-500" />
+                <span className="text-slate-500">Account not connected</span>
               </>
             )}
           </div>
           {currentAccount.connected ? (
-            <button onClick={handleDisconnect} className="text-xs hover:underline text-emerald-600 flex items-center gap-1">
+            <button onClick={handleDisconnect} className="text-xs text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors">
               <Unlink size={12} /> Disconnect
             </button>
           ) : (
@@ -251,98 +371,100 @@ export const CaptionReview: React.FC<Props> = ({ mockup, onSuccess, onBack }) =>
           </div>
         )}
 
-        <div className="p-6 flex-1 flex flex-col relative">
-          {/* Caption Options Selection */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-700 mb-3">
+        <div className="p-5 flex-1 flex flex-col relative">
+          {/* Caption Options Selection - Simplified */}
+          <div className="mb-5">
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
               Choose a caption style
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {captionOptions[selectedPlatform].map((caption, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleSelectCaption(index)}
-                  className={`
-                    relative p-3 rounded-lg border-2 text-left transition-all duration-200 group
-                    ${selectedIndex[selectedPlatform] === index 
-                      ? selectedPlatform === 'instagram'
-                        ? 'border-pink-500 bg-pink-50 shadow-md'
-                        : 'border-blue-500 bg-blue-50 shadow-md'
-                      : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
-                    }
-                  `}
-                >
-                  {/* Option number badge */}
-                  <div className={`
-                    absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
-                    ${selectedIndex[selectedPlatform] === index 
-                      ? selectedPlatform === 'instagram'
-                        ? 'bg-pink-500 text-white'
-                        : 'bg-blue-500 text-white'
-                      : 'bg-slate-200 text-slate-600 group-hover:bg-slate-300'
-                    }
-                  `}>
-                    {index + 1}
-                  </div>
-                  
-                  {/* Selected checkmark */}
-                  {selectedIndex[selectedPlatform] === index && (
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {captionOptions[selectedPlatform].map((caption, index) => {
+                const isSelected = selectedIndex[selectedPlatform] === index;
+                const platformColor = selectedPlatform === 'instagram' ? 'pink' : 'blue';
+                return (
+                  <button
+                    key={index}
+                    onClick={() => handleSelectCaption(index)}
+                    className={`
+                      relative flex-shrink-0 w-44 p-3 rounded-xl border-2 text-left transition-all
+                      ${isSelected 
+                        ? platformColor === 'pink'
+                          ? 'border-pink-400 bg-pink-50'
+                          : 'border-blue-400 bg-blue-50'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      }
+                    `}
+                  >
+                    {/* Selection indicator */}
                     <div className={`
-                      absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center
-                      ${selectedPlatform === 'instagram' ? 'bg-pink-500' : 'bg-blue-500'}
+                      absolute top-2 right-2 w-5 h-5 rounded-md flex items-center justify-center transition-all
+                      ${isSelected 
+                        ? platformColor === 'pink'
+                          ? 'bg-pink-500 text-white'
+                          : 'bg-blue-500 text-white'
+                        : 'border-2 border-slate-200'
+                      }
                     `}>
-                      <CheckCircle size={14} className="text-white" />
+                      {isSelected && <Check size={12} strokeWidth={3} />}
                     </div>
-                  )}
-                  
-                  {/* Caption preview */}
-                  <p className="text-sm text-slate-700 line-clamp-3 leading-relaxed">
-                    {caption}
-                  </p>
-                </button>
-              ))}
+                    
+                    {/* Caption preview */}
+                    <p className="text-xs text-slate-600 line-clamp-4 leading-relaxed pr-6">
+                      {caption}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Divider */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex-1 h-px bg-slate-200"></div>
-            <span className="text-xs text-slate-400 font-medium">Edit your selected caption</span>
-            <div className="flex-1 h-px bg-slate-200"></div>
+          {/* Caption Editor */}
+          <div className="flex-1 flex flex-col">
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              Edit Caption
+            </label>
+            <textarea
+              value={editedCaption[selectedPlatform]}
+              onChange={(e) => handleCaptionChange(e.target.value)}
+              className="w-full flex-1 min-h-[160px] p-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none resize-none text-sm text-slate-800 leading-relaxed placeholder-slate-400 transition-all"
+              placeholder="Write your caption here..."
+            />
           </div>
-
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            Caption
-          </label>
-          <textarea
-            value={editedCaption[selectedPlatform]}
-            onChange={(e) => handleCaptionChange(e.target.value)}
-            className="w-full flex-1 min-h-[200px] p-4 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none resize-none font-sans text-slate-900 leading-relaxed placeholder-slate-400"
-            placeholder="Write your caption here..."
-          />
           
-          <div className="mt-6 flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-100">
-            <div className="text-xs text-slate-500">
-              <p>Status: <span className={`${currentAccount.connected ? 'text-emerald-600' : 'text-amber-600'} font-medium`}>
-                {currentAccount.connected ? 'Ready to publish' : 'Connection required'}
-              </span></p>
-              <p className="mt-1">Platform: <span className="font-medium text-slate-700 capitalize">{selectedPlatform}</span></p>
+          {/* Action Bar */}
+          <div className="mt-5 flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+            <div className="text-xs text-slate-500 space-y-1">
+              <p className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${currentAccount.connected ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                <span className={currentAccount.connected ? 'text-emerald-600 font-medium' : 'text-amber-600'}>
+                  {currentAccount.connected ? 'Ready to publish' : 'Connection required'}
+                </span>
+              </p>
+              <p className="flex items-center gap-2">
+                {selectedPlatform === 'instagram' ? <Instagram size={12} /> : <Facebook size={12} />}
+                <span className="capitalize">{selectedPlatform}</span>
+                {isCarousel && (
+                  <span className="text-indigo-600 font-medium flex items-center gap-1 ml-1">
+                    • <Images size={10} /> {mockups.length} images
+                  </span>
+                )}
+              </p>
             </div>
 
             {!currentAccount.connected ? (
               <button
                 onClick={handleConnect}
                 disabled={isConnecting}
-                className="flex items-center gap-2 px-6 py-3 rounded-lg font-bold text-white shadow-md transition-all bg-slate-800 hover:bg-slate-900 disabled:opacity-70"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white shadow-md transition-all bg-slate-800 hover:bg-slate-900 disabled:opacity-70"
               >
                 {isConnecting ? (
                   <>
-                    <Loader2 className="animate-spin" size={18} />
+                    <Loader2 className="animate-spin" size={16} />
                     Connecting...
                   </>
                 ) : (
                   <>
-                    <LinkIcon size={18} />
+                    <LinkIcon size={16} />
                     Connect {selectedPlatform === 'instagram' ? 'Instagram' : 'Facebook'}
                   </>
                 )}
@@ -352,20 +474,23 @@ export const CaptionReview: React.FC<Props> = ({ mockup, onSuccess, onBack }) =>
                 onClick={handlePost}
                 disabled={posting || !editedCaption[selectedPlatform].trim()}
                 className={`
-                  flex items-center gap-2 px-6 py-3 rounded-lg font-bold text-white shadow-md transition-all
-                  ${posting || !editedCaption[selectedPlatform].trim() ? 'bg-slate-400 cursor-not-allowed' : 
-                  selectedPlatform === 'instagram' ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600' :
-                  'bg-blue-600 hover:bg-blue-700'}
+                  flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-white transition-all
+                  ${posting || !editedCaption[selectedPlatform].trim() 
+                    ? 'bg-slate-300 cursor-not-allowed' 
+                    : selectedPlatform === 'instagram' 
+                      ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 shadow-lg shadow-pink-500/25 hover:shadow-xl hover:shadow-pink-500/30 hover:-translate-y-0.5' 
+                      : 'bg-blue-600 shadow-lg shadow-blue-500/25 hover:bg-blue-700 hover:shadow-xl hover:-translate-y-0.5'
+                  }
                 `}
               >
                 {posting ? (
                   <>
-                    <Loader2 className="animate-spin" size={18} />
+                    <Loader2 className="animate-spin" size={16} />
                     Publishing...
                   </>
                 ) : (
                   <>
-                    <Send size={18} />
+                    <Send size={16} />
                     Post Now
                   </>
                 )}
@@ -375,12 +500,12 @@ export const CaptionReview: React.FC<Props> = ({ mockup, onSuccess, onBack }) =>
 
           {/* Setup Instructions */}
           {!currentAccount.connected && (
-            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-sm">
-              <p className="font-medium text-amber-800 flex items-center gap-2">
+            <div className="mt-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-xl text-sm">
+              <p className="font-semibold text-amber-800 flex items-center gap-2 mb-1">
                 <ExternalLink size={14} />
                 Setup Required
               </p>
-              <p className="text-amber-700 mt-1">
+              <p className="text-amber-700 leading-relaxed">
                 {selectedPlatform === 'instagram' 
                   ? 'Instagram posting requires a Facebook Page connected to an Instagram Business or Creator account.'
                   : 'You\'ll need to grant access to a Facebook Page you manage.'
@@ -390,9 +515,9 @@ export const CaptionReview: React.FC<Props> = ({ mockup, onSuccess, onBack }) =>
                 href="https://developers.facebook.com/docs/instagram-api/getting-started" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-amber-800 underline hover:text-amber-900 mt-2 inline-block"
+                className="text-amber-700 font-medium hover:text-amber-800 mt-2 inline-flex items-center gap-1 transition-colors"
               >
-                Learn more about requirements
+                Learn more <ExternalLink size={12} />
               </a>
             </div>
           )}

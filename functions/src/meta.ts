@@ -309,3 +309,124 @@ export async function uploadImageForPosting(
   return data.data.url;
 }
 
+/**
+ * Create an Instagram carousel item container (for carousel posts)
+ * These containers don't have captions - the caption is on the parent carousel
+ */
+export async function createInstagramCarouselItem(
+  igUserId: string,
+  accessToken: string,
+  imageUrl: string
+): Promise<{ id: string }> {
+  const params = new URLSearchParams({
+    image_url: imageUrl,
+    is_carousel_item: 'true',
+    access_token: accessToken
+  });
+
+  const response = await fetch(`${GRAPH_API_BASE}/${igUserId}/media`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: params.toString()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to create IG carousel item: ${JSON.stringify(error)}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Create an Instagram carousel container with multiple children
+ */
+export async function createInstagramCarouselContainer(
+  igUserId: string,
+  accessToken: string,
+  childrenIds: string[],
+  caption: string
+): Promise<{ id: string }> {
+  const params = new URLSearchParams({
+    media_type: 'CAROUSEL',
+    children: childrenIds.join(','),
+    caption: caption,
+    access_token: accessToken
+  });
+
+  const response = await fetch(`${GRAPH_API_BASE}/${igUserId}/media`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: params.toString()
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to create IG carousel container: ${JSON.stringify(error)}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Post multiple photos to a Facebook Page
+ * Uses unpublished photos approach for multi-photo posts
+ */
+export async function postMultiPhotoToFacebook(
+  pageId: string,
+  pageAccessToken: string,
+  imageUrls: string[],
+  caption: string
+): Promise<{ id: string; post_id: string }> {
+  // Step 1: Upload each photo as unpublished
+  const photoIds: string[] = [];
+  
+  for (const imageUrl of imageUrls) {
+    const photoResponse = await fetch(`${GRAPH_API_BASE}/${pageId}/photos`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        url: imageUrl,
+        published: false,
+        access_token: pageAccessToken
+      })
+    });
+
+    if (!photoResponse.ok) {
+      const error = await photoResponse.json();
+      throw new Error(`Failed to upload photo to Facebook: ${JSON.stringify(error)}`);
+    }
+
+    const photoData = await photoResponse.json();
+    photoIds.push(photoData.id);
+  }
+
+  // Step 2: Create a post with all the photos attached
+  const attachedMedia = photoIds.map(id => ({ media_fbid: id }));
+  
+  const postResponse = await fetch(`${GRAPH_API_BASE}/${pageId}/feed`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message: caption,
+      attached_media: attachedMedia,
+      access_token: pageAccessToken
+    })
+  });
+
+  if (!postResponse.ok) {
+    const error = await postResponse.json();
+    throw new Error(`Failed to create Facebook multi-photo post: ${JSON.stringify(error)}`);
+  }
+
+  return postResponse.json();
+}
+
