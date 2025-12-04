@@ -2,11 +2,21 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# SocialStitch - AI-Powered Social Media Marketing
 
 This contains everything you need to run your app locally.
 
 View your app in AI Studio: https://ai.studio/apps/drive/1Wd-6--Uep8Ih0kPWDkHSXSkmsvERiGJO
+
+## 🛍️ Shopify App Version
+
+Want to run this as a Shopify embedded app? Switch to the `shopify-app` branch:
+
+```bash
+git checkout shopify-app
+```
+
+See [SHOPIFY_SETUP.md](./SHOPIFY_SETUP.md) for complete setup instructions.
 
 ## Run Locally
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { ShopifyProvider } from './components/ShopifyProvider';
 import { migratePostsToCurrentUser } from './services/scheduledPostsService';
 
 // Expose migration function globally for console access
@@ -15,6 +16,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <ShopifyProvider>
+      <App />
+    </ShopifyProvider>
   </React.StrictMode>
 );
