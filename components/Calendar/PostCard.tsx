@@ -1,5 +1,5 @@
-import React from 'react';
-import { ScheduledPost, PostStatus } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { ScheduledPost, PostStatus, SocialPlatform } from '../../types';
 import { 
   Facebook, 
   Instagram, 
@@ -10,15 +10,32 @@ import {
   Calendar,
   RefreshCw,
   Trash2,
-  Images
+  Images,
+  Link,
+  Loader2
 } from 'lucide-react';
+import { startOAuthFlow, getConnectedAccounts, AccountsMap } from '../../services/socialAuthService';
 
 interface Props {
   post: ScheduledPost;
   onReschedule?: (post: ScheduledPost) => void;
   onDelete?: (post: ScheduledPost) => void;
   onRetry?: (post: ScheduledPost) => void;
+  onAccountConnected?: () => void;
   compact?: boolean;
+}
+
+// Helper to detect if error is about accounts not being connected
+function getDisconnectedPlatforms(error?: string): SocialPlatform[] {
+  if (!error) return [];
+  const disconnected: SocialPlatform[] = [];
+  if (error.toLowerCase().includes('instagram') && error.toLowerCase().includes('not connected')) {
+    disconnected.push('instagram');
+  }
+  if (error.toLowerCase().includes('facebook') && error.toLowerCase().includes('not connected')) {
+    disconnected.push('facebook');
+  }
+  return disconnected;
 }
 
 const STATUS_CONFIG: Record<PostStatus, { 
@@ -56,11 +73,53 @@ export const PostCard: React.FC<Props> = ({
   onReschedule, 
   onDelete, 
   onRetry,
+  onAccountConnected,
   compact = false 
 }) => {
-  const [showMenu, setShowMenu] = React.useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [connecting, setConnecting] = useState<SocialPlatform | null>(null);
+  const [connectedAccounts, setConnectedAccounts] = useState<AccountsMap | null>(null);
+  const [checkingAccounts, setCheckingAccounts] = useState(false);
   const statusConfig = STATUS_CONFIG[post.status];
   const StatusIcon = statusConfig.icon;
+  
+  // Check if error is about disconnected accounts
+  const disconnectedPlatforms = getDisconnectedPlatforms(post.error);
+  const hasDisconnectedAccounts = disconnectedPlatforms.length > 0;
+  
+  // Check which platforms are actually still disconnected (vs already reconnected)
+  const actuallyDisconnected = connectedAccounts 
+    ? disconnectedPlatforms.filter(p => !connectedAccounts[p]?.connected)
+    : disconnectedPlatforms;
+  
+  // All previously disconnected accounts are now connected
+  const allNowConnected = hasDisconnectedAccounts && actuallyDisconnected.length === 0;
+  
+  // Fetch connected accounts status when there's a disconnect error
+  useEffect(() => {
+    if (hasDisconnectedAccounts && post.status === 'failed') {
+      setCheckingAccounts(true);
+      getConnectedAccounts()
+        .then(accounts => setConnectedAccounts(accounts))
+        .catch(console.error)
+        .finally(() => setCheckingAccounts(false));
+    }
+  }, [hasDisconnectedAccounts, post.status]);
+  
+  const handleConnect = async (platform: SocialPlatform) => {
+    setConnecting(platform);
+    try {
+      const success = await startOAuthFlow(platform);
+      if (success) {
+        // Refresh the connected accounts status
+        const accounts = await getConnectedAccounts();
+        setConnectedAccounts(accounts);
+        onAccountConnected?.();
+      }
+    } finally {
+      setConnecting(null);
+    }
+  };
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
@@ -83,6 +142,7 @@ export const PostCard: React.FC<Props> = ({
       <div className={`
         post-card group relative flex items-center gap-3 p-3 rounded-xl border cursor-pointer
         ${post.status === 'failed' ? 'border-rose-200 bg-rose-50/50' : 'border-slate-200 bg-white hover:border-slate-300'}
+        ${showMenu ? 'z-40' : ''}
       `}>
         {/* Image preview */}
         {post.imageUrls[0] && (
@@ -130,11 +190,83 @@ export const PostCard: React.FC<Props> = ({
           <p className="text-[10px] text-slate-400 mt-1">
             {formatTime(post.scheduledFor)}
           </p>
+          
+          {/* Error message for compact view */}
+          {post.status === 'failed' && post.error && (
+            <div className={`mt-2 p-2 rounded border ${allNowConnected ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+              {allNowConnected ? (
+                // All accounts now connected - ready to retry
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
+                    <CheckCircle size={10} />
+                    Accounts connected! Ready to retry
+                  </p>
+                  {onRetry && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRetry(post);
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-500 text-white text-[10px] font-medium hover:bg-emerald-600 transition-colors"
+                    >
+                      <RefreshCw size={10} />
+                      Retry Now
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <p className="text-[10px] text-rose-600 leading-relaxed mb-1">
+                    <AlertCircle size={10} className="inline mr-1" />
+                    {post.error}
+                  </p>
+                  
+                  {/* Connect account buttons for accounts still disconnected */}
+                  {actuallyDisconnected.length > 0 && !checkingAccounts && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {actuallyDisconnected.map(platform => (
+                        <button
+                          key={platform}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleConnect(platform);
+                          }}
+                          disabled={connecting !== null}
+                          className={`
+                            flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium transition-colors
+                            ${platform === 'instagram' 
+                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600' 
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                            }
+                            disabled:opacity-50 disabled:cursor-not-allowed
+                          `}
+                        >
+                          {connecting === platform ? (
+                            <Loader2 size={10} className="animate-spin" />
+                          ) : (
+                            <Link size={10} />
+                          )}
+                          Connect {platform === 'instagram' ? 'Instagram' : 'Facebook'}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {checkingAccounts && (
+                    <div className="flex items-center gap-1 mt-2 text-[10px] text-slate-500">
+                      <Loader2 size={10} className="animate-spin" />
+                      Checking account status...
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Quick actions on hover */}
         {(onReschedule || onDelete || onRetry) && (
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className={`transition-opacity ${showMenu ? 'opacity-100 z-50' : 'opacity-0 group-hover:opacity-100'}`}>
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -146,7 +278,7 @@ export const PostCard: React.FC<Props> = ({
             </button>
             
             {showMenu && (
-              <div className="absolute right-2 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-10 min-w-[140px]">
+              <div className="absolute right-2 top-full mt-1 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50 min-w-[140px]">
                 {post.status === 'failed' && onRetry && (
                   <button
                     onClick={(e) => {
@@ -251,7 +383,7 @@ export const PostCard: React.FC<Props> = ({
               </button>
               
               {showMenu && (
-                <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-10 min-w-[160px]">
+                <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50 min-w-[160px]">
                   {post.status === 'failed' && onRetry && (
                     <button
                       onClick={() => {
@@ -312,11 +444,70 @@ export const PostCard: React.FC<Props> = ({
 
         {/* Error message */}
         {post.status === 'failed' && post.error && (
-          <div className="mt-3 p-3 bg-rose-50 rounded-lg border border-rose-100">
-            <p className="text-xs text-rose-700 flex items-start gap-2">
-              <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
-              {post.error}
-            </p>
+          <div className={`mt-3 p-3 rounded-lg border ${allNowConnected ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+            {allNowConnected ? (
+              // All accounts now connected - ready to retry
+              <div>
+                <p className="text-xs text-emerald-700 flex items-center gap-2 mb-3">
+                  <CheckCircle size={14} className="flex-shrink-0" />
+                  <span className="font-medium">Accounts connected! Ready to retry</span>
+                </p>
+                {onRetry && (
+                  <button
+                    onClick={() => onRetry(post)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-medium hover:bg-emerald-600 transition-all shadow-md shadow-emerald-500/20 hover:-translate-y-0.5"
+                  >
+                    <RefreshCw size={14} />
+                    Retry Post Now
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-rose-700 flex items-start gap-2 mb-2">
+                  <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                  {post.error}
+                </p>
+                
+                {/* Connect account buttons for accounts still disconnected */}
+                {actuallyDisconnected.length > 0 && !checkingAccounts && (
+                  <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-rose-100">
+                    <span className="text-xs text-rose-600 w-full mb-1">Connect your accounts to retry:</span>
+                    {actuallyDisconnected.map(platform => (
+                      <button
+                        key={platform}
+                        onClick={() => handleConnect(platform)}
+                        disabled={connecting !== null}
+                        className={`
+                          flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all
+                          ${platform === 'instagram' 
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-md shadow-purple-500/20' 
+                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20'
+                          }
+                          disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5
+                        `}
+                      >
+                        {connecting === platform ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : platform === 'instagram' ? (
+                          <Instagram size={12} />
+                        ) : (
+                          <Facebook size={12} />
+                        )}
+                        Connect {platform === 'instagram' ? 'Instagram' : 'Facebook'}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                {checkingAccounts && (
+                  <div className="flex items-center gap-2 mt-3 text-xs text-slate-500">
+                    <Loader2 size={12} className="animate-spin" />
+                    Checking account status...
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

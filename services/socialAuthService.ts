@@ -3,8 +3,20 @@
  * Handles OAuth flows and posting to social platforms via Firebase Functions
  */
 
-import { getFunctionUrl, sessionId } from './firebaseConfig';
+import { getFunctionUrl, auth } from './firebaseConfig';
 import { SocialPlatform } from '../types';
+
+/**
+ * Get the current authenticated user's ID
+ * Throws an error if no user is authenticated
+ */
+function getCurrentUserId(): string {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('No authenticated user. Please sign in.');
+  }
+  return user.uid;
+}
 
 export interface ConnectedAccount {
   connected: boolean;
@@ -25,7 +37,10 @@ const DEFAULT_ACCOUNTS: AccountsMap = {
  */
 export function startOAuthFlow(platform: SocialPlatform): Promise<boolean> {
   return new Promise((resolve) => {
-    const authUrl = `${getFunctionUrl('authStart')}?sessionId=${sessionId}&platform=${platform}`;
+    const userId = getCurrentUserId();
+    // Include current origin so the callback redirects back to the right place
+    const redirectUrl = encodeURIComponent(window.location.origin);
+    const authUrl = `${getFunctionUrl('authStart')}?sessionId=${userId}&platform=${platform}&redirectUrl=${redirectUrl}`;
     
     // Calculate popup position (centered)
     const width = 600;
@@ -109,8 +124,9 @@ export function startOAuthFlow(platform: SocialPlatform): Promise<boolean> {
  */
 export async function getConnectedAccounts(): Promise<AccountsMap> {
   try {
+    const userId = getCurrentUserId();
     const response = await fetch(
-      `${getFunctionUrl('getConnectedAccounts')}?sessionId=${sessionId}`
+      `${getFunctionUrl('getConnectedAccounts')}?sessionId=${userId}`
     );
     
     if (!response.ok) {
@@ -134,13 +150,14 @@ export async function getConnectedAccounts(): Promise<AccountsMap> {
  */
 export async function disconnectAccount(platform: SocialPlatform): Promise<boolean> {
   try {
+    const userId = getCurrentUserId();
     const response = await fetch(getFunctionUrl('disconnectAccount'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        sessionId,
+        sessionId: userId,
         platform
       })
     });
@@ -206,8 +223,9 @@ export async function postToSocial(
     }
     
     // Build request body
+    const userId = getCurrentUserId();
     const body: Record<string, unknown> = {
-      sessionId,
+      sessionId: userId,
       caption
     };
     

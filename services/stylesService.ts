@@ -19,15 +19,28 @@ import {
   getDownloadURL, 
   deleteObject 
 } from 'firebase/storage';
-import { db, storage, userId } from './firebaseConfig';
+import { db, storage, auth } from './firebaseConfig';
 import { SavedStyle } from '../types';
 
 const STYLES_COLLECTION = 'styles';
 
 /**
+ * Get the current authenticated user's ID
+ * Throws an error if no user is authenticated
+ */
+function getCurrentUserId(): string {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('No authenticated user. Please sign in.');
+  }
+  return user.uid;
+}
+
+/**
  * Save a new style to Firebase
  */
 export async function saveStyle(file: File, name?: string): Promise<SavedStyle> {
+  const userId = getCurrentUserId();
   const styleId = crypto.randomUUID();
   const styleName = name || file.name.replace(/\.[^/.]+$/, '') || 'Untitled Style';
   
@@ -59,6 +72,8 @@ export async function saveStyle(file: File, name?: string): Promise<SavedStyle> 
  * Get all saved styles for the current user
  */
 export async function getSavedStyles(): Promise<SavedStyle[]> {
+  const userId = getCurrentUserId();
+  
   try {
     // Try the optimized query with index
     const q = query(
@@ -115,6 +130,8 @@ export async function getSavedStyles(): Promise<SavedStyle[]> {
  * Delete a saved style
  */
 export async function deleteStyle(styleId: string): Promise<void> {
+  const userId = getCurrentUserId();
+  
   // Get the document to find the storage path
   const docRef = doc(db, STYLES_COLLECTION, styleId);
   

@@ -20,7 +20,7 @@ const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 /**
  * Build the OAuth authorization URL for Meta
  */
-function buildOAuthUrl(appId, redirectUri, sessionId, platform) {
+function buildOAuthUrl(appId, redirectUri, sessionId, platform, frontendUrl) {
     const scopes = [
         'pages_show_list',
         'pages_read_engagement',
@@ -29,12 +29,17 @@ function buildOAuthUrl(appId, redirectUri, sessionId, platform) {
         'instagram_content_publish',
         'business_management'
     ];
+    // Include frontendUrl in state so callback knows where to redirect
+    const stateData = { sessionId, platform };
+    if (frontendUrl) {
+        stateData.frontendUrl = frontendUrl;
+    }
     const params = new URLSearchParams({
         client_id: appId,
         redirect_uri: redirectUri,
         scope: scopes.join(','),
         response_type: 'code',
-        state: JSON.stringify({ sessionId, platform })
+        state: JSON.stringify(stateData)
     });
     return `https://www.facebook.com/${GRAPH_API_VERSION}/dialog/oauth?${params.toString()}`;
 }

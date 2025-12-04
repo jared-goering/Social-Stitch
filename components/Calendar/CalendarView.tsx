@@ -18,7 +18,9 @@ import {
   Plus,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Zap,
+  CalendarClock
 } from 'lucide-react';
 
 interface Props {
@@ -37,6 +39,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [showRescheduleModal, setShowRescheduleModal] = useState<ScheduledPost | null>(null);
+  const [showRetryModal, setShowRetryModal] = useState<ScheduledPost | null>(null);
 
   // Subscribe to real-time updates
   useEffect(() => {
@@ -120,8 +123,25 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
     setShowRescheduleModal(post);
   };
 
-  const handleRetry = async (post: ScheduledPost) => {
-    await retryFailedPost(post.id);
+  const handleRetry = (post: ScheduledPost) => {
+    setShowRetryModal(post);
+  };
+
+  const handleRetryNow = async (post: ScheduledPost) => {
+    // Schedule for 30 seconds from now so scheduler picks it up immediately
+    await retryFailedPost(post.id, new Date(Date.now() + 30000));
+    setShowRetryModal(null);
+  };
+
+  const handleRetryScheduled = async (post: ScheduledPost, scheduledTime: Date) => {
+    await retryFailedPost(post.id, scheduledTime);
+    setShowRetryModal(null);
+  };
+
+  const handleAccountConnected = () => {
+    // Force a refresh - the real-time subscription should handle this
+    // but show a toast/notification that account was connected
+    console.log('Account connected! You can now retry failed posts.');
   };
 
   const today = new Date();
@@ -371,6 +391,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
                           onDelete={handleDelete}
                           onReschedule={post.status === 'scheduled' ? handleReschedule : undefined}
                           onRetry={post.status === 'failed' ? handleRetry : undefined}
+                          onAccountConnected={handleAccountConnected}
                         />
                       ))
                     }
@@ -422,6 +443,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
                       compact
                       onDelete={handleDelete}
                       onReschedule={handleReschedule}
+                      onAccountConnected={handleAccountConnected}
                     />
                   ))
                 }
@@ -440,6 +462,16 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
             await reschedulePost(showRescheduleModal.id, newDate);
             setShowRescheduleModal(null);
           }}
+        />
+      )}
+
+      {/* Retry Modal */}
+      {showRetryModal && (
+        <RetryModal
+          post={showRetryModal}
+          onClose={() => setShowRetryModal(null)}
+          onPostNow={() => handleRetryNow(showRetryModal)}
+          onSchedule={(date) => handleRetryScheduled(showRetryModal, date)}
         />
       )}
     </div>
@@ -531,6 +563,186 @@ const RescheduleModal: React.FC<{
             )}
           </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Retry modal with Post Now vs Schedule options
+const RetryModal: React.FC<{
+  post: ScheduledPost;
+  onClose: () => void;
+  onPostNow: () => Promise<void>;
+  onSchedule: (date: Date) => Promise<void>;
+}> = ({ post, onClose, onPostNow, onSchedule }) => {
+  const [mode, setMode] = useState<'choose' | 'schedule'>('choose');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [time, setTime] = useState(
+    new Date(Date.now() + 60 * 60 * 1000).toTimeString().slice(0, 5) // 1 hour from now
+  );
+  const [loading, setLoading] = useState(false);
+
+  const handlePostNow = async () => {
+    setLoading(true);
+    try {
+      await onPostNow();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSchedule = async () => {
+    const newDate = new Date(`${date}T${time}`);
+    if (newDate <= new Date()) {
+      alert('Please select a future date and time');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await onSchedule(newDate);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Preview of the post
+  const caption = post.captions.instagram || post.captions.facebook || '';
+  const previewCaption = caption.length > 80 ? caption.slice(0, 80) + '...' : caption;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-display font-bold text-slate-900">Retry Post</h3>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Post preview */}
+        <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl mb-6">
+          {post.imageUrls[0] && (
+            <img 
+              src={post.imageUrls[0]} 
+              alt="Post preview" 
+              className="w-14 h-14 rounded-lg object-cover"
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-slate-700 line-clamp-2">{previewCaption}</p>
+            <div className="flex items-center gap-2 mt-1">
+              {post.platforms.map(p => (
+                <span key={p} className={`text-xs px-1.5 py-0.5 rounded ${
+                  p === 'instagram' ? 'bg-pink-100 text-pink-600' : 'bg-blue-100 text-blue-600'
+                }`}>
+                  {p === 'instagram' ? 'Instagram' : 'Facebook'}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {mode === 'choose' ? (
+          <div className="space-y-3">
+            <button
+              onClick={handlePostNow}
+              disabled={loading}
+              className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300 transition-all group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center group-hover:scale-105 transition-transform">
+                {loading ? (
+                  <Loader2 size={20} className="text-white animate-spin" />
+                ) : (
+                  <Zap size={20} className="text-white" />
+                )}
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-slate-900">Post Now</p>
+                <p className="text-xs text-slate-500">Publish immediately</p>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setMode('schedule')}
+              disabled={loading}
+              className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all group"
+            >
+              <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <CalendarClock size={20} className="text-white" />
+              </div>
+              <div className="text-left">
+                <p className="font-semibold text-slate-900">Schedule for Later</p>
+                <p className="text-xs text-slate-500">Pick a specific date and time</p>
+              </div>
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <button
+              onClick={() => setMode('choose')}
+              className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1 mb-2"
+            >
+              ← Back to options
+            </button>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Time</label>
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+              />
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSchedule}
+                disabled={loading}
+                className="flex-1 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Scheduling...
+                  </>
+                ) : (
+                  'Schedule'
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === 'choose' && (
+          <button
+            onClick={onClose}
+            className="w-full mt-4 py-2.5 rounded-xl font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   );

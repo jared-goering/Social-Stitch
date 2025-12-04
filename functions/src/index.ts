@@ -74,19 +74,24 @@ export const authStart = functions.https.onRequest((req, res) => {
   console.log('authStart - raw req.query:', JSON.stringify(req.query));
   console.log('authStart - raw platform:', req.query.platform, 'type:', typeof req.query.platform);
   
-  // Ensure sessionId and platform are strings (req.query can return arrays)
+  // Ensure sessionId, platform, and redirectUrl are strings (req.query can return arrays)
   let sessionId = Array.isArray(req.query.sessionId) 
     ? req.query.sessionId[0] 
     : req.query.sessionId;
   let platform = Array.isArray(req.query.platform) 
     ? req.query.platform[0] 
     : req.query.platform;
+  let redirectUrl = Array.isArray(req.query.redirectUrl)
+    ? req.query.redirectUrl[0]
+    : req.query.redirectUrl;
   
   // Force to string
   sessionId = String(sessionId);
   platform = String(platform);
+  // Use provided redirectUrl or fall back to config
+  const frontendUrl = redirectUrl ? String(redirectUrl) : config.frontendUrl;
   
-  console.log('authStart - processed platform:', platform, 'type:', typeof platform);
+  console.log('authStart - processed platform:', platform, 'frontendUrl:', frontendUrl);
 
   if (!sessionId || !platform) {
     res.status(400).json({ error: 'Missing sessionId or platform parameter' });
@@ -103,7 +108,8 @@ export const authStart = functions.https.onRequest((req, res) => {
     config.appId,
     redirectUri,
     String(sessionId),
-    String(platform) as 'facebook' | 'instagram'
+    String(platform) as 'facebook' | 'instagram',
+    frontendUrl
   );
 
   res.redirect(oauthUrl);
@@ -116,10 +122,24 @@ export const authCallback = functions.https.onRequest(async (req, res) => {
   const config = getConfig();
   const { code, state, error, error_description } = req.query;
 
+  // Parse state early to get frontendUrl for error redirects
+  let frontendUrl = config.frontendUrl;
+  if (state) {
+    try {
+      const stateStr = Array.isArray(state) ? state[0] : state;
+      const parsedState = JSON.parse(stateStr as string);
+      if (parsedState.frontendUrl) {
+        frontendUrl = String(parsedState.frontendUrl);
+      }
+    } catch (e) {
+      // Use default frontendUrl if state parsing fails
+    }
+  }
+
   // Handle OAuth errors
   if (error) {
     console.error('OAuth error:', error, error_description);
-    res.redirect(`${config.frontendUrl}?auth_error=${encodeURIComponent(error_description as string || 'Unknown error')}`);
+    res.redirect(`${frontendUrl}?auth_error=${encodeURIComponent(error_description as string || 'Unknown error')}`);
     return;
   }
 
@@ -141,8 +161,12 @@ export const authCallback = functions.https.onRequest(async (req, res) => {
     const platform = Array.isArray(parsedState.platform) 
       ? String(parsedState.platform[0]) 
       : String(parsedState.platform);
+    // Use frontendUrl from state if provided, otherwise use config
+    if (parsedState.frontendUrl) {
+      frontendUrl = String(parsedState.frontendUrl);
+    }
     
-    console.log('Auth callback - sessionId:', sessionId, 'platform:', platform, 'type:', typeof platform);
+    console.log('Auth callback - sessionId:', sessionId, 'platform:', platform, 'frontendUrl:', frontendUrl);
     const redirectUri = `${config.functionsUrl}/authCallback`;
 
     // Exchange code for short-lived token
@@ -164,7 +188,7 @@ export const authCallback = functions.https.onRequest(async (req, res) => {
     const pages = await getUserPages(longLivedToken.access_token);
 
     if (pages.length === 0) {
-      res.redirect(`${config.frontendUrl}?auth_error=${encodeURIComponent('No Facebook Pages found. Please create a Page first.')}`);
+      res.redirect(`${frontendUrl}?auth_error=${encodeURIComponent('No Facebook Pages found. Please create a Page first.')}`);
       return;
     }
 
@@ -186,7 +210,7 @@ export const authCallback = functions.https.onRequest(async (req, res) => {
       accountData.instagramId = selectedPage.instagram_business_account.id;
       accountData.instagramUsername = selectedPage.instagram_business_account.username || 'Connected Account';
     } else if (platform === 'instagram' && !selectedPage.instagram_business_account) {
-      res.redirect(`${config.frontendUrl}?auth_error=${encodeURIComponent('No Instagram Business Account linked to your Facebook Page.')}`);
+      res.redirect(`${frontendUrl}?auth_error=${encodeURIComponent('No Instagram Business Account linked to your Facebook Page.')}`);
       return;
     }
 
@@ -194,7 +218,7 @@ export const authCallback = functions.https.onRequest(async (req, res) => {
     await db.collection('sessions').doc(sessionId).collection('accounts').doc(platform).set(accountData);
 
     // Redirect back to frontend with success
-    res.redirect(`${config.frontendUrl}?auth_success=${platform}`);
+    res.redirect(`${frontendUrl}?auth_success=${platform}`);
 
   } catch (err) {
     console.error('Auth callback error:', err);

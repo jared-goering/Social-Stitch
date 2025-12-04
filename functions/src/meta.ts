@@ -41,7 +41,8 @@ export function buildOAuthUrl(
   appId: string,
   redirectUri: string,
   sessionId: string,
-  platform: 'facebook' | 'instagram'
+  platform: 'facebook' | 'instagram',
+  frontendUrl?: string
 ): string {
   const scopes = [
     'pages_show_list',
@@ -52,12 +53,18 @@ export function buildOAuthUrl(
     'business_management'
   ];
 
+  // Include frontendUrl in state so callback knows where to redirect
+  const stateData: Record<string, string> = { sessionId, platform };
+  if (frontendUrl) {
+    stateData.frontendUrl = frontendUrl;
+  }
+
   const params = new URLSearchParams({
     client_id: appId,
     redirect_uri: redirectUri,
     scope: scopes.join(','),
     response_type: 'code',
-    state: JSON.stringify({ sessionId, platform })
+    state: JSON.stringify(stateData)
   });
 
   return `https://www.facebook.com/${GRAPH_API_VERSION}/dialog/oauth?${params.toString()}`;

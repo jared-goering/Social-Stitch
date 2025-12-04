@@ -4,8 +4,10 @@ import { MockupGenerator } from './components/MockupGenerator';
 import { CaptionReview } from './components/CaptionReview';
 import { StepIndicator } from './components/StepIndicator';
 import { CalendarView } from './components/Calendar';
+import { AuthProvider, useAuth } from './components/AuthProvider';
+import { SignInPage } from './components/SignInPage';
 import { AppStep, UploadedDesign, MockupOption, AppView } from './types';
-import { Shirt, Sparkles, CheckCheck, RotateCcw, Calendar, PlusCircle, CheckCircle } from 'lucide-react';
+import { Shirt, Sparkles, CheckCheck, RotateCcw, Calendar, PlusCircle, CheckCircle, LogOut, Loader2 } from 'lucide-react';
 import { isPopupWindow } from './services/socialAuthService';
 
 // Storage key for session persistence
@@ -21,14 +23,9 @@ interface PersistedState {
   selectedMockups: MockupOption[];
 }
 
+// Main App wrapper with AuthProvider
 export default function App() {
-  const [currentView, setCurrentView] = useState<AppView>('workflow');
-  const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.UPLOAD);
-  const [design, setDesign] = useState<UploadedDesign | null>(null);
-  const [selectedMockups, setSelectedMockups] = useState<MockupOption[]>([]);
-  const [hasPersistedSession, setHasPersistedSession] = useState(false);
-
-  // Check if this is an OAuth popup window
+  // Check if this is an OAuth popup window (for social media auth, not Firebase auth)
   const urlParams = new URLSearchParams(window.location.search);
   const isOAuthPopup = isPopupWindow() && (urlParams.get('auth_success') || urlParams.get('auth_error'));
   
@@ -62,8 +59,53 @@ export default function App() {
     );
   }
 
-  // Load persisted state on mount
+  return (
+    <AuthProvider>
+      <AuthenticatedApp />
+    </AuthProvider>
+  );
+}
+
+// The main app content (requires authentication)
+function AuthenticatedApp() {
+  const { user, loading, signOut } = useAuth();
+  const [currentView, setCurrentView] = useState<AppView>('workflow');
+  const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.UPLOAD);
+  const [design, setDesign] = useState<UploadedDesign | null>(null);
+  const [selectedMockups, setSelectedMockups] = useState<MockupOption[]>([]);
+  const [hasPersistedSession, setHasPersistedSession] = useState(false);
+
+  // Persist state changes - defined before useEffect that uses it
+  const persistState = useCallback((
+    step: AppStep,
+    designData: UploadedDesign | null,
+    mockups: MockupOption[]
+  ) => {
+    if (step === AppStep.SUCCESS) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+    
+    try {
+      const toSave: PersistedState = {
+        currentStep: step,
+        design: designData ? {
+          id: designData.id,
+          base64: designData.base64,
+          previewUrl: designData.previewUrl
+        } : null,
+        selectedMockups: mockups
+      };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    } catch (error) {
+      console.error('Failed to persist session:', error);
+    }
+  }, []);
+
+  // Load persisted state on mount - hooks must be called before conditional returns
   useEffect(() => {
+    if (!user) return; // Only restore state if authenticated
+    
     try {
       const saved = sessionStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -93,34 +135,24 @@ export default function App() {
       console.error('Failed to restore session:', error);
       sessionStorage.removeItem(STORAGE_KEY);
     }
-  }, []);
+  }, [user]);
 
-  // Persist state changes
-  const persistState = useCallback((
-    step: AppStep,
-    designData: UploadedDesign | null,
-    mockups: MockupOption[]
-  ) => {
-    if (step === AppStep.SUCCESS) {
-      sessionStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-    
-    try {
-      const toSave: PersistedState = {
-        currentStep: step,
-        design: designData ? {
-          id: designData.id,
-          base64: designData.base64,
-          previewUrl: designData.previewUrl
-        } : null,
-        selectedMockups: mockups
-      };
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-    } catch (error) {
-      console.error('Failed to persist session:', error);
-    }
-  }, []);
+  // Show loading state while auth initializes
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-subtle">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mx-auto mb-4" />
+          <p className="text-slate-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show sign-in page if not authenticated
+  if (!user) {
+    return <SignInPage />;
+  }
 
   const handleUpload = (uploadedDesign: UploadedDesign) => {
     setDesign(uploadedDesign);
@@ -214,6 +246,24 @@ export default function App() {
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200/50">
               <Sparkles size={14} className="text-amber-500" />
               <span className="text-xs font-medium text-amber-700">AI-Powered Marketing</span>
+            </div>
+
+            {/* User Menu */}
+            <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
+              {user.photoURL && (
+                <img
+                  src={user.photoURL}
+                  alt={user.displayName || 'User'}
+                  className="w-7 h-7 rounded-full border border-slate-200"
+                />
+              )}
+              <button
+                onClick={signOut}
+                className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-100 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+                title="Sign out"
+              >
+                <LogOut size={14} />
+              </button>
             </div>
           </div>
         </div>

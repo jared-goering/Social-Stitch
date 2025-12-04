@@ -19,10 +19,22 @@ import {
   Unsubscribe
 } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { db, storage, sessionId } from './firebaseConfig';
+import { db, storage, auth } from './firebaseConfig';
 import { ScheduledPost, CreateScheduledPostData, PostStatus, SocialPlatform } from '../types';
 
 const COLLECTION_NAME = 'scheduledPosts';
+
+/**
+ * Get the current authenticated user's ID
+ * Throws an error if no user is authenticated
+ */
+function getCurrentUserId(): string {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('No authenticated user. Please sign in.');
+  }
+  return user.uid;
+}
 
 /**
  * Convert Firestore document to ScheduledPost
@@ -48,6 +60,7 @@ function docToScheduledPost(doc: { id: string; data: () => Record<string, unknow
  * Upload images to Firebase Storage and return public URLs
  */
 export async function uploadImagesToStorage(images: string[]): Promise<string[]> {
+  const userId = getCurrentUserId();
   const urls: string[] = [];
   
   for (let i = 0; i < images.length; i++) {
@@ -61,7 +74,7 @@ export async function uploadImagesToStorage(images: string[]): Promise<string[]>
     }
     
     // Upload to Firebase Storage
-    const filename = `scheduled/${sessionId}/${Date.now()}_${i}.jpg`;
+    const filename = `scheduled/${userId}/${Date.now()}_${i}.jpg`;
     const storageRef = ref(storage, filename);
     
     // Handle both data URLs and base64 strings
@@ -82,12 +95,14 @@ export async function uploadImagesToStorage(images: string[]): Promise<string[]>
  * Create a new scheduled post
  */
 export async function createScheduledPost(data: CreateScheduledPostData): Promise<ScheduledPost> {
+  const userId = getCurrentUserId();
+  
   // Upload images first if they're base64/blob
   const imageUrls = await uploadImagesToStorage(data.imageUrls);
   
   // Build a clean document with only primitive values
   const docData: Record<string, unknown> = {
-    sessionId: sessionId,
+    sessionId: userId,
     platforms: data.platforms.map(p => String(p)),
     scheduledFor: Timestamp.fromDate(data.scheduledFor),
     status: 'scheduled',
@@ -103,7 +118,7 @@ export async function createScheduledPost(data: CreateScheduledPostData): Promis
   
   return {
     id: docRef.id,
-    sessionId,
+    sessionId: userId,
     platforms: data.platforms,
     scheduledFor: data.scheduledFor,
     status: 'scheduled',
@@ -115,12 +130,13 @@ export async function createScheduledPost(data: CreateScheduledPostData): Promis
 }
 
 /**
- * Get all scheduled posts for the current session
+ * Get all scheduled posts for the current user
  */
 export async function getScheduledPosts(): Promise<ScheduledPost[]> {
+  const userId = getCurrentUserId();
   const q = query(
     collection(db, COLLECTION_NAME),
-    where('sessionId', '==', sessionId),
+    where('sessionId', '==', userId),
     orderBy('scheduledFor', 'asc')
   );
   
@@ -135,9 +151,10 @@ export async function getScheduledPostsInRange(
   startDate: Date,
   endDate: Date
 ): Promise<ScheduledPost[]> {
+  const userId = getCurrentUserId();
   const q = query(
     collection(db, COLLECTION_NAME),
-    where('sessionId', '==', sessionId),
+    where('sessionId', '==', userId),
     where('scheduledFor', '>=', Timestamp.fromDate(startDate)),
     where('scheduledFor', '<=', Timestamp.fromDate(endDate)),
     orderBy('scheduledFor', 'asc')
@@ -225,9 +242,10 @@ export async function deleteScheduledPost(postId: string): Promise<void> {
 export function subscribeToScheduledPosts(
   callback: (posts: ScheduledPost[]) => void
 ): Unsubscribe {
+  const userId = getCurrentUserId();
   const q = query(
     collection(db, COLLECTION_NAME),
-    where('sessionId', '==', sessionId),
+    where('sessionId', '==', userId),
     orderBy('scheduledFor', 'asc')
   );
   
@@ -300,13 +318,15 @@ export async function recordPublishedPost(data: {
   imageUrls: string[];
   mockupData: CreateScheduledPostData['mockupData'];
 }): Promise<ScheduledPost> {
+  const userId = getCurrentUserId();
+  
   // Upload images first if they're base64/blob
   const imageUrls = await uploadImagesToStorage(data.imageUrls);
   const now = new Date();
   
   // Build a clean document with only primitive values
   const docData: Record<string, unknown> = {
-    sessionId: sessionId,
+    sessionId: userId,
     platforms: data.platforms.map(p => String(p)),
     scheduledFor: Timestamp.fromDate(now),
     status: 'published',
@@ -323,7 +343,7 @@ export async function recordPublishedPost(data: {
   
   return {
     id: docRef.id,
-    sessionId,
+    sessionId: userId,
     platforms: data.platforms,
     scheduledFor: now,
     status: 'published',
@@ -333,5 +353,57 @@ export async function recordPublishedPost(data: {
     createdAt: now,
     publishedAt: now
   };
+}
+
+/**
+ * Migrate posts from old localStorage-based session to current Firebase Auth user
+ * This is a one-time migration function for users who had posts before auth was implemented
+ */
+export async function migratePostsToCurrentUser(): Promise<{ migrated: number; error?: string }> {
+  const newUserId = getCurrentUserId();
+  
+  // Get the old localStorage-based session ID
+  const oldSessionId = localStorage.getItem('socialstitch_user_id');
+  
+  if (!oldSessionId) {
+    return { migrated: 0, error: 'No old session found in localStorage' };
+  }
+  
+  // Don't migrate if old and new IDs are the same
+  if (oldSessionId === newUserId) {
+    return { migrated: 0, error: 'Old session ID matches current user ID - no migration needed' };
+  }
+  
+  try {
+    // Query for all posts with the old session ID
+    const q = query(
+      collection(db, COLLECTION_NAME),
+      where('sessionId', '==', oldSessionId)
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) {
+      return { migrated: 0, error: 'No posts found with old session ID' };
+    }
+    
+    // Update each document to use the new user ID
+    let migratedCount = 0;
+    for (const docSnapshot of snapshot.docs) {
+      const docRef = doc(db, COLLECTION_NAME, docSnapshot.id);
+      await updateDoc(docRef, { sessionId: newUserId });
+      migratedCount++;
+    }
+    
+    // Clear the old localStorage session ID after successful migration
+    // (Keep it commented out in case user needs to re-run migration)
+    // localStorage.removeItem('socialstitch_user_id');
+    
+    console.log(`Successfully migrated ${migratedCount} posts to user ${newUserId}`);
+    return { migrated: migratedCount };
+  } catch (error) {
+    console.error('Migration failed:', error);
+    return { migrated: 0, error: String(error) };
+  }
 }
 

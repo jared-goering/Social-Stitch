@@ -16,14 +16,32 @@ import {
   orderBy,
   Timestamp 
 } from 'firebase/firestore';
-import { db, storage, userId } from './firebaseConfig';
+import { db, storage, auth } from './firebaseConfig';
 import { SavedMockup } from '../types';
 
+/**
+ * Get the current authenticated user's ID
+ * Throws an error if no user is authenticated
+ */
+function getCurrentUserId(): string {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('No authenticated user. Please sign in.');
+  }
+  return user.uid;
+}
+
 // Collection path for user mockups
-const getUserMockupsCollection = () => collection(db, 'users', userId, 'mockups');
+const getUserMockupsCollection = () => {
+  const userId = getCurrentUserId();
+  return collection(db, 'users', userId, 'mockups');
+};
 
 // Storage path for mockup images
-const getMockupStoragePath = (mockupId: string) => `mockups/${userId}/${mockupId}.png`;
+const getMockupStoragePath = (mockupId: string) => {
+  const userId = getCurrentUserId();
+  return `mockups/${userId}/${mockupId}.png`;
+};
 
 /**
  * Convert a base64 data URL to a Blob
@@ -53,6 +71,8 @@ export const saveMockupToFirebase = async (
   styleDescription: string,
   designId: string
 ): Promise<SavedMockup> => {
+  const userId = getCurrentUserId();
+  
   // Upload image to Firebase Storage
   const storageRef = ref(storage, getMockupStoragePath(mockupId));
   const imageBlob = base64ToBlob(base64Image);
