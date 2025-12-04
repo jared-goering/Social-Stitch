@@ -17,6 +17,34 @@ import {
 // Export scheduler functions
 export { processScheduledPosts, triggerScheduledPosts } from './scheduler';
 
+// Export Shopify OAuth and authentication functions
+export {
+  shopifyAuthStart,
+  shopifyAuthCallback,
+  shopifyVerifySession,
+  shopifyCheckInstall,
+  shopifyAppUninstalled,
+} from './shopify-auth';
+
+// Export Shopify API proxy functions
+export {
+  shopifyGetProducts,
+  shopifyGetProduct,
+  shopifyGetProductImages,
+  shopifyGetCollections,
+  shopifySearchProducts,
+  shopifyGetShop,
+  shopifyProxyImage,
+} from './shopify-api';
+
+// Export Shopify GDPR webhooks
+export {
+  gdprCustomersDataRequest,
+  gdprCustomersRedact,
+  gdprShopRedact,
+  exportShopData,
+} from './shopify-gdpr';
+
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();

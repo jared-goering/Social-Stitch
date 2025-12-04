@@ -4,6 +4,9 @@ import App from './App';
 import { ShopifyProvider } from './components/ShopifyProvider';
 import { migratePostsToCurrentUser } from './services/scheduledPostsService';
 
+// Import Polaris styles (for Shopify embedded app mode)
+import '@shopify/polaris/build/esm/styles.css';
+
 // Expose migration function globally for console access
 // Usage: After signing in, open console and run: migratePosts()
 (window as unknown as { migratePosts: typeof migratePostsToCurrentUser }).migratePosts = migratePostsToCurrentUser;

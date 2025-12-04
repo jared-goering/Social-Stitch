@@ -76,52 +76,49 @@ npm install
 cd functions && npm install && cd ..
 ```
 
-## 5. Backend OAuth Handler (Required)
+## 5. Backend OAuth Handler (Implemented)
 
-The Shopify OAuth flow requires a secure backend endpoint. You have two options:
+The Shopify OAuth flow is handled by Firebase Functions. The following endpoints are available:
 
-### Option A: Add to Firebase Functions
+### OAuth Endpoints
 
-Create `functions/src/shopify-auth.ts`:
+| Endpoint | Purpose |
+|----------|---------|
+| `shopifyAuthStart` | Start OAuth flow, redirect to Shopify |
+| `shopifyAuthCallback` | Handle OAuth callback, exchange code for token |
+| `shopifyVerifySession` | Verify session token for API requests |
+| `shopifyCheckInstall` | Check if a shop has installed the app |
+| `shopifyAppUninstalled` | Webhook for app uninstallation |
 
-```typescript
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
-import fetch from 'node-fetch';
+### Shopify API Proxy Endpoints
 
-export const shopifyAuthCallback = functions.https.onRequest(async (req, res) => {
-  const { code, shop, state } = req.query;
-  
-  // Verify state to prevent CSRF
-  // Exchange code for access token
-  const tokenUrl = `https://${shop}/admin/oauth/access_token`;
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: functions.config().shopify.api_key,
-      client_secret: functions.config().shopify.api_secret,
-      code,
-    }),
-  });
-  
-  const data = await response.json();
-  
-  // Store access token securely in Firestore
-  await admin.firestore().collection('shopifyStores').doc(shop).set({
-    accessToken: data.access_token,
-    scope: data.scope,
-    installedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  
-  // Redirect back to app with success
-  res.redirect(`/?shop=${shop}&auth_success=true`);
-});
-```
+| Endpoint | Purpose |
+|----------|---------|
+| `shopifyGetProducts` | Fetch merchant's products with pagination |
+| `shopifyGetProduct` | Get single product by ID |
+| `shopifyGetProductImages` | Get product images |
+| `shopifyGetCollections` | Fetch custom and smart collections |
+| `shopifySearchProducts` | Search products by title |
+| `shopifyGetShop` | Get shop information |
+| `shopifyProxyImage` | Proxy Shopify CDN images (CORS) |
+
+### GDPR Webhooks (Required for Public Apps)
+
+| Endpoint | Purpose |
+|----------|---------|
+| `gdprCustomersDataRequest` | Handle customer data requests |
+| `gdprCustomersRedact` | Handle customer data deletion |
+| `gdprShopRedact` | Handle shop data deletion |
+
+### Configuration
 
 Set Firebase config:
 ```bash
-firebase functions:config:set shopify.api_key="YOUR_KEY" shopify.api_secret="YOUR_SECRET"
+firebase functions:config:set \
+  shopify.api_key="YOUR_KEY" \
+  shopify.api_secret="YOUR_SECRET" \
+  shopify.scopes="read_products" \
+  shopify.app_url="https://your-app-url.com"
 ```
 
 Deploy:
@@ -129,9 +126,12 @@ Deploy:
 npm run functions:deploy
 ```
 
-### Option B: Create Express Backend
+### Register GDPR Webhooks in Shopify Partners
 
-If you prefer a separate backend, create a simple Express server to handle OAuth.
+In your app settings, configure these webhook URLs:
+- Customer data request: `https://[YOUR_FUNCTIONS_URL]/gdprCustomersDataRequest`
+- Customer data erasure: `https://[YOUR_FUNCTIONS_URL]/gdprCustomersRedact`
+- Shop data erasure: `https://[YOUR_FUNCTIONS_URL]/gdprShopRedact`
 
 ## 6. Local Development
 
@@ -179,12 +179,30 @@ npm run functions:deploy
 3. Click **Install app**
 4. Test the OAuth flow and app functionality
 
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `shopify.config.ts` | Shopify app configuration |
+| `components/ShopifyProvider.tsx` | App Bridge provider and session management |
+| `components/ShopifyApp.tsx` | Main Shopify embedded app with Polaris UI |
+| `components/ProductBrowser.tsx` | Product catalog browser |
+| `components/pages/*.tsx` | Polaris page wrappers |
+| `services/shopifyAuthService.ts` | Client-side OAuth handling |
+| `services/shopifyProductService.ts` | Product API client |
+| `services/shopScopedStorageService.ts` | Shop-scoped data storage |
+| `functions/src/shopify-auth.ts` | OAuth backend |
+| `functions/src/shopify-api.ts` | API proxy |
+| `functions/src/shopify-gdpr.ts` | GDPR webhooks |
+
 ## Key Differences from Web App
 
 | Feature | Web App | Shopify App |
 |---------|---------|-------------|
-| Authentication | Firebase Auth | Shopify OAuth |
-| UI Framework | Custom styling | Shopify Polaris (optional) |
+| Authentication | Firebase Auth | Shopify OAuth + Session Tokens |
+| UI Framework | Custom styling | Hybrid (Polaris + Custom) |
+| Product Source | Upload only | Shopify products + Upload |
+| Data Storage | By user ID | By shop domain |
 | Deployment | Vercel | Vercel + Shopify Partners |
 | Installation | Direct URL | Via Shopify App Store |
 | User Context | Individual users | Shopify merchants |

@@ -7,6 +7,8 @@ import { CalendarView } from './components/Calendar';
 import { GalleryView } from './components/GalleryView';
 import { AuthProvider, useAuth } from './components/AuthProvider';
 import { SignInPage } from './components/SignInPage';
+import { ShopifyApp } from './components/ShopifyApp';
+import { useIsShopifyEmbedded } from './components/ShopifyProvider';
 import { AppStep, UploadedDesign, MockupOption, AppView } from './types';
 import { Shirt, Sparkles, CheckCheck, RotateCcw, Calendar, PlusCircle, CheckCircle, LogOut, Loader2, Images } from 'lucide-react';
 import { isPopupWindow } from './services/socialAuthService';
@@ -26,6 +28,8 @@ interface PersistedState {
 
 // Main App wrapper with AuthProvider
 export default function App() {
+  const isShopifyEmbedded = useIsShopifyEmbedded();
+  
   // Check if this is an OAuth popup window (for social media auth, not Firebase auth)
   const urlParams = new URLSearchParams(window.location.search);
   const isOAuthPopup = isPopupWindow() && (urlParams.get('auth_success') || urlParams.get('auth_error'));
@@ -60,6 +64,12 @@ export default function App() {
     );
   }
 
+  // If running as Shopify embedded app, render ShopifyApp
+  if (isShopifyEmbedded) {
+    return <ShopifyApp />;
+  }
+
+  // Otherwise, render the standalone app with Firebase Auth
   return (
     <AuthProvider>
       <AuthenticatedApp />
