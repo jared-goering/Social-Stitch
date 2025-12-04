@@ -4,10 +4,11 @@ import { MockupGenerator } from './components/MockupGenerator';
 import { CaptionReview } from './components/CaptionReview';
 import { StepIndicator } from './components/StepIndicator';
 import { CalendarView } from './components/Calendar';
+import { GalleryView } from './components/GalleryView';
 import { AuthProvider, useAuth } from './components/AuthProvider';
 import { SignInPage } from './components/SignInPage';
 import { AppStep, UploadedDesign, MockupOption, AppView } from './types';
-import { Shirt, Sparkles, CheckCheck, RotateCcw, Calendar, PlusCircle, CheckCircle, LogOut, Loader2 } from 'lucide-react';
+import { Shirt, Sparkles, CheckCheck, RotateCcw, Calendar, PlusCircle, CheckCircle, LogOut, Loader2, Images } from 'lucide-react';
 import { isPopupWindow } from './services/socialAuthService';
 
 // Storage key for session persistence
@@ -232,6 +233,17 @@ function AuthenticatedApp() {
                 <Calendar size={12} />
                 Calendar
               </button>
+              <button
+                onClick={() => setCurrentView('gallery')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  currentView === 'gallery'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <Images size={12} />
+                Gallery
+              </button>
             </div>
 
             {currentView === 'workflow' && hasPersistedSession && currentStep !== AppStep.SUCCESS && (
@@ -274,6 +286,18 @@ function AuthenticatedApp() {
         {currentView === 'calendar' && (
           <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <CalendarView 
+              onCreatePost={() => {
+                setCurrentView('workflow');
+                resetApp();
+              }}
+            />
+          </div>
+        )}
+
+        {/* Gallery View */}
+        {currentView === 'gallery' && (
+          <div className="max-w-6xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <GalleryView 
               onCreatePost={() => {
                 setCurrentView('workflow');
                 resetApp();

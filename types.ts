@@ -105,4 +105,4 @@ export interface CreateScheduledPostData {
 }
 
 // App view modes
-export type AppView = 'workflow' | 'calendar';
+export type AppView = 'workflow' | 'calendar' | 'gallery';
