@@ -43,8 +43,8 @@ if (useEmulators) {
 }
 
 // Firebase Hosting URL (uses rewrites to route to Cloud Functions)
-// This is more trusted by browsers than raw Cloud Functions URLs
-export const HOSTING_BASE_URL = 'https://social-stitch.web.app';
+// Using custom domain to avoid Safe Browsing warnings
+export const HOSTING_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.socialstitch.io';
 
 // Firebase Functions base URL (direct access, used as fallback)
 export const FUNCTIONS_BASE_URL = import.meta.env.VITE_FIREBASE_FUNCTIONS_URL || 
