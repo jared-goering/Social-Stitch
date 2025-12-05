@@ -42,14 +42,34 @@ if (useEmulators) {
   }
 }
 
-// Firebase Functions base URL
-// For local development with emulator: http://localhost:5001/YOUR-PROJECT-ID/us-central1
-// For production: https://us-central1-YOUR-PROJECT-ID.cloudfunctions.net
+// Firebase Hosting URL (uses rewrites to route to Cloud Functions)
+// This is more trusted by browsers than raw Cloud Functions URLs
+export const HOSTING_BASE_URL = 'https://social-stitch.web.app';
+
+// Firebase Functions base URL (direct access, used as fallback)
 export const FUNCTIONS_BASE_URL = import.meta.env.VITE_FIREBASE_FUNCTIONS_URL || 
   'http://localhost:5001/social-stitch/us-central1';
 
+// Map function names to hosting API paths
+const HOSTING_API_PATHS: Record<string, string> = {
+  authStart: '/api/auth/start',
+  authCallback: '/api/auth/callback',
+  getConnectedAccounts: '/api/accounts',
+  disconnectAccount: '/api/accounts/disconnect',
+  postToFacebook: '/api/post/facebook',
+  postToInstagram: '/api/post/instagram',
+  postCarouselToFacebook: '/api/post/facebook/carousel',
+  postCarouselToInstagram: '/api/post/instagram/carousel',
+};
+
 // Helper to build function URLs
+// Uses Firebase Hosting paths when available (trusted by browsers)
 export const getFunctionUrl = (functionName: string): string => {
+  const hostingPath = HOSTING_API_PATHS[functionName];
+  if (hostingPath) {
+    return `${HOSTING_BASE_URL}${hostingPath}`;
+  }
+  // Fallback to direct Cloud Functions URL
   return `${FUNCTIONS_BASE_URL}/${functionName}`;
 };
 

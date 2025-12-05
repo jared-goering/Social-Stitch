@@ -16,6 +16,26 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "hosting": {
+    "public": "hosting-placeholder",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      { "source": "/api/auth/start", "function": "authStart" },
+      { "source": "/api/auth/callback", "function": "authCallback" },
+      { "source": "/api/accounts", "function": "getConnectedAccounts" },
+      { "source": "/api/accounts/disconnect", "function": "disconnectAccount" },
+      { "source": "/api/post/facebook", "function": "postToFacebook" },
+      { "source": "/api/post/instagram", "function": "postToInstagram" },
+      { "source": "/api/post/facebook/carousel", "function": "postCarouselToFacebook" },
+      { "source": "/api/post/instagram/carousel", "function": "postCarouselToInstagram" },
+      { "source": "/api/shopify/auth/start", "function": "shopifyAuthStart" },
+      { "source": "/api/shopify/auth/callback", "function": "shopifyAuthCallback" },
+      { "source": "/api/shopify/products", "function": "shopifyGetProducts" },
+      { "source": "/api/shopify/products/:id", "function": "shopifyGetProduct" },
+      { "source": "/api/shopify/products/:id/images", "function": "shopifyGetProductImages" },
+      { "source": "/api/gdpr/**", "function": "gdprCustomersDataRequest" }
+    ]
+  },
   "emulators": {
     "functions": {
       "port": 5001
