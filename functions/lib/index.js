@@ -98,13 +98,15 @@ async function uploadImageToStorage(base64Data, sessionId) {
 const corsHandler = (0, cors_1.default)({ origin: true });
 // Environment variables (set via Firebase config)
 const getConfig = () => {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     const config = functions.config();
     return {
         appId: ((_a = config.meta) === null || _a === void 0 ? void 0 : _a.app_id) || process.env.META_APP_ID || '',
         appSecret: ((_b = config.meta) === null || _b === void 0 ? void 0 : _b.app_secret) || process.env.META_APP_SECRET || '',
         functionsUrl: ((_c = config.app) === null || _c === void 0 ? void 0 : _c.functions_url) || process.env.FUNCTIONS_URL || '',
-        frontendUrl: ((_d = config.app) === null || _d === void 0 ? void 0 : _d.frontend_url) || process.env.FRONTEND_URL || 'http://localhost:5173'
+        // Use custom domain for OAuth to avoid Safe Browsing warnings
+        hostingUrl: ((_d = config.app) === null || _d === void 0 ? void 0 : _d.hosting_url) || process.env.HOSTING_URL || 'https://api.socialstitch.io',
+        frontendUrl: ((_e = config.app) === null || _e === void 0 ? void 0 : _e.frontend_url) || process.env.FRONTEND_URL || 'http://localhost:5173'
     };
 };
 /**
@@ -139,7 +141,8 @@ exports.authStart = functions.https.onRequest((req, res) => {
         res.status(500).json({ error: 'Meta App ID not configured' });
         return;
     }
-    const redirectUri = `${config.functionsUrl}/authCallback`;
+    // Use Firebase Hosting URL for OAuth callback to avoid Safe Browsing warnings
+    const redirectUri = `${config.hostingUrl}/api/auth/callback`;
     const oauthUrl = (0, meta_1.buildOAuthUrl)(config.appId, redirectUri, String(sessionId), String(platform), frontendUrl);
     res.redirect(oauthUrl);
 });
@@ -190,7 +193,8 @@ exports.authCallback = functions.https.onRequest(async (req, res) => {
             frontendUrl = String(parsedState.frontendUrl);
         }
         console.log('Auth callback - sessionId:', sessionId, 'platform:', platform, 'frontendUrl:', frontendUrl);
-        const redirectUri = `${config.functionsUrl}/authCallback`;
+        // Use Firebase Hosting URL for OAuth callback (must match what was used in authStart)
+        const redirectUri = `${config.hostingUrl}/api/auth/callback`;
         // Exchange code for short-lived token
         const tokenResponse = await (0, meta_1.exchangeCodeForToken)(code, config.appId, config.appSecret, redirectUri);
         // Get long-lived token

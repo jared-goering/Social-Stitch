@@ -42,7 +42,7 @@ if (useEmulators) {
   }
 }
 
-// Firebase Hosting URL (uses rewrites to route to Cloud Functions)
+// Custom API domain (uses Firebase Hosting rewrites to route to Cloud Functions)
 // Using custom domain to avoid Safe Browsing warnings
 export const HOSTING_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.socialstitch.io';
 
