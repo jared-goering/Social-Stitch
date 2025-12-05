@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.disconnectAccount = exports.postCarouselToFacebook = exports.postCarouselToInstagram = exports.postToInstagram = exports.postToFacebook = exports.getConnectedAccounts = exports.authCallback = exports.authStart = exports.triggerScheduledPosts = exports.processScheduledPosts = void 0;
+exports.disconnectAccount = exports.postCarouselToFacebook = exports.postCarouselToInstagram = exports.postToInstagram = exports.postToFacebook = exports.getConnectedAccounts = exports.authCallback = exports.authStart = exports.exportShopData = exports.gdprShopRedact = exports.gdprCustomersRedact = exports.gdprCustomersDataRequest = exports.shopifyProxyImage = exports.shopifyGetShop = exports.shopifySearchProducts = exports.shopifyGetCollections = exports.shopifyGetProductImages = exports.shopifyGetProduct = exports.shopifyGetProducts = exports.shopifyAppUninstalled = exports.shopifyCheckInstall = exports.shopifyVerifySession = exports.shopifyAuthCallback = exports.shopifyAuthStart = exports.triggerScheduledPosts = exports.processScheduledPosts = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const cors_1 = __importDefault(require("cors"));
@@ -45,6 +45,28 @@ const meta_1 = require("./meta");
 var scheduler_1 = require("./scheduler");
 Object.defineProperty(exports, "processScheduledPosts", { enumerable: true, get: function () { return scheduler_1.processScheduledPosts; } });
 Object.defineProperty(exports, "triggerScheduledPosts", { enumerable: true, get: function () { return scheduler_1.triggerScheduledPosts; } });
+// Export Shopify OAuth and authentication functions
+var shopify_auth_1 = require("./shopify-auth");
+Object.defineProperty(exports, "shopifyAuthStart", { enumerable: true, get: function () { return shopify_auth_1.shopifyAuthStart; } });
+Object.defineProperty(exports, "shopifyAuthCallback", { enumerable: true, get: function () { return shopify_auth_1.shopifyAuthCallback; } });
+Object.defineProperty(exports, "shopifyVerifySession", { enumerable: true, get: function () { return shopify_auth_1.shopifyVerifySession; } });
+Object.defineProperty(exports, "shopifyCheckInstall", { enumerable: true, get: function () { return shopify_auth_1.shopifyCheckInstall; } });
+Object.defineProperty(exports, "shopifyAppUninstalled", { enumerable: true, get: function () { return shopify_auth_1.shopifyAppUninstalled; } });
+// Export Shopify API proxy functions
+var shopify_api_1 = require("./shopify-api");
+Object.defineProperty(exports, "shopifyGetProducts", { enumerable: true, get: function () { return shopify_api_1.shopifyGetProducts; } });
+Object.defineProperty(exports, "shopifyGetProduct", { enumerable: true, get: function () { return shopify_api_1.shopifyGetProduct; } });
+Object.defineProperty(exports, "shopifyGetProductImages", { enumerable: true, get: function () { return shopify_api_1.shopifyGetProductImages; } });
+Object.defineProperty(exports, "shopifyGetCollections", { enumerable: true, get: function () { return shopify_api_1.shopifyGetCollections; } });
+Object.defineProperty(exports, "shopifySearchProducts", { enumerable: true, get: function () { return shopify_api_1.shopifySearchProducts; } });
+Object.defineProperty(exports, "shopifyGetShop", { enumerable: true, get: function () { return shopify_api_1.shopifyGetShop; } });
+Object.defineProperty(exports, "shopifyProxyImage", { enumerable: true, get: function () { return shopify_api_1.shopifyProxyImage; } });
+// Export Shopify GDPR webhooks
+var shopify_gdpr_1 = require("./shopify-gdpr");
+Object.defineProperty(exports, "gdprCustomersDataRequest", { enumerable: true, get: function () { return shopify_gdpr_1.gdprCustomersDataRequest; } });
+Object.defineProperty(exports, "gdprCustomersRedact", { enumerable: true, get: function () { return shopify_gdpr_1.gdprCustomersRedact; } });
+Object.defineProperty(exports, "gdprShopRedact", { enumerable: true, get: function () { return shopify_gdpr_1.gdprShopRedact; } });
+Object.defineProperty(exports, "exportShopData", { enumerable: true, get: function () { return shopify_gdpr_1.exportShopData; } });
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();

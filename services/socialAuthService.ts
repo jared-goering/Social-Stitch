@@ -1,16 +1,49 @@
 /**
  * Social Authentication Service
  * Handles OAuth flows and posting to social platforms via Firebase Functions
+ * Works in both standalone (Firebase Auth) and Shopify embedded modes
  */
 
 import { getFunctionUrl, auth } from './firebaseConfig';
 import { SocialPlatform } from '../types';
 
+// Store the Shopify shop domain for Shopify mode
+let shopifyShopDomain: string | null = null;
+
 /**
- * Get the current authenticated user's ID
- * Throws an error if no user is authenticated
+ * Set the Shopify shop domain (called by ShopifyProvider)
  */
-function getCurrentUserId(): string {
+export function setShopifyShop(shop: string | null) {
+  shopifyShopDomain = shop;
+}
+
+/**
+ * Check if we're running in Shopify mode
+ */
+function isShopifyMode(): boolean {
+  return import.meta.env.VITE_APP_MODE === 'shopify';
+}
+
+/**
+ * Get the current session identifier
+ * Returns Firebase user ID in standalone mode, or shop domain in Shopify mode
+ */
+function getSessionId(): string {
+  if (isShopifyMode()) {
+    if (!shopifyShopDomain) {
+      // Try to get from URL
+      const params = new URLSearchParams(window.location.search);
+      const shop = params.get('shop');
+      if (shop) {
+        shopifyShopDomain = shop;
+        return shop;
+      }
+      throw new Error('No Shopify shop context. Please access through Shopify admin.');
+    }
+    return shopifyShopDomain;
+  }
+  
+  // Standalone mode - use Firebase Auth
   const user = auth.currentUser;
   if (!user) {
     throw new Error('No authenticated user. Please sign in.');
@@ -37,10 +70,10 @@ const DEFAULT_ACCOUNTS: AccountsMap = {
  */
 export function startOAuthFlow(platform: SocialPlatform): Promise<boolean> {
   return new Promise((resolve) => {
-    const userId = getCurrentUserId();
+    const sessionId = getSessionId();
     // Include current origin so the callback redirects back to the right place
     const redirectUrl = encodeURIComponent(window.location.origin);
-    const authUrl = `${getFunctionUrl('authStart')}?sessionId=${userId}&platform=${platform}&redirectUrl=${redirectUrl}`;
+    const authUrl = `${getFunctionUrl('authStart')}?sessionId=${sessionId}&platform=${platform}&redirectUrl=${redirectUrl}`;
     
     // Calculate popup position (centered)
     const width = 600;
@@ -124,9 +157,9 @@ export function startOAuthFlow(platform: SocialPlatform): Promise<boolean> {
  */
 export async function getConnectedAccounts(): Promise<AccountsMap> {
   try {
-    const userId = getCurrentUserId();
+    const sessionId = getSessionId();
     const response = await fetch(
-      `${getFunctionUrl('getConnectedAccounts')}?sessionId=${userId}`
+      `${getFunctionUrl('getConnectedAccounts')}?sessionId=${sessionId}`
     );
     
     if (!response.ok) {
@@ -150,14 +183,14 @@ export async function getConnectedAccounts(): Promise<AccountsMap> {
  */
 export async function disconnectAccount(platform: SocialPlatform): Promise<boolean> {
   try {
-    const userId = getCurrentUserId();
+    const sessionId = getSessionId();
     const response = await fetch(getFunctionUrl('disconnectAccount'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        sessionId: userId,
+        sessionId,
         platform
       })
     });
@@ -223,9 +256,9 @@ export async function postToSocial(
     }
     
     // Build request body
-    const userId = getCurrentUserId();
+    const sessionId = getSessionId();
     const body: Record<string, unknown> = {
-      sessionId: userId,
+      sessionId,
       caption
     };
     

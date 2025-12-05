@@ -8,6 +8,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Provider as AppBridgeProvider } from '@shopify/app-bridge-react';
 import { shopifyConfig } from '../shopify.config';
+import { setShopifyShop } from '../services/socialAuthService';
 
 // Shopify context types
 interface ShopifyContextValue {
@@ -55,10 +56,14 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
   const { shop, host } = getShopifyParams();
 
   useEffect(() => {
+    // Set the shop domain for social auth service
+    if (shop) {
+      setShopifyShop(shop);
+    }
     // Small delay to ensure we have URL params
     const timer = setTimeout(() => setIsLoading(false), 100);
     return () => clearTimeout(timer);
-  }, []);
+  }, [shop]);
 
   // If not in Shopify mode, just render children directly
   if (!shopifyConfig.isEmbedded) {

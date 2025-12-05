@@ -208,7 +208,7 @@ export const shopifyAuthStart = functions.https.onRequest((req, res) => {
  */
 export const shopifyAuthCallback = functions.https.onRequest(async (req, res) => {
   const config = getShopifyConfig();
-  const { code, shop, state, hmac } = req.query;
+  const { code, shop, state } = req.query;
 
   // Validate required parameters
   if (!code || !shop || !state) {
