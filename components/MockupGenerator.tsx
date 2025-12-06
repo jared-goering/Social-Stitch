@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup } from '../types';
 import { generateMockupImage, analyzeGarmentAndSuggestStyles } from '../services/geminiService';
 import { saveMockupToFirebase, fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
-import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, Clock, Plus, Trash2 } from 'lucide-react';
+import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, Clock, Plus, Trash2 } from 'lucide-react';
 
 interface Props {
   design: UploadedDesign;
@@ -191,6 +191,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   
   // Image modal/lightbox
   const [enlargedMockup, setEnlargedMockup] = useState<MockupOption | null>(null);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   
   // Cloud-saved mockups history
   const [savedMockups, setSavedMockups] = useState<SavedMockup[]>([]);
@@ -332,7 +333,10 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
   // Keyboard navigation for modal
   useEffect(() => {
-    if (!enlargedMockup) return;
+    if (!enlargedMockup) {
+      setIsDescriptionExpanded(false); // Reset when modal closes
+      return;
+    }
     
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -341,10 +345,12 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         const currentIndex = generatedMockups.findIndex(m => m.id === enlargedMockup.id);
         const prevIndex = currentIndex === 0 ? generatedMockups.length - 1 : currentIndex - 1;
         setEnlargedMockup(generatedMockups[prevIndex]);
+        setIsDescriptionExpanded(false); // Reset when navigating
       } else if (e.key === 'ArrowRight' && generatedMockups.length > 1) {
         const currentIndex = generatedMockups.findIndex(m => m.id === enlargedMockup.id);
         const nextIndex = currentIndex === generatedMockups.length - 1 ? 0 : currentIndex + 1;
         setEnlargedMockup(generatedMockups[nextIndex]);
+        setIsDescriptionExpanded(false); // Reset when navigating
       }
     };
     
@@ -1566,33 +1572,28 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             
             {/* Image info bar */}
             <div className="mt-6 w-full max-w-2xl bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-5 shadow-2xl">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-base font-semibold text-white mb-2 leading-snug">
-                    {enlargedMockup.styleDescription}
-                  </p>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
                   <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
                     <span className="text-xs font-medium text-white/90">
                       {generatedMockups.findIndex(m => m.id === enlargedMockup.id) + 1} of {generatedMockups.length}
                     </span>
                   </div>
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
                   <button
-                    onClick={() => {
-                      toggleMockupSelection(enlargedMockup.id);
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsDescriptionExpanded(!isDescriptionExpanded);
                     }}
-                    className={`
-                      px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-lg
-                      ${selectedMockupIds.has(enlargedMockup.id)
-                        ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/50'
-                        : 'bg-white/20 hover:bg-white/30 text-white border border-white/30'
-                      }
-                    `}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-all"
                   >
-                    <Check size={18} strokeWidth={2.5} />
-                    {selectedMockupIds.has(enlargedMockup.id) ? 'Selected' : 'Select'}
+                    <span>{isDescriptionExpanded ? 'Show less' : 'Show more'}</span>
+                    <ChevronDown size={14} className={`transition-transform ${isDescriptionExpanded ? 'rotate-180' : ''}`} />
                   </button>
+                </div>
+                <div className={`overflow-hidden transition-all ${isDescriptionExpanded ? 'max-h-96' : 'max-h-16'}`}>
+                  <p className={`text-sm text-white/90 leading-relaxed ${!isDescriptionExpanded ? 'line-clamp-3' : ''}`}>
+                    {enlargedMockup.styleDescription}
+                  </p>
                 </div>
               </div>
             </div>
