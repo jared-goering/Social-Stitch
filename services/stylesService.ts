@@ -19,21 +19,17 @@ import {
   getDownloadURL, 
   deleteObject 
 } from 'firebase/storage';
-import { db, storage, auth } from './firebaseConfig';
+import { db, storage } from './firebaseConfig';
 import { SavedStyle } from '../types';
+import { getSessionId } from './socialAuthService';
 
 const STYLES_COLLECTION = 'styles';
 
 /**
- * Get the current authenticated user's ID
- * Throws an error if no user is authenticated
+ * Get the current user/shop ID for storage
  */
 function getCurrentUserId(): string {
-  const user = auth.currentUser;
-  if (!user) {
-    throw new Error('No authenticated user. Please sign in.');
-  }
-  return user.uid;
+  return getSessionId();
 }
 
 /**

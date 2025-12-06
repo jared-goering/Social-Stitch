@@ -65,8 +65,9 @@ function isShopifyMode(): boolean {
 /**
  * Get the current session identifier
  * Returns Firebase user ID in standalone mode, or shop domain in Shopify mode
+ * Exported for use by other services
  */
-function getSessionId(): string {
+export function getSessionId(): string {
   // Try to get shop from stored value or URL
   const params = new URLSearchParams(window.location.search);
   const shopFromUrl = params.get('shop');

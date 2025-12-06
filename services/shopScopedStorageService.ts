@@ -27,35 +27,24 @@ import {
   onSnapshot,
   Unsubscribe,
 } from 'firebase/firestore';
-import { db, storage, auth } from './firebaseConfig';
+import { db, storage } from './firebaseConfig';
 import { SavedMockup, ScheduledPost, CreateScheduledPostData, PostStatus, SocialPlatform } from '../types';
 import { shopifyConfig } from '../shopify.config';
-import { getShopifySession } from './shopifyAuthService';
+import { getSessionId } from './socialAuthService';
 
 /**
  * Get the current identity (shop domain or user ID)
  * Returns shop domain when running as Shopify app, user ID otherwise
  */
 export function getCurrentIdentity(): { type: 'shop' | 'user'; id: string } {
-  if (shopifyConfig.isEmbedded) {
-    // Running as Shopify app - use shop domain
-    const session = getShopifySession();
-    const shopFromUrl = new URLSearchParams(window.location.search).get('shop');
-    const shop = session?.shop || shopFromUrl;
-
-    if (!shop) {
-      throw new Error('No shop context available. Please reinstall the app.');
-    }
-
-    return { type: 'shop', id: shop };
-  } else {
-    // Running as standalone app - use Firebase Auth
-    const user = auth.currentUser;
-    if (!user) {
-      throw new Error('No authenticated user. Please sign in.');
-    }
-    return { type: 'user', id: user.uid };
+  const sessionId = getSessionId();
+  
+  // Check if this is a shop domain (contains .myshopify.com)
+  if (sessionId.includes('.myshopify.com') || shopifyConfig.isEmbedded) {
+    return { type: 'shop', id: sessionId };
   }
+  
+  return { type: 'user', id: sessionId };
 }
 
 /**
