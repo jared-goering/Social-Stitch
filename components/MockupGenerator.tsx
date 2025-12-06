@@ -330,6 +330,28 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     fetchSuggestions();
   }, [design.base64, design.id]);
 
+  // Keyboard navigation for modal
+  useEffect(() => {
+    if (!enlargedMockup) return;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setEnlargedMockup(null);
+      } else if (e.key === 'ArrowLeft' && generatedMockups.length > 1) {
+        const currentIndex = generatedMockups.findIndex(m => m.id === enlargedMockup.id);
+        const prevIndex = currentIndex === 0 ? generatedMockups.length - 1 : currentIndex - 1;
+        setEnlargedMockup(generatedMockups[prevIndex]);
+      } else if (e.key === 'ArrowRight' && generatedMockups.length > 1) {
+        const currentIndex = generatedMockups.findIndex(m => m.id === enlargedMockup.id);
+        const nextIndex = currentIndex === generatedMockups.length - 1 ? 0 : currentIndex + 1;
+        setEnlargedMockup(generatedMockups[nextIndex]);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [enlargedMockup, generatedMockups]);
+
   const checkAndPromptForKey = async () => {
     // Cast to any to assume existence and structure as per instructions, avoiding type conflict
     const aistudio = (window as any).aistudio;
@@ -776,43 +798,46 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                             </span>
                             {/* Gender Selector */}
                             {isSelected && (
-                              <div className="flex items-center gap-0.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
-                                <span className="text-[9px] text-slate-400 mr-0.5">Model:</span>
+                              <div className="flex items-center gap-1 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-[10px] font-medium text-slate-600 mr-0.5">Model:</span>
                                 <button
                                   type="button"
                                   onClick={() => setStyleGender(suggestion.description, 'male')}
-                                  className={`p-0.5 rounded transition-all ${
+                                  className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
                                     getStyleGender(suggestion.description) === 'male'
-                                      ? 'bg-indigo-600 text-white'
-                                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                      ? 'bg-indigo-600 text-white shadow-sm'
+                                      : 'bg-white border border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50'
                                   }`}
                                   title="Male model"
                                 >
-                                  <User size={10} />
+                                  <User size={12} />
+                                  <span>Male</span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setStyleGender(suggestion.description, 'female')}
-                                  className={`p-0.5 rounded transition-all ${
+                                  className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
                                     getStyleGender(suggestion.description) === 'female'
-                                      ? 'bg-pink-500 text-white'
-                                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                      ? 'bg-pink-500 text-white shadow-sm'
+                                      : 'bg-white border border-slate-200 text-slate-600 hover:border-pink-300 hover:bg-slate-50'
                                   }`}
                                   title="Female model"
                                 >
-                                  <User size={10} />
+                                  <User size={12} />
+                                  <span>Female</span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setStyleGender(suggestion.description, 'both')}
-                                  className={`p-0.5 rounded transition-all ${
+                                  className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
                                     getStyleGender(suggestion.description) === 'both'
-                                      ? 'bg-purple-500 text-white'
-                                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                      ? 'bg-purple-500 text-white shadow-sm'
+                                      : 'bg-white border border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-slate-50'
                                   }`}
-                                  title="One of each"
+                                  title="Both (one of each)"
                                 >
-                                  <Users size={10} />
+                                  <Users size={12} />
+                                  <span>Both</span>
                                 </button>
                               </div>
                             )}
@@ -895,43 +920,46 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                           </span>
                           {/* Gender Selector for preset styles */}
                           {isSelected && (
-                            <div className="flex items-center gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
-                              <span className="text-[9px] text-slate-400 mr-0.5">Model:</span>
+                            <div className="flex items-center gap-1 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-[10px] font-medium text-slate-600 mr-0.5">Model:</span>
                               <button
                                 type="button"
                                 onClick={() => setStyleGender(style, 'male')}
-                                className={`p-0.5 rounded transition-all ${
+                                className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
                                   getStyleGender(style) === 'male'
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-white border border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50'
                                 }`}
                                 title="Male model"
                               >
-                                <User size={10} />
+                                <User size={12} />
+                                <span>Male</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setStyleGender(style, 'female')}
-                                className={`p-0.5 rounded transition-all ${
+                                className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
                                   getStyleGender(style) === 'female'
-                                    ? 'bg-pink-500 text-white'
-                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                    ? 'bg-pink-500 text-white shadow-sm'
+                                    : 'bg-white border border-slate-200 text-slate-600 hover:border-pink-300 hover:bg-slate-50'
                                 }`}
                                 title="Female model"
                               >
-                                <User size={10} />
+                                <User size={12} />
+                                <span>Female</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setStyleGender(style, 'both')}
-                                className={`p-0.5 rounded transition-all ${
+                                className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
                                   getStyleGender(style) === 'both'
-                                    ? 'bg-purple-500 text-white'
-                                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                    ? 'bg-purple-500 text-white shadow-sm'
+                                    : 'bg-white border border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-slate-50'
                                 }`}
-                                title="One of each"
+                                title="Both (one of each)"
                               >
-                                <Users size={10} />
+                                <Users size={12} />
+                                <span>Both</span>
                               </button>
                             </div>
                           )}
@@ -1034,43 +1062,46 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                         </span>
                         {/* Gender Selector for preset styles */}
                         {isSelected && (
-                          <div className="flex items-center gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
-                            <span className="text-[9px] text-slate-400 mr-0.5">Model:</span>
+                          <div className="flex items-center gap-1 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-[10px] font-medium text-slate-600 mr-0.5">Model:</span>
                             <button
                               type="button"
                               onClick={() => setStyleGender(style, 'male')}
-                              className={`p-0.5 rounded transition-all ${
+                              className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
                                 getStyleGender(style) === 'male'
-                                  ? 'bg-indigo-600 text-white'
-                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                  ? 'bg-indigo-600 text-white shadow-sm'
+                                  : 'bg-white border border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50'
                               }`}
                               title="Male model"
                             >
-                              <User size={10} />
+                              <User size={12} />
+                              <span>Male</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => setStyleGender(style, 'female')}
-                              className={`p-0.5 rounded transition-all ${
+                              className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
                                 getStyleGender(style) === 'female'
-                                  ? 'bg-pink-500 text-white'
-                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                  ? 'bg-pink-500 text-white shadow-sm'
+                                  : 'bg-white border border-slate-200 text-slate-600 hover:border-pink-300 hover:bg-slate-50'
                               }`}
                               title="Female model"
                             >
-                              <User size={10} />
+                              <User size={12} />
+                              <span>Female</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => setStyleGender(style, 'both')}
-                              className={`p-0.5 rounded transition-all ${
+                              className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
                                 getStyleGender(style) === 'both'
-                                  ? 'bg-purple-500 text-white'
-                                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                  ? 'bg-purple-500 text-white shadow-sm'
+                                  : 'bg-white border border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-slate-50'
                               }`}
-                              title="One of each"
+                              title="Both (one of each)"
                             >
-                              <Users size={10} />
+                              <Users size={12} />
+                              <span>Both</span>
                             </button>
                           </div>
                         )}
@@ -1480,15 +1511,16 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       {/* Image Lightbox Modal */}
       {enlargedMockup && (
         <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-6 animate-in fade-in duration-200"
           onClick={() => setEnlargedMockup(null)}
         >
           {/* Close button */}
           <button
             onClick={() => setEnlargedMockup(null)}
-            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all"
+            className="absolute top-6 right-6 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 hover:border-white/20 text-white flex items-center justify-center transition-all shadow-xl"
+            aria-label="Close"
           >
-            <X size={24} />
+            <X size={24} strokeWidth={2} />
           </button>
 
           {/* Navigation arrows */}
@@ -1501,9 +1533,10 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                   const prevIndex = currentIndex === 0 ? generatedMockups.length - 1 : currentIndex - 1;
                   setEnlargedMockup(generatedMockups[prevIndex]);
                 }}
-                className="absolute left-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all"
+                className="absolute left-1/2 -translate-x-[calc(50%+min(42vw,500px))] w-14 h-14 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 hover:border-white/20 hover:scale-110 text-white flex items-center justify-center transition-all shadow-xl"
+                aria-label="Previous image"
               >
-                <ChevronLeft size={24} />
+                <ChevronLeft size={28} strokeWidth={2.5} />
               </button>
               <button
                 onClick={(e) => {
@@ -1512,48 +1545,55 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                   const nextIndex = currentIndex === generatedMockups.length - 1 ? 0 : currentIndex + 1;
                   setEnlargedMockup(generatedMockups[nextIndex]);
                 }}
-                className="absolute right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all"
+                className="absolute left-1/2 translate-x-[calc(-50%+min(42vw,500px))] w-14 h-14 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 hover:border-white/20 hover:scale-110 text-white flex items-center justify-center transition-all shadow-xl"
+                aria-label="Next image"
               >
-                <ChevronRight size={24} />
+                <ChevronRight size={28} strokeWidth={2.5} />
               </button>
             </>
           )}
 
           {/* Image container */}
           <div 
-            className="relative max-w-4xl max-h-[85vh] flex flex-col"
+            className="relative max-w-5xl w-full flex flex-col items-center animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <img 
               src={enlargedMockup.imageUrl} 
               alt={enlargedMockup.styleDescription}
-              className="max-w-full max-h-[75vh] object-contain rounded-xl shadow-2xl"
+              className="max-w-full max-h-[calc(100vh-200px)] w-auto h-auto object-contain rounded-2xl shadow-2xl"
             />
             
             {/* Image info bar */}
-            <div className="mt-4 flex items-center justify-between">
-              <div className="text-white">
-                <p className="text-sm font-medium">{enlargedMockup.styleDescription}</p>
-                <p className="text-xs text-white/60 mt-1">
-                  {generatedMockups.findIndex(m => m.id === enlargedMockup.id) + 1} of {generatedMockups.length}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    toggleMockupSelection(enlargedMockup.id);
-                  }}
-                  className={`
-                    px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all
-                    ${selectedMockupIds.has(enlargedMockup.id)
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white/10 text-white hover:bg-white/20'
-                    }
-                  `}
-                >
-                  <Check size={16} />
-                  {selectedMockupIds.has(enlargedMockup.id) ? 'Selected' : 'Select'}
-                </button>
+            <div className="mt-6 w-full max-w-2xl bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-5 shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-semibold text-white mb-2 leading-snug">
+                    {enlargedMockup.styleDescription}
+                  </p>
+                  <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
+                    <span className="text-xs font-medium text-white/90">
+                      {generatedMockups.findIndex(m => m.id === enlargedMockup.id) + 1} of {generatedMockups.length}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => {
+                      toggleMockupSelection(enlargedMockup.id);
+                    }}
+                    className={`
+                      px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-lg
+                      ${selectedMockupIds.has(enlargedMockup.id)
+                        ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/50'
+                        : 'bg-white/20 hover:bg-white/30 text-white border border-white/30'
+                      }
+                    `}
+                  >
+                    <Check size={18} strokeWidth={2.5} />
+                    {selectedMockupIds.has(enlargedMockup.id) ? 'Selected' : 'Select'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
