@@ -37,14 +37,40 @@ interface ShopifyProviderProps {
 }
 
 /**
- * Extract shop and host from URL params
+ * Extract shop and host from URL params or sessionStorage
  */
 function getShopifyParams() {
   const params = new URLSearchParams(window.location.search);
-  return {
-    shop: params.get('shop'),
-    host: params.get('host'),
-  };
+  let shop = params.get('shop');
+  let host = params.get('host');
+  
+  // If not in URL, try sessionStorage
+  if (!shop) {
+    try {
+      shop = sessionStorage.getItem('shopify_shop_domain');
+    } catch { /* ignore */ }
+  }
+  if (!host) {
+    try {
+      host = sessionStorage.getItem('shopify_host');
+    } catch { /* ignore */ }
+  }
+  
+  // Store in sessionStorage for persistence
+  if (shop) {
+    try {
+      sessionStorage.setItem('shopify_shop_domain', shop);
+    } catch { /* ignore */ }
+  }
+  if (host) {
+    try {
+      sessionStorage.setItem('shopify_host', host);
+    } catch { /* ignore */ }
+  }
+  
+  console.log('[ShopifyProvider] shop:', shop, 'host:', host ? 'present' : 'missing');
+  
+  return { shop, host };
 }
 
 /**
