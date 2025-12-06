@@ -37,6 +37,21 @@ interface ShopifyProviderProps {
 }
 
 /**
+ * Decode shop domain from Shopify host parameter
+ * The host param is base64 encoded and contains the shop domain
+ */
+function decodeShopFromHost(host: string): string | null {
+  try {
+    const decoded = atob(host);
+    // Format is typically "shop-name.myshopify.com/admin"
+    const match = decoded.match(/([^\/]+\.myshopify\.com)/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Extract shop and host from URL params or sessionStorage
  */
 function getShopifyParams() {
@@ -54,6 +69,12 @@ function getShopifyParams() {
     try {
       host = sessionStorage.getItem('shopify_host');
     } catch { /* ignore */ }
+  }
+  
+  // If we have host but no shop, try to decode shop from host
+  if (!shop && host) {
+    shop = decodeShopFromHost(host);
+    console.log('[ShopifyProvider] Decoded shop from host:', shop);
   }
   
   // Store in sessionStorage for persistence
