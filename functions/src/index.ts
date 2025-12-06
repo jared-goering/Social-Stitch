@@ -88,8 +88,8 @@ const getConfig = () => {
     appId: config.meta?.app_id || process.env.META_APP_ID || '',
     appSecret: config.meta?.app_secret || process.env.META_APP_SECRET || '',
     functionsUrl: config.app?.functions_url || process.env.FUNCTIONS_URL || '',
-    // Use Firebase Hosting URL for OAuth (api.socialstitch.io has DNS issues)
-    hostingUrl: config.app?.hosting_url || process.env.HOSTING_URL || 'https://social-stitch.web.app',
+    // Use custom domain for OAuth
+    hostingUrl: config.app?.hosting_url || process.env.HOSTING_URL || 'https://api.socialstitch.io',
     frontendUrl: config.app?.frontend_url || process.env.FRONTEND_URL || 'http://localhost:5173'
   };
 };

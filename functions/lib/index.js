@@ -104,8 +104,8 @@ const getConfig = () => {
         appId: ((_a = config.meta) === null || _a === void 0 ? void 0 : _a.app_id) || process.env.META_APP_ID || '',
         appSecret: ((_b = config.meta) === null || _b === void 0 ? void 0 : _b.app_secret) || process.env.META_APP_SECRET || '',
         functionsUrl: ((_c = config.app) === null || _c === void 0 ? void 0 : _c.functions_url) || process.env.FUNCTIONS_URL || '',
-        // Use Firebase Hosting URL for OAuth (api.socialstitch.io has DNS issues)
-        hostingUrl: ((_d = config.app) === null || _d === void 0 ? void 0 : _d.hosting_url) || process.env.HOSTING_URL || 'https://social-stitch.web.app',
+        // Use custom domain for OAuth
+        hostingUrl: ((_d = config.app) === null || _d === void 0 ? void 0 : _d.hosting_url) || process.env.HOSTING_URL || 'https://api.socialstitch.io',
         frontendUrl: ((_e = config.app) === null || _e === void 0 ? void 0 : _e.frontend_url) || process.env.FRONTEND_URL || 'http://localhost:5173'
     };
 };
