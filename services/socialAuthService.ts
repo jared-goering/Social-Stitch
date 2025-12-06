@@ -41,13 +41,25 @@ export function setShopifyShop(shop: string | null) {
  * Check if we're running in Shopify mode
  */
 function isShopifyMode(): boolean {
-  // Check env var first, then fall back to URL detection
+  // Check env var first
   if (import.meta.env.VITE_APP_MODE === 'shopify') {
     return true;
   }
-  // Also check if we're in a Shopify iframe (has shop or host param)
+  // Check if we're in a Shopify iframe (has shop or host param)
   const params = new URLSearchParams(window.location.search);
-  return !!(params.get('shop') || params.get('host'));
+  if (params.get('shop') || params.get('host')) {
+    return true;
+  }
+  // Check if we're embedded in Shopify admin
+  if (window.location.hostname.includes('myshopify.com') || 
+      window.location.ancestorOrigins?.contains('https://admin.shopify.com')) {
+    return true;
+  }
+  // Check if we have a stored shop domain
+  if (shopifyShopDomain) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -61,23 +73,40 @@ function getSessionId(): string {
   
   if (shopFromUrl) {
     shopifyShopDomain = shopFromUrl;
+    try {
+      sessionStorage.setItem('shopify_shop_domain', shopFromUrl);
+    } catch { /* ignore */ }
   }
   
-  // If we have a shop domain (from URL or previously set), use it
+  // If we have a shop domain (from URL, sessionStorage, or previously set), use it
   if (shopifyShopDomain) {
+    console.log('[SocialAuth] Using shop domain:', shopifyShopDomain);
     return shopifyShopDomain;
   }
   
+  // Try to get from sessionStorage
+  try {
+    const stored = sessionStorage.getItem('shopify_shop_domain');
+    if (stored) {
+      shopifyShopDomain = stored;
+      console.log('[SocialAuth] Using stored shop domain:', stored);
+      return stored;
+    }
+  } catch { /* ignore */ }
+  
   // Check if we're in Shopify mode without a shop domain
   if (isShopifyMode()) {
+    console.error('[SocialAuth] In Shopify mode but no shop domain found');
     throw new Error('No Shopify shop context. Please access through Shopify admin.');
   }
   
   // Standalone mode - use Firebase Auth
   const user = auth.currentUser;
   if (!user) {
+    console.error('[SocialAuth] No Firebase user and not in Shopify mode');
     throw new Error('No authenticated user. Please sign in.');
   }
+  console.log('[SocialAuth] Using Firebase user:', user.uid);
   return user.uid;
 }
 
