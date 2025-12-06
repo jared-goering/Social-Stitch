@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup } from '../types';
+import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup, SourceProduct } from '../types';
 import { generateMockupImage, analyzeGarmentAndSuggestStyles } from '../services/geminiService';
 import { saveMockupToFirebase, fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
 import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, Clock, Plus, Trash2 } from 'lucide-react';
@@ -9,6 +9,7 @@ interface Props {
   design: UploadedDesign;
   onMockupsSelected: (mockups: MockupOption[]) => void;
   onBack: () => void;
+  sourceProduct?: SourceProduct;
 }
 
 const PRESET_STYLES = [
@@ -86,7 +87,7 @@ const loadMockupsFromIndexedDB = async (designId: string): Promise<MockupOption[
   }
 };
 
-export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, onBack }) => {
+export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, onBack, sourceProduct }) => {
   const [customStyle, setCustomStyle] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedMockups, setGeneratedMockups] = useState<MockupOption[]>([]);
@@ -458,7 +459,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       // Save to Firebase in the background
       setIsSavingToCloud(true);
       try {
-        const savedMockup = await saveMockupToFirebase(mockupId, base64Image, styleDescription, design.id);
+        const savedMockup = await saveMockupToFirebase(mockupId, base64Image, styleDescription, design.id, sourceProduct);
         // Add to saved mockups list (at the beginning since it's newest)
         setSavedMockups(prev => [savedMockup, ...prev]);
       } catch (saveError) {
@@ -556,7 +557,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         try {
           const saveResults = await Promise.allSettled(
             successfulMockups.map(mockup => 
-              saveMockupToFirebase(mockup.id, mockup.imageUrl, mockup.styleDescription, design.id)
+              saveMockupToFirebase(mockup.id, mockup.imageUrl, mockup.styleDescription, design.id, sourceProduct)
             )
           );
           

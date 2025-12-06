@@ -386,6 +386,39 @@ export async function imageUrlToBase64(imageUrl: string): Promise<string> {
   });
 }
 
+/**
+ * Add an image to a product
+ * Can accept either a URL or base64 image data
+ */
+export async function addProductImage(options: {
+  productId: number;
+  imageUrl?: string;
+  imageBase64?: string;
+  alt?: string;
+  position?: number;
+}): Promise<{
+  image: ShopifyProductImage;
+  shop: string;
+}> {
+  if (!options.imageUrl && !options.imageBase64) {
+    throw new Error('Either imageUrl or imageBase64 is required');
+  }
+
+  return shopifyApiRequest<{ image: ShopifyProductImage; shop: string }>(
+    'shopifyAddProductImage',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        productId: options.productId,
+        imageUrl: options.imageUrl,
+        imageBase64: options.imageBase64,
+        alt: options.alt,
+        position: options.position,
+      }),
+    }
+  );
+}
+
 // Local cache for products
 const productCache = new Map<string, { data: ShopifyProduct[]; timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes

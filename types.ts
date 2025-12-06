@@ -18,9 +18,17 @@ export interface MockupOption {
   styleDescription: string;
 }
 
+// Source product reference for mockups generated from Shopify products
+export interface SourceProduct {
+  id: number;
+  title: string;
+  handle: string;
+}
+
 export interface SavedMockup extends MockupOption {
   createdAt: Date;
   designId: string;
+  sourceProduct?: SourceProduct;
 }
 
 export interface GeneratedCaptions {

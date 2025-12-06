@@ -17,7 +17,7 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db, storage } from './firebaseConfig';
-import { SavedMockup } from '../types';
+import { SavedMockup, SourceProduct } from '../types';
 import { getSessionId } from './socialAuthService';
 
 /**
@@ -65,7 +65,8 @@ export const saveMockupToFirebase = async (
   mockupId: string,
   base64Image: string,
   styleDescription: string,
-  designId: string
+  designId: string,
+  sourceProduct?: SourceProduct
 ): Promise<SavedMockup> => {
   const userId = getCurrentUserId();
   
@@ -73,13 +74,23 @@ export const saveMockupToFirebase = async (
   const storageRef = ref(storage, getMockupStoragePath(mockupId));
   const imageBlob = base64ToBlob(base64Image);
   
+  // Build custom metadata (Firebase Storage metadata values must be strings)
+  const customMetadata: Record<string, string> = {
+    styleDescription,
+    designId,
+    userId,
+  };
+  
+  // Add source product metadata if provided
+  if (sourceProduct) {
+    customMetadata.sourceProductId = String(sourceProduct.id);
+    customMetadata.sourceProductTitle = sourceProduct.title;
+    customMetadata.sourceProductHandle = sourceProduct.handle;
+  }
+  
   await uploadBytes(storageRef, imageBlob, {
     contentType: 'image/png',
-    customMetadata: {
-      styleDescription,
-      designId,
-      userId,
-    },
+    customMetadata,
   });
   
   // Get the download URL
@@ -92,6 +103,7 @@ export const saveMockupToFirebase = async (
     styleDescription,
     designId,
     createdAt: new Date(),
+    sourceProduct,
   };
   
   const docRef = doc(getUserMockupsCollection(), mockupId);
@@ -113,10 +125,11 @@ export const saveMockupsToFirebase = async (
     base64Image: string;
     styleDescription: string;
     designId: string;
+    sourceProduct?: SourceProduct;
   }>
 ): Promise<SavedMockup[]> => {
   const results = await Promise.allSettled(
-    mockups.map(m => saveMockupToFirebase(m.id, m.base64Image, m.styleDescription, m.designId))
+    mockups.map(m => saveMockupToFirebase(m.id, m.base64Image, m.styleDescription, m.designId, m.sourceProduct))
   );
   
   return results
@@ -144,6 +157,7 @@ export const fetchUserMockups = async (): Promise<SavedMockup[]> => {
       styleDescription: data.styleDescription,
       designId: data.designId,
       createdAt: data.createdAt?.toDate() || new Date(),
+      sourceProduct: data.sourceProduct,
     } as SavedMockup;
   });
 };

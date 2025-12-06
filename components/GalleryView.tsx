@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { ref, getBlob } from 'firebase/storage';
 import { SavedMockup } from '../types';
 import { fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
+import { addProductImage, getSessionToken } from '../services/shopifyProductService';
 import { storage, auth } from '../services/firebaseConfig';
 import { 
   Download, 
@@ -20,6 +22,8 @@ import {
   LayoutGrid,
   Clock,
   Plus,
+  Package,
+  Upload,
 } from 'lucide-react';
 
 interface Props {
@@ -34,6 +38,7 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   const [loading, setLoading] = useState(true);
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [addingToProductIds, setAddingToProductIds] = useState<Set<string>>(new Set());
   const [selectedMockup, setSelectedMockup] = useState<SavedMockup | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -41,6 +46,9 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Check if we're in Shopify context (has session token)
+  const isShopifyContext = !!getSessionToken();
 
   // Fetch mockups on mount
   useEffect(() => {
@@ -185,6 +193,36 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
       hour: 'numeric',
       minute: '2-digit',
     }).format(date);
+  };
+
+  const handleAddToProduct = async (mockup: SavedMockup, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    
+    if (!mockup.sourceProduct) {
+      setToast({ message: 'No source product linked to this mockup', type: 'error' });
+      return;
+    }
+
+    setAddingToProductIds(prev => new Set(prev).add(mockup.id));
+    
+    try {
+      await addProductImage({
+        productId: mockup.sourceProduct.id,
+        imageUrl: mockup.imageUrl,
+        alt: `AI-generated mockup: ${mockup.styleDescription.slice(0, 100)}`,
+      });
+      
+      setToast({ message: `Image added to "${mockup.sourceProduct.title}"`, type: 'success' });
+    } catch (error) {
+      console.error('Failed to add image to product:', error);
+      setToast({ message: 'Failed to add image to product', type: 'error' });
+    } finally {
+      setAddingToProductIds(prev => {
+        const next = new Set(prev);
+        next.delete(mockup.id);
+        return next;
+      });
+    }
   };
 
   const filterLabels: Record<FilterOption, string> = {
@@ -374,9 +412,32 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
                   loading="lazy"
                 />
                 
+                {/* Source Product Badge */}
+                {mockup.sourceProduct && (
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1.5 bg-white/95 backdrop-blur-sm rounded-lg shadow-md text-xs font-medium text-slate-warm-700">
+                    <Package size={12} className="text-coral-500" />
+                    <span className="truncate max-w-[120px]">{mockup.sourceProduct.title}</span>
+                  </div>
+                )}
+                
                 {/* Overlay with actions */}
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-warm-900/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <div className="absolute bottom-4 left-4 right-4 flex items-center justify-end gap-2">
+                    {/* Add to Product Button (only show if source product exists and in Shopify context) */}
+                    {mockup.sourceProduct && isShopifyContext && (
+                      <button
+                        onClick={(e) => handleAddToProduct(mockup, e)}
+                        disabled={addingToProductIds.has(mockup.id)}
+                        className="p-2.5 rounded-xl bg-sage-500/95 backdrop-blur-sm text-white hover:bg-sage-600 transition-colors shadow-lg disabled:opacity-70"
+                        title={`Add to ${mockup.sourceProduct.title}`}
+                      >
+                        {addingToProductIds.has(mockup.id) ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <Upload size={18} />
+                        )}
+                      </button>
+                    )}
                     <button
                       onClick={(e) => handleDownload(mockup, e)}
                       disabled={downloadingIds.has(mockup.id)}
@@ -410,9 +471,16 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
                 <p className="text-sm font-medium text-slate-warm-700 line-clamp-2 mb-2 min-h-[2.5rem] group-hover:text-coral-600 transition-colors">
                   {mockup.styleDescription}
                 </p>
-                <div className="flex items-center gap-1.5 text-xs text-slate-warm-400">
-                  <Clock size={12} />
-                  <span>{formatDate(mockup.createdAt)}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-warm-400">
+                    <Clock size={12} />
+                    <span>{formatDate(mockup.createdAt)}</span>
+                  </div>
+                  {mockup.sourceProduct && (
+                    <div className="text-xs text-slate-warm-400 truncate max-w-[100px]" title={mockup.sourceProduct.title}>
+                      from product
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -420,86 +488,120 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
         </div>
       )}
 
-      {/* Lightbox Modal */}
-      {selectedMockup && (
+      {/* Lightbox Modal - Rendered via Portal to ensure full viewport coverage */}
+      {selectedMockup && createPortal(
         <div 
-          className="fixed inset-0 bg-slate-warm-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 modal-backdrop"
+          className="fixed top-0 left-0 w-screen h-screen bg-black/90 z-[9999] flex items-center justify-center overflow-hidden"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
           onClick={() => setSelectedMockup(null)}
         >
+          {/* Close button */}
+          <button
+            onClick={() => setSelectedMockup(null)}
+            className="fixed top-6 right-6 z-[10000] w-12 h-12 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 hover:bg-black/80 hover:border-white/40 text-white flex items-center justify-center transition-all shadow-xl"
+            aria-label="Close"
+          >
+            <X size={24} />
+          </button>
+
           <div 
-            className="relative max-w-4xl w-full max-h-[90vh] bg-white rounded-3xl shadow-2xl overflow-hidden modal-content"
+            className="flex flex-col items-center justify-center max-w-[90vw] max-h-[90vh] p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close button */}
-            <button
-              onClick={() => setSelectedMockup(null)}
-              className="absolute top-4 right-4 z-10 p-2.5 rounded-xl bg-slate-warm-900/50 backdrop-blur-sm text-white hover:bg-slate-warm-900/70 transition-colors"
-            >
-              <X size={20} />
-            </button>
-
             {/* Image */}
-            <div className="relative bg-slate-warm-900 flex items-center justify-center max-h-[70vh] overflow-hidden">
+            <div className="relative bg-black rounded-2xl overflow-hidden shadow-2xl">
               <img
                 src={selectedMockup.imageUrl}
                 alt={selectedMockup.styleDescription}
-                className="max-w-full max-h-[70vh] object-contain"
+                className="max-w-full max-h-[65vh] w-auto h-auto object-contain"
               />
             </div>
 
             {/* Details */}
-            <div className="p-6 bg-white">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <h3 className="text-xl font-display text-slate-warm-900 mb-2">
-                    {selectedMockup.styleDescription}
-                  </h3>
-                  <div className="flex items-center gap-2 text-sm text-slate-warm-500">
-                    <Clock size={14} />
+            <div className="mt-4 w-full max-w-xl bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-4 shadow-2xl">
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-white/90 leading-relaxed line-clamp-2">
+                  {selectedMockup.styleDescription}
+                </p>
+                
+                {/* Source Product Info */}
+                {selectedMockup.sourceProduct && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-white/10 rounded-lg">
+                    <Package size={14} className="text-coral-400" />
+                    <span className="text-xs text-white/80">
+                      From product: <span className="font-medium text-white">{selectedMockup.sourceProduct.title}</span>
+                    </span>
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-xs text-white/60">
+                    <Clock size={12} />
                     <span>{formatDate(selectedMockup.createdAt)}</span>
                   </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => handleDownload(selectedMockup)}
-                    disabled={downloadingIds.has(selectedMockup.id)}
-                    className="btn-primary text-white px-5 py-2.5 rounded-xl font-medium inline-flex items-center gap-2 disabled:opacity-70"
-                  >
-                    {downloadingIds.has(selectedMockup.id) ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        Downloading...
-                      </>
-                    ) : (
-                      <>
-                        <Download size={16} />
-                        Download
-                      </>
+                  
+                  <div className="flex items-center gap-2">
+                    {/* Add to Product Button */}
+                    {selectedMockup.sourceProduct && isShopifyContext && (
+                      <button
+                        onClick={() => handleAddToProduct(selectedMockup)}
+                        disabled={addingToProductIds.has(selectedMockup.id)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sage-500/90 hover:bg-sage-500 text-white text-xs font-medium transition-all disabled:opacity-70"
+                      >
+                        {addingToProductIds.has(selectedMockup.id) ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            <span>Adding...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={14} />
+                            <span>Add to Product</span>
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(selectedMockup)}
-                    disabled={deletingIds.has(selectedMockup.id)}
-                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-70"
-                  >
-                    {deletingIds.has(selectedMockup.id) ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        Deleting...
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 size={16} />
-                        Delete
-                      </>
-                    )}
-                  </button>
+                    <button
+                      onClick={() => handleDownload(selectedMockup)}
+                      disabled={downloadingIds.has(selectedMockup.id)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-all disabled:opacity-70"
+                    >
+                      {downloadingIds.has(selectedMockup.id) ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          <span>Downloading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download size={14} />
+                          <span>Download</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(selectedMockup)}
+                      disabled={deletingIds.has(selectedMockup.id)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/80 hover:bg-red-500 text-white text-xs font-medium transition-all disabled:opacity-70"
+                    >
+                      {deletingIds.has(selectedMockup.id) ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          <span>Deleting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 size={14} />
+                          <span>Delete</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

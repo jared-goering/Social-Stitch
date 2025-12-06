@@ -51,7 +51,7 @@ import {
 } from 'lucide-react';
 
 // Types
-import { AppStep, UploadedDesign, MockupOption, AppView, ScheduledPost } from '../types';
+import { AppStep, UploadedDesign, MockupOption, AppView, ScheduledPost, SourceProduct } from '../types';
 import {
   ShopifyProduct,
   ShopifyProductImage,
@@ -80,6 +80,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
   const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.UPLOAD);
   const [design, setDesign] = useState<UploadedDesign | null>(null);
   const [selectedMockups, setSelectedMockups] = useState<MockupOption[]>([]);
+  const [sourceProduct, setSourceProduct] = useState<SourceProduct | null>(null);
 
   // Toast notifications
   const [toastActive, setToastActive] = useState(false);
@@ -141,6 +142,13 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
         base64,
       };
 
+      // Store the source product for mockup tracking
+      setSourceProduct({
+        id: product.id,
+        title: product.title,
+        handle: product.handle,
+      });
+
       setDesign(uploadedDesign);
       setCurrentStep(AppStep.MOCKUP_GENERATION);
       setCurrentView('create');
@@ -169,6 +177,13 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
         base64,
       };
 
+      // Store the source product for mockup tracking
+      setSourceProduct({
+        id: product.id,
+        title: product.title,
+        handle: product.handle,
+      });
+
       setDesign(uploadedDesign);
       setCurrentStep(AppStep.MOCKUP_GENERATION);
       setCurrentView('create');
@@ -184,6 +199,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
   // Handle manual upload (same as original)
   const handleUpload = useCallback((uploadedDesign: UploadedDesign) => {
     setDesign(uploadedDesign);
+    setSourceProduct(null); // Clear source product for manual uploads
     setCurrentStep(AppStep.MOCKUP_GENERATION);
   }, []);
 
@@ -210,6 +226,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
   const resetWorkflow = useCallback(() => {
     setDesign(null);
     setSelectedMockups([]);
+    setSourceProduct(null);
     setCurrentStep(AppStep.UPLOAD);
   }, []);
 
@@ -517,6 +534,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
                   design={design}
                   onMockupsSelected={handleMockupsSelection}
                   onBack={resetWorkflow}
+                  sourceProduct={sourceProduct || undefined}
                 />
               </div>
             )}

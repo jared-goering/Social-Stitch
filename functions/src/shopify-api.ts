@@ -519,6 +519,94 @@ export const shopifyGetShop = functions.https.onRequest((req, res) => {
 });
 
 /**
+ * Add an image to a product
+ * Accepts either a URL or base64 image data
+ */
+export const shopifyAddProductImage = functions.https.onRequest((req, res) => {
+  corsHandler(req, res, async () => {
+    // Only allow POST
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    // Verify session
+    const session = await verifyRequestSession(req);
+    if (!session.valid || !session.shop) {
+      res.status(401).json({ error: session.error || 'Unauthorized' });
+      return;
+    }
+
+    const { productId, imageUrl, imageBase64, alt, position } = req.body;
+
+    if (!productId) {
+      res.status(400).json({ error: 'Missing product_id' });
+      return;
+    }
+
+    if (!imageUrl && !imageBase64) {
+      res.status(400).json({ error: 'Missing image data (provide imageUrl or imageBase64)' });
+      return;
+    }
+
+    // Get access token
+    const accessToken = await getShopAccessToken(session.shop);
+    if (!accessToken) {
+      res.status(401).json({ error: 'Shop access token not found' });
+      return;
+    }
+
+    try {
+      // Build the image payload
+      const imagePayload: Record<string, any> = {};
+      
+      if (imageUrl) {
+        // Use src for URL-based images
+        imagePayload.src = imageUrl;
+      } else if (imageBase64) {
+        // Use attachment for base64 images (Shopify expects base64 without data URL prefix)
+        const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+        imagePayload.attachment = cleanBase64;
+      }
+
+      if (alt) {
+        imagePayload.alt = alt;
+      }
+
+      if (position !== undefined) {
+        imagePayload.position = position;
+      }
+
+      const data = await shopifyFetch<{ image: ShopifyImage }>(
+        session.shop,
+        `/products/${productId}/images.json`,
+        accessToken,
+        {
+          method: 'POST',
+          body: JSON.stringify({ image: imagePayload }),
+        }
+      );
+
+      res.json({
+        image: {
+          id: data.image.id,
+          productId: data.image.product_id,
+          src: data.image.src,
+          width: data.image.width,
+          height: data.image.height,
+          alt: data.image.alt,
+          position: data.image.position,
+        },
+        shop: session.shop,
+      });
+    } catch (error: any) {
+      console.error('Error adding product image:', error);
+      res.status(500).json({ error: 'Failed to add product image' });
+    }
+  });
+});
+
+/**
  * Proxy image download (to avoid CORS issues with Shopify CDN)
  */
 export const shopifyProxyImage = functions.https.onRequest((req, res) => {

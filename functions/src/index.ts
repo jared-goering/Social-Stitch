@@ -35,6 +35,7 @@ export {
   shopifySearchProducts,
   shopifyGetShop,
   shopifyProxyImage,
+  shopifyAddProductImage,
 } from './shopify-api';
 
 // Export Shopify GDPR webhooks
