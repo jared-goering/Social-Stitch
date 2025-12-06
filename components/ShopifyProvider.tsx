@@ -5,10 +5,12 @@
  * App Bridge handles authentication automatically for embedded apps.
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Provider as AppBridgeProvider } from '@shopify/app-bridge-react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { Provider as AppBridgeProvider, useAppBridge } from '@shopify/app-bridge-react';
+import { getSessionToken } from '@shopify/app-bridge-utils';
 import { shopifyConfig } from '../shopify.config';
 import { setShopifyShop } from '../services/socialAuthService';
+import { setSessionToken } from '../services/shopifyProductService';
 
 // Shopify context types
 interface ShopifyContextValue {
@@ -16,6 +18,7 @@ interface ShopifyContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   host: string | null;
+  refreshToken: () => Promise<void>;
 }
 
 const ShopifyContext = createContext<ShopifyContextValue>({
@@ -23,6 +26,7 @@ const ShopifyContext = createContext<ShopifyContextValue>({
   isAuthenticated: false,
   isLoading: true,
   host: null,
+  refreshToken: async () => {},
 });
 
 /**
@@ -30,6 +34,124 @@ const ShopifyContext = createContext<ShopifyContextValue>({
  */
 export function useShopifyContext() {
   return useContext(ShopifyContext);
+}
+
+/**
+ * Inner component that handles session token fetching
+ * Must be inside AppBridgeProvider to use useAppBridge hook
+ */
+function SessionTokenProvider({ 
+  children, 
+  shop 
+}: { 
+  children: React.ReactNode; 
+  shop: string | null;
+}) {
+  const app = useAppBridge();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchSessionToken = useCallback(async () => {
+    try {
+      console.log('[SessionTokenProvider] Fetching session token...');
+      const token = await getSessionToken(app);
+      console.log('[SessionTokenProvider] Session token obtained:', token ? 'yes' : 'no');
+      setSessionToken(token);
+      setIsAuthenticated(true);
+      return token;
+    } catch (error) {
+      console.error('[SessionTokenProvider] Failed to get session token:', error);
+      setSessionToken(null);
+      setIsAuthenticated(false);
+      throw error;
+    }
+  }, [app]);
+
+  useEffect(() => {
+    let mounted = true;
+    let refreshInterval: NodeJS.Timeout;
+
+    const initializeToken = async () => {
+      try {
+        await fetchSessionToken();
+      } catch (error) {
+        console.error('[SessionTokenProvider] Initial token fetch failed:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeToken();
+
+    // Refresh token every 50 seconds (tokens expire after ~60 seconds)
+    refreshInterval = setInterval(async () => {
+      try {
+        await fetchSessionToken();
+      } catch (error) {
+        console.error('[SessionTokenProvider] Token refresh failed:', error);
+      }
+    }, 50000);
+
+    return () => {
+      mounted = false;
+      clearInterval(refreshInterval);
+    };
+  }, [fetchSessionToken]);
+
+  // Get host from sessionStorage since we're inside the provider
+  const host = (() => {
+    try {
+      return sessionStorage.getItem('shopify_host');
+    } catch {
+      return null;
+    }
+  })();
+
+  const contextValue: ShopifyContextValue = {
+    shop,
+    isAuthenticated,
+    isLoading,
+    host,
+    refreshToken: async () => { await fetchSessionToken(); },
+  };
+
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          background: '#f6f6f7',
+        }}
+      >
+        <div style={{ textAlign: 'center' }}>
+          <div
+            style={{
+              width: '40px',
+              height: '40px',
+              border: '3px solid #e2e8f0',
+              borderTop: '3px solid #5c6ac4',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto 16px',
+            }}
+          />
+          <p style={{ color: '#637381' }}>Authenticating with Shopify...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <ShopifyContext.Provider value={contextValue}>
+      {children}
+    </ShopifyContext.Provider>
+  );
 }
 
 interface ShopifyProviderProps {
@@ -115,7 +237,7 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
   // If not in Shopify mode, just render children directly
   if (!shopifyConfig.isEmbedded) {
     return (
-      <ShopifyContext.Provider value={{ shop: null, isAuthenticated: false, isLoading: false, host: null }}>
+      <ShopifyContext.Provider value={{ shop: null, isAuthenticated: false, isLoading: false, host: null, refreshToken: async () => {} }}>
         {children}
       </ShopifyContext.Provider>
     );
@@ -191,18 +313,11 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
     forceRedirect: true,
   };
 
-  const contextValue: ShopifyContextValue = {
-    shop,
-    isAuthenticated: true,
-    isLoading: false,
-    host,
-  };
-
   return (
     <AppBridgeProvider config={config}>
-      <ShopifyContext.Provider value={contextValue}>
+      <SessionTokenProvider shop={shop}>
         {children}
-      </ShopifyContext.Provider>
+      </SessionTokenProvider>
     </AppBridgeProvider>
   );
 }
