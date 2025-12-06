@@ -73,6 +73,59 @@ const getFunctionsUrl = () => {
 // Session token storage
 let currentSessionToken: string | null = null;
 
+// Shop domain storage (for OAuth redirect)
+let currentShopDomain: string | null = null;
+
+/**
+ * Set the current shop domain (for OAuth redirects)
+ */
+export function setShopDomain(shop: string | null) {
+  currentShopDomain = shop;
+}
+
+/**
+ * Get the current shop domain
+ */
+export function getShopDomain(): string | null {
+  return currentShopDomain;
+}
+
+/**
+ * Check if an error indicates the shop needs to complete OAuth
+ */
+export function isOAuthRequired(error: Error): boolean {
+  return error.message.includes('access token not found') || 
+         error.message.includes('Shop has not installed');
+}
+
+/**
+ * Redirect to OAuth flow to install/reinstall the app
+ */
+export function redirectToOAuth(shop?: string): void {
+  const shopDomain = shop || currentShopDomain;
+  if (!shopDomain) {
+    console.error('[shopifyProductService] Cannot redirect to OAuth: no shop domain');
+    return;
+  }
+  
+  const functionsUrl = getFunctionsUrl();
+  if (!functionsUrl) {
+    console.error('[shopifyProductService] Cannot redirect to OAuth: no functions URL');
+    return;
+  }
+  
+  const oauthUrl = `${functionsUrl}/shopifyAuthStart?shop=${encodeURIComponent(shopDomain)}`;
+  console.log('[shopifyProductService] Redirecting to OAuth:', oauthUrl);
+  
+  // For embedded apps, we need to redirect the top-level window
+  if (window.top !== window.self) {
+    // We're in an iframe - use App Bridge or top-level redirect
+    window.top?.location.assign(oauthUrl);
+  } else {
+    window.location.href = oauthUrl;
+  }
+}
+
 /**
  * Set the session token for API requests
  * Called by the ShopifyProvider after App Bridge authentication

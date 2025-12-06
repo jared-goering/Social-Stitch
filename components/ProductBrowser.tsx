@@ -15,6 +15,8 @@ import {
   searchProducts,
   getResizedImageUrl,
   clearProductCache,
+  isOAuthRequired,
+  redirectToOAuth,
 } from '../services/shopifyProductService';
 import {
   Search,
@@ -73,8 +75,20 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
       });
       setProducts(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to load products');
       console.error('Error loading products:', err);
+      
+      // Check if OAuth is required and auto-redirect
+      if (isOAuthRequired(err)) {
+        console.log('[ProductBrowser] OAuth required, redirecting...');
+        setError('Connecting to your Shopify store...');
+        // Small delay to show the message before redirecting
+        setTimeout(() => {
+          redirectToOAuth();
+        }, 1000);
+        return;
+      }
+      
+      setError(err.message || 'Failed to load products');
     } finally {
       setIsLoading(false);
     }

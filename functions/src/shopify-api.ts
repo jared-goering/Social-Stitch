@@ -91,17 +91,26 @@ export const shopifyGetProducts = functions.https.onRequest((req, res) => {
   corsHandler(req, res, async () => {
     // Verify session
     const session = await verifyRequestSession(req);
+    console.log('[shopifyGetProducts] Session verification:', {
+      valid: session.valid,
+      shop: session.shop,
+      error: session.error,
+    });
+    
     if (!session.valid || !session.shop) {
       res.status(401).json({ error: session.error || 'Unauthorized' });
       return;
     }
 
     // Get access token
+    console.log('[shopifyGetProducts] Looking up access token for shop:', session.shop);
     const accessToken = await getShopAccessToken(session.shop);
     if (!accessToken) {
-      res.status(401).json({ error: 'Shop access token not found' });
+      console.error('[shopifyGetProducts] No access token found for shop:', session.shop);
+      res.status(401).json({ error: 'Shop access token not found. Please reinstall the app.' });
       return;
     }
+    console.log('[shopifyGetProducts] Access token found, fetching products...');
 
     try {
       // Build query parameters
