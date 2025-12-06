@@ -36,6 +36,12 @@ export const generateMockupImage = async (
     : '';
 
   try {
+    // Strip data URL prefix if present (e.g., "data:image/jpeg;base64,")
+    const cleanBase64Design = base64Design.includes(',') ? base64Design.split(',')[1] : base64Design;
+    // Detect mime type from data URL or default to png
+    const mimeTypeMatch = base64Design.match(/^data:(image\/[a-zA-Z]+);base64,/);
+    const detectedMimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/png';
+
     const prompt = `
       You are a lifestyle and editorial photographer capturing authentic, candid moments.
       Task: Create a photorealistic LIFESTYLE image featuring someone wearing the EXACT garment shown in the reference image.
@@ -74,8 +80,8 @@ export const generateMockupImage = async (
           },
           {
             inlineData: {
-              mimeType: 'image/png',
-              data: base64Design
+              mimeType: detectedMimeType,
+              data: cleanBase64Design
             }
           }
         ]
@@ -170,6 +176,12 @@ export const analyzeGarmentAndSuggestStyles = async (
       Consider color harmony, target audience, and lifestyle scenarios that fit the vibe.
     `;
 
+    // Strip data URL prefix if present (e.g., "data:image/jpeg;base64,")
+    const cleanBase64Design = base64Design.includes(',') ? base64Design.split(',')[1] : base64Design;
+    // Detect mime type from data URL or default to png
+    const mimeTypeMatch = base64Design.match(/^data:(image\/[a-zA-Z]+);base64,/);
+    const detectedMimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/png';
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: {
@@ -177,8 +189,8 @@ export const analyzeGarmentAndSuggestStyles = async (
           { text: prompt },
           {
             inlineData: {
-              mimeType: 'image/png',
-              data: base64Design
+              mimeType: detectedMimeType,
+              data: cleanBase64Design
             }
           }
         ]
@@ -268,6 +280,12 @@ export const generateSocialCaptions = async (
       Make each caption feel distinct and give the user real variety to choose from.
     `;
 
+    // Strip data URL prefix if present (e.g., "data:image/jpeg;base64,")
+    const cleanBase64Mockup = base64Mockup.includes(',') ? base64Mockup.split(',')[1] : base64Mockup;
+    // Detect mime type from data URL or default to png
+    const mimeTypeMatch = base64Mockup.match(/^data:(image\/[a-zA-Z]+);base64,/);
+    const detectedMimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/png';
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: {
@@ -275,8 +293,8 @@ export const generateSocialCaptions = async (
             { text: prompt },
             {
                 inlineData: {
-                    mimeType: 'image/png', // Assuming PNG/base64 input
-                    data: base64Mockup.split(',')[1] // Strip header if present
+                    mimeType: detectedMimeType,
+                    data: cleanBase64Mockup
                 }
             }
         ]
