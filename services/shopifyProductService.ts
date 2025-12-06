@@ -101,6 +101,16 @@ export function isOAuthRequired(error: Error): boolean {
          message.includes('reinstall');
 }
 
+// Store App Bridge app instance for redirects
+let appBridgeApp: any = null;
+
+/**
+ * Set the App Bridge app instance for redirects
+ */
+export function setAppBridgeApp(app: any): void {
+  appBridgeApp = app;
+}
+
 /**
  * Redirect to OAuth flow to install/reinstall the app
  */
@@ -120,10 +130,28 @@ export function redirectToOAuth(shop?: string): void {
   const oauthUrl = `${functionsUrl}/shopifyAuthStart?shop=${encodeURIComponent(shopDomain)}`;
   console.log('[shopifyProductService] Redirecting to OAuth:', oauthUrl);
   
-  // For embedded apps, we need to redirect the top-level window
+  // For embedded apps, use App Bridge Redirect
+  if (appBridgeApp) {
+    try {
+      // Use App Bridge redirect for embedded apps
+      const { Redirect } = require('@shopify/app-bridge/actions');
+      const redirect = Redirect.create(appBridgeApp);
+      redirect.dispatch(Redirect.Action.REMOTE, oauthUrl);
+      return;
+    } catch (e) {
+      console.error('[shopifyProductService] App Bridge redirect failed:', e);
+    }
+  }
+  
+  // Fallback: try to break out of iframe
   if (window.top !== window.self) {
-    // We're in an iframe - use App Bridge or top-level redirect
-    window.top?.location.assign(oauthUrl);
+    // We're in an iframe - try to redirect the top frame
+    try {
+      window.top!.location.href = oauthUrl;
+    } catch (e) {
+      // If that fails, open in new window
+      window.open(oauthUrl, '_top');
+    }
   } else {
     window.location.href = oauthUrl;
   }

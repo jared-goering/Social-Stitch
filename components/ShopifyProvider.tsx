@@ -10,7 +10,7 @@ import { Provider as AppBridgeProvider, useAppBridge } from '@shopify/app-bridge
 import { getSessionToken } from '@shopify/app-bridge-utils';
 import { shopifyConfig } from '../shopify.config';
 import { setShopifyShop } from '../services/socialAuthService';
-import { setSessionToken, setShopDomain, redirectToOAuth, isOAuthRequired } from '../services/shopifyProductService';
+import { setSessionToken, setShopDomain, setAppBridgeApp, redirectToOAuth, isOAuthRequired } from '../services/shopifyProductService';
 
 // Shopify context types
 interface ShopifyContextValue {
@@ -51,12 +51,14 @@ function SessionTokenProvider({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Set the shop domain for OAuth redirects
+  // Set the shop domain and app bridge for OAuth redirects
   useEffect(() => {
     if (shop) {
       setShopDomain(shop);
     }
-  }, [shop]);
+    // Set the App Bridge instance for redirects
+    setAppBridgeApp(app);
+  }, [shop, app]);
 
   const fetchSessionToken = useCallback(async () => {
     try {
