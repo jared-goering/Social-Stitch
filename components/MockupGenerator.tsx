@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup } from '../types';
 import { generateMockupImage, analyzeGarmentAndSuggestStyles } from '../services/geminiService';
 import { saveMockupToFirebase, fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
@@ -1514,16 +1515,17 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         )}
       </div>
 
-      {/* Image Lightbox Modal */}
-      {enlargedMockup && (
+      {/* Image Lightbox Modal - Rendered via Portal to ensure full viewport coverage */}
+      {enlargedMockup && createPortal(
         <div 
-          className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-6 animate-in fade-in duration-200"
+          className="fixed top-0 left-0 w-screen h-screen bg-black/95 z-[9999] flex items-center justify-center overflow-hidden"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
           onClick={() => setEnlargedMockup(null)}
         >
           {/* Close button */}
           <button
             onClick={() => setEnlargedMockup(null)}
-            className="absolute top-6 right-6 w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 hover:border-white/20 text-white flex items-center justify-center transition-all shadow-xl"
+            className="fixed top-6 right-6 z-[10000] w-12 h-12 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 hover:bg-black/80 hover:border-white/40 text-white flex items-center justify-center transition-all shadow-xl"
             aria-label="Close"
           >
             <X size={24} strokeWidth={2} />
@@ -1538,8 +1540,9 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                   const currentIndex = generatedMockups.findIndex(m => m.id === enlargedMockup.id);
                   const prevIndex = currentIndex === 0 ? generatedMockups.length - 1 : currentIndex - 1;
                   setEnlargedMockup(generatedMockups[prevIndex]);
+                  setIsDescriptionExpanded(false);
                 }}
-                className="absolute left-1/2 -translate-x-[calc(50%+min(42vw,500px))] w-14 h-14 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 hover:border-white/20 hover:scale-110 text-white flex items-center justify-center transition-all shadow-xl"
+                className="fixed left-6 top-1/2 -translate-y-1/2 z-[10000] w-14 h-14 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 hover:bg-black/80 hover:border-white/40 hover:scale-110 text-white flex items-center justify-center transition-all shadow-xl"
                 aria-label="Previous image"
               >
                 <ChevronLeft size={28} strokeWidth={2.5} />
@@ -1550,8 +1553,9 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                   const currentIndex = generatedMockups.findIndex(m => m.id === enlargedMockup.id);
                   const nextIndex = currentIndex === generatedMockups.length - 1 ? 0 : currentIndex + 1;
                   setEnlargedMockup(generatedMockups[nextIndex]);
+                  setIsDescriptionExpanded(false);
                 }}
-                className="absolute left-1/2 translate-x-[calc(-50%+min(42vw,500px))] w-14 h-14 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 hover:border-white/20 hover:scale-110 text-white flex items-center justify-center transition-all shadow-xl"
+                className="fixed right-6 top-1/2 -translate-y-1/2 z-[10000] w-14 h-14 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 hover:bg-black/80 hover:border-white/40 hover:scale-110 text-white flex items-center justify-center transition-all shadow-xl"
                 aria-label="Next image"
               >
                 <ChevronRight size={28} strokeWidth={2.5} />
@@ -1561,18 +1565,18 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
           {/* Image container */}
           <div 
-            className="relative max-w-5xl w-full flex flex-col items-center animate-in zoom-in-95 duration-200"
+            className="flex flex-col items-center justify-center max-w-[90vw] max-h-[90vh] p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <img 
               src={enlargedMockup.imageUrl} 
               alt={enlargedMockup.styleDescription}
-              className="max-w-full max-h-[calc(100vh-200px)] w-auto h-auto object-contain rounded-2xl shadow-2xl"
+              className="max-w-full max-h-[70vh] w-auto h-auto object-contain rounded-2xl shadow-2xl"
             />
             
             {/* Image info bar */}
-            <div className="mt-6 w-full max-w-2xl bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-5 shadow-2xl">
-              <div className="flex flex-col gap-3">
+            <div className="mt-4 w-full max-w-xl bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-4 shadow-2xl">
+              <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-3">
                   <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-white/10 backdrop-blur-sm rounded-full border border-white/20">
                     <span className="text-xs font-medium text-white/90">
@@ -1590,15 +1594,16 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                     <ChevronDown size={14} className={`transition-transform ${isDescriptionExpanded ? 'rotate-180' : ''}`} />
                   </button>
                 </div>
-                <div className={`overflow-hidden transition-all ${isDescriptionExpanded ? 'max-h-96' : 'max-h-16'}`}>
-                  <p className={`text-sm text-white/90 leading-relaxed ${!isDescriptionExpanded ? 'line-clamp-3' : ''}`}>
+                <div className={`overflow-hidden transition-all ${isDescriptionExpanded ? 'max-h-48' : 'max-h-12'}`}>
+                  <p className={`text-sm text-white/90 leading-relaxed ${!isDescriptionExpanded ? 'line-clamp-2' : ''}`}>
                     {enlargedMockup.styleDescription}
                   </p>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
