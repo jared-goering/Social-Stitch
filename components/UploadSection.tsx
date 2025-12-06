@@ -196,7 +196,7 @@ export const UploadSection: React.FC<Props> = ({ onUpload, onNavigateToProducts 
                 accept="image/*"
                 onChange={(e) => e.target.files && handleFile(e.target.files[0])}
               />
-              <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button className="btn-primary text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2">
                   <Upload size={18} />
                   Select Photo

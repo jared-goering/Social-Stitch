@@ -9,6 +9,7 @@ import {
   getLocalDateKey
 } from '../../services/scheduledPostsService';
 import { PostCard, PostStatusDot } from './PostCard';
+import { EditPostModal } from './EditPostModal';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -40,6 +41,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [showRescheduleModal, setShowRescheduleModal] = useState<ScheduledPost | null>(null);
   const [showRetryModal, setShowRetryModal] = useState<ScheduledPost | null>(null);
+  const [showEditModal, setShowEditModal] = useState<ScheduledPost | null>(null);
 
   // Subscribe to real-time updates
   useEffect(() => {
@@ -125,6 +127,10 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
 
   const handleRetry = (post: ScheduledPost) => {
     setShowRetryModal(post);
+  };
+
+  const handleEdit = (post: ScheduledPost) => {
+    setShowEditModal(post);
   };
 
   const handleRetryNow = async (post: ScheduledPost) => {
@@ -391,6 +397,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
                           onDelete={handleDelete}
                           onReschedule={post.status === 'scheduled' ? handleReschedule : undefined}
                           onRetry={post.status === 'failed' ? handleRetry : undefined}
+                          onEdit={post.status === 'scheduled' ? handleEdit : undefined}
                           onAccountConnected={handleAccountConnected}
                         />
                       ))
@@ -443,6 +450,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
                       compact
                       onDelete={handleDelete}
                       onReschedule={handleReschedule}
+                      onEdit={handleEdit}
                       onAccountConnected={handleAccountConnected}
                     />
                   ))
@@ -474,6 +482,14 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
           onSchedule={(date) => handleRetryScheduled(showRetryModal, date)}
         />
       )}
+
+      {/* Edit Modal */}
+      <EditPostModal
+        isOpen={showEditModal !== null}
+        post={showEditModal}
+        onClose={() => setShowEditModal(null)}
+        onSaved={() => setShowEditModal(null)}
+      />
     </div>
   );
 };

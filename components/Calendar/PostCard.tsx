@@ -12,7 +12,8 @@ import {
   Trash2,
   Images,
   Link,
-  Loader2
+  Loader2,
+  Pencil
 } from 'lucide-react';
 import { startOAuthFlow, getConnectedAccounts, AccountsMap } from '../../services/socialAuthService';
 
@@ -21,6 +22,7 @@ interface Props {
   onReschedule?: (post: ScheduledPost) => void;
   onDelete?: (post: ScheduledPost) => void;
   onRetry?: (post: ScheduledPost) => void;
+  onEdit?: (post: ScheduledPost) => void;
   onAccountConnected?: () => void;
   compact?: boolean;
 }
@@ -73,6 +75,7 @@ export const PostCard: React.FC<Props> = ({
   onReschedule, 
   onDelete, 
   onRetry,
+  onEdit,
   onAccountConnected,
   compact = false 
 }) => {
@@ -265,7 +268,7 @@ export const PostCard: React.FC<Props> = ({
         </div>
 
         {/* Quick actions on hover */}
-        {(onReschedule || onDelete || onRetry) && (
+        {(onReschedule || onDelete || onRetry || onEdit) && (
           <div className={`transition-opacity ${showMenu ? 'opacity-100 z-50' : 'opacity-0 group-hover:opacity-100'}`}>
             <button
               onClick={(e) => {
@@ -279,6 +282,19 @@ export const PostCard: React.FC<Props> = ({
             
             {showMenu && (
               <div className="absolute right-2 top-full mt-1 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50 min-w-[140px]">
+                {post.status === 'scheduled' && onEdit && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(post);
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <Pencil size={14} />
+                    Edit
+                  </button>
+                )}
                 {post.status === 'failed' && onRetry && (
                   <button
                     onClick={(e) => {
@@ -373,7 +389,7 @@ export const PostCard: React.FC<Props> = ({
             )}
           </div>
           
-          {(onReschedule || onDelete || onRetry) && (
+          {(onReschedule || onDelete || onRetry || onEdit) && (
             <div className="relative">
               <button
                 onClick={() => setShowMenu(!showMenu)}
@@ -384,6 +400,18 @@ export const PostCard: React.FC<Props> = ({
               
               {showMenu && (
                 <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50 min-w-[160px]">
+                  {post.status === 'scheduled' && onEdit && (
+                    <button
+                      onClick={() => {
+                        onEdit(post);
+                        setShowMenu(false);
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    >
+                      <Pencil size={14} />
+                      Edit
+                    </button>
+                  )}
                   {post.status === 'failed' && onRetry && (
                     <button
                       onClick={() => {

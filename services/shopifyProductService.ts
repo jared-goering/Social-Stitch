@@ -217,7 +217,7 @@ export async function fetchProducts(options: {
   vendor?: string;
   status?: string;
   collectionId?: string;
-} = {}): Promise<{ products: ShopifyProduct[]; shop: string }> {
+} = {}): Promise<{ products: ShopifyProduct[]; shop: string; pageInfo?: { hasNextPage: boolean; endCursor?: string } }> {
   const params = new URLSearchParams();
 
   if (options.limit) params.set('limit', options.limit.toString());
@@ -230,7 +230,43 @@ export async function fetchProducts(options: {
   const queryString = params.toString();
   const endpoint = `shopifyGetProducts${queryString ? `?${queryString}` : ''}`;
 
-  return shopifyApiRequest<{ products: ShopifyProduct[]; shop: string }>(endpoint);
+  return shopifyApiRequest<{ products: ShopifyProduct[]; shop: string; pageInfo?: { hasNextPage: boolean; endCursor?: string } }>(endpoint);
+}
+
+/**
+ * Fetch all products (handles pagination automatically)
+ */
+export async function fetchAllProducts(options: {
+  collectionId?: string;
+  onProgress?: (loaded: number) => void;
+} = {}): Promise<ShopifyProduct[]> {
+  const allProducts: ShopifyProduct[] = [];
+  let pageInfo: string | undefined;
+  let hasMore = true;
+  
+  while (hasMore) {
+    const result = await fetchProducts({
+      limit: 250, // Shopify max
+      pageInfo,
+      collectionId: options.collectionId,
+    });
+    
+    allProducts.push(...result.products);
+    options.onProgress?.(allProducts.length);
+    
+    // Check if there are more pages
+    if (result.pageInfo?.hasNextPage && result.pageInfo.endCursor) {
+      pageInfo = result.pageInfo.endCursor;
+    } else if (result.products.length === 250) {
+      // Fallback: if we got exactly 250, there might be more
+      // But since we don't have pageInfo, we'll stop here
+      hasMore = false;
+    } else {
+      hasMore = false;
+    }
+  }
+  
+  return allProducts;
 }
 
 /**
@@ -361,18 +397,30 @@ export async function fetchProductsCached(options: {
   limit?: number;
   collectionId?: string;
   forceRefresh?: boolean;
+  loadAll?: boolean;
+  onProgress?: (loaded: number) => void;
 } = {}): Promise<ShopifyProduct[]> {
-  const cacheKey = `products_${options.collectionId || 'all'}_${options.limit || 50}`;
+  const cacheKey = `products_${options.collectionId || 'all'}_${options.loadAll ? 'all' : options.limit || 250}`;
   const cached = productCache.get(cacheKey);
 
   if (cached && !options.forceRefresh && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.data;
   }
 
-  const { products } = await fetchProducts({
-    limit: options.limit,
-    collectionId: options.collectionId,
-  });
+  let products: ShopifyProduct[];
+  
+  if (options.loadAll) {
+    products = await fetchAllProducts({
+      collectionId: options.collectionId,
+      onProgress: options.onProgress,
+    });
+  } else {
+    const result = await fetchProducts({
+      limit: options.limit || 250, // Increased default from 50 to 250
+      collectionId: options.collectionId,
+    });
+    products = result.products;
+  }
 
   productCache.set(cacheKey, {
     data: products,

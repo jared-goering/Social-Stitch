@@ -188,7 +188,7 @@ export async function getScheduledPost(postId: string): Promise<ScheduledPost | 
  */
 export async function updateScheduledPost(
   postId: string,
-  updates: Partial<Pick<ScheduledPost, 'scheduledFor' | 'captions' | 'platforms' | 'status' | 'error'>>
+  updates: Partial<Pick<ScheduledPost, 'scheduledFor' | 'captions' | 'platforms' | 'status' | 'error' | 'imageUrls'>>
 ): Promise<void> {
   const docRef = doc(db, COLLECTION_NAME, postId);
   
@@ -208,6 +208,9 @@ export async function updateScheduledPost(
   }
   if (updates.error !== undefined) {
     updateData.error = updates.error;
+  }
+  if (updates.imageUrls) {
+    updateData.imageUrls = updates.imageUrls.map(url => String(url));
   }
   
   await updateDoc(docRef, updateData);

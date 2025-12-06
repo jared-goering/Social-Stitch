@@ -49,8 +49,11 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
   const [products, setProducts] = useState<ShopifyProduct[]>([]);
   const [collections, setCollections] = useState<ShopifyCollection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasMoreProducts, setHasMoreProducts] = useState(false);
+  const [loadedCount, setLoadedCount] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCollection, setSelectedCollection] = useState<string>('');
@@ -66,16 +69,24 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
     loadCollections();
   }, []);
 
-  const loadProducts = async (collectionId?: string) => {
-    setIsLoading(true);
+  const loadProducts = async (collectionId?: string, loadAll = false) => {
+    if (loadAll) {
+      setIsLoadingMore(true);
+    } else {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
       const data = await fetchProductsCached({
-        limit: 50,
+        limit: 250,
         collectionId,
+        loadAll,
+        onProgress: (count) => setLoadedCount(count),
       });
       setProducts(data);
+      // If we got exactly 250 products and not loading all, there might be more
+      setHasMoreProducts(!loadAll && data.length === 250);
     } catch (err: any) {
       console.error('Error loading products:', err);
       
@@ -93,7 +104,12 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
       setError(err.message || 'Failed to load products');
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
+  };
+
+  const loadAllProducts = () => {
+    loadProducts(selectedCollection || undefined, true);
   };
 
   const loadCollections = async () => {
@@ -299,23 +315,51 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
 
         {/* Products Grid */}
         {!isLoading && !error && products.length > 0 && (
-          <div
-            className={
-              viewMode === 'grid'
-                ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children'
-                : 'space-y-3'
-            }
-          >
-            {products.map((product, index) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                viewMode={viewMode}
-                onClick={() => handleProductClick(product)}
-                index={index}
-              />
-            ))}
-          </div>
+          <>
+            <div
+              className={
+                viewMode === 'grid'
+                  ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 stagger-children'
+                  : 'space-y-3'
+              }
+            >
+              {products.map((product, index) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  viewMode={viewMode}
+                  onClick={() => handleProductClick(product)}
+                  index={index}
+                />
+              ))}
+            </div>
+            
+            {/* Load All Products Button */}
+            {hasMoreProducts && (
+              <div className="mt-6 text-center">
+                <button
+                  onClick={loadAllProducts}
+                  disabled={isLoadingMore}
+                  className="px-6 py-3 rounded-xl font-medium text-sm border-2 border-slate-warm-200 text-slate-warm-700 hover:border-coral-300 hover:bg-coral-50 transition-all disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Loading all products... {loadedCount > 0 && `(${loadedCount})`}
+                    </>
+                  ) : (
+                    <>
+                      <Package size={16} />
+                      Load All Products
+                    </>
+                  )}
+                </button>
+                <p className="text-xs text-slate-warm-400 mt-2">
+                  Showing {products.length} products. Click to load your complete catalog.
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
 
