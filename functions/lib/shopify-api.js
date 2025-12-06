@@ -46,6 +46,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.shopifyProxyImage = exports.shopifyGetShop = exports.shopifySearchProducts = exports.shopifyGetCollections = exports.shopifyGetProductImages = exports.shopifyGetProduct = exports.shopifyGetProducts = void 0;
 const functions = __importStar(require("firebase-functions"));
+const admin = __importStar(require("firebase-admin"));
 const cors_1 = __importDefault(require("cors"));
 const shopify_auth_1 = require("./shopify-auth");
 const corsHandler = (0, cors_1.default)({ origin: true });
@@ -162,8 +163,11 @@ exports.shopifyGetProducts = functions.https.onRequest((req, res) => {
         }
         catch (error) {
             console.error('Error fetching products:', error);
-            // If the access token is invalid, tell the frontend to re-auth
+            // If the access token is invalid, delete it and tell the frontend to re-auth
             if (error.message === 'INVALID_ACCESS_TOKEN') {
+                console.log('[shopifyGetProducts] Deleting invalid token for shop:', session.shop);
+                const db = admin.firestore();
+                await db.collection('shopifyStores').doc(session.shop).delete();
                 res.status(401).json({
                     error: 'Access token is invalid. Please reinstall the app.',
                     code: 'INVALID_ACCESS_TOKEN'
