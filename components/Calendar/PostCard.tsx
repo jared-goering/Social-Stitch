@@ -48,9 +48,9 @@ const STATUS_CONFIG: Record<PostStatus, {
   scheduled: {
     icon: Clock,
     label: 'Scheduled',
-    bgColor: 'bg-coral-50',
-    textColor: 'text-coral-700',
-    iconColor: 'text-coral-500'
+    bgColor: 'bg-amber-50',
+    textColor: 'text-amber-700',
+    iconColor: 'text-amber-500'
   },
   published: {
     icon: CheckCircle,
@@ -62,9 +62,9 @@ const STATUS_CONFIG: Record<PostStatus, {
   failed: {
     icon: AlertCircle,
     label: 'Failed',
-    bgColor: 'bg-red-50',
-    textColor: 'text-red-700',
-    iconColor: 'text-red-500'
+    bgColor: 'bg-rose-50',
+    textColor: 'text-rose-700',
+    iconColor: 'text-rose-600'
   }
 };
 
@@ -518,9 +518,9 @@ export const PostCard: React.FC<Props> = ({
 // Status dot component for calendar grid
 export const PostStatusDot: React.FC<{ status: PostStatus; count?: number }> = ({ status, count }) => {
   const colors: Record<PostStatus, string> = {
-    scheduled: 'bg-coral-500',
+    scheduled: 'bg-amber-500',
     published: 'bg-sage-500',
-    failed: 'bg-red-500'
+    failed: 'bg-rose-600'
   };
 
   return (

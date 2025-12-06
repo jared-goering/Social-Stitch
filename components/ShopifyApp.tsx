@@ -11,7 +11,6 @@ import {
   AppProvider,
   Frame,
   Navigation,
-  TopBar,
   Toast,
   Loading,
 } from '@shopify/polaris';
@@ -48,6 +47,7 @@ import {
   Calendar,
   Check,
   AlertCircle,
+  Menu,
 } from 'lucide-react';
 
 // Types
@@ -287,33 +287,73 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
     </Navigation>
   );
 
-  // Top bar user menu
-  const userMenuMarkup = (
-    <TopBar.UserMenu
-      name={displayShopName}
-      initials={displayShopName.charAt(0).toUpperCase()}
-      open={false}
-      onToggle={() => {}}
-      actions={[
-        {
-          items: [
-            {
-              content: 'Settings',
-              onAction: () => handleNavigationSelect('settings'),
-            },
-          ],
-        },
-      ]}
-    />
-  );
+  // Get step info for the slim header
+  const getStepInfo = () => {
+    const stepLabels: Record<AppStep, { num: number; label: string }> = {
+      [AppStep.UPLOAD]: { num: 1, label: 'Upload' },
+      [AppStep.MOCKUP_GENERATION]: { num: 2, label: 'AI Mockup' },
+      [AppStep.CAPTIONING]: { num: 3, label: 'Captions' },
+      [AppStep.REVIEW]: { num: 4, label: 'Review' },
+      [AppStep.SUCCESS]: { num: 4, label: 'Done' },
+    };
+    return stepLabels[currentStep] || { num: 1, label: 'Upload' };
+  };
 
-  // Top bar
-  const topBarMarkup = (
-    <TopBar
-      showNavigationToggle
-      userMenu={userMenuMarkup}
-      onNavigationToggle={toggleMobileNavigation}
-    />
+  // Slim custom header component
+  const slimHeaderMarkup = (
+    <div className="h-10 bg-slate-warm-800 flex items-center justify-between px-4 border-b border-slate-warm-700">
+      {/* Left: Mobile nav toggle + App name */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={toggleMobileNavigation}
+          className="lg:hidden p-1.5 -ml-1.5 rounded-md text-slate-warm-300 hover:text-white hover:bg-slate-warm-700 transition-colors"
+          aria-label="Toggle navigation"
+        >
+          <Menu size={18} />
+        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded bg-coral-500 flex items-center justify-center">
+            <span className="text-white text-xs font-bold">S</span>
+          </div>
+          <span className="text-white font-semibold text-sm">SocialStitch</span>
+        </div>
+      </div>
+
+      {/* Center: Step indicator (only in create view) */}
+      {currentView === 'create' && currentStep !== AppStep.SUCCESS && (
+        <div className="hidden sm:flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {[1, 2, 3, 4].map((step) => {
+              const stepInfo = getStepInfo();
+              const isCompleted = step < stepInfo.num;
+              const isCurrent = step === stepInfo.num;
+              return (
+                <div
+                  key={step}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    isCompleted
+                      ? 'bg-coral-400'
+                      : isCurrent
+                        ? 'bg-coral-500 ring-2 ring-coral-400/50'
+                        : 'bg-slate-warm-600'
+                  }`}
+                />
+              );
+            })}
+          </div>
+          <span className="text-slate-warm-300 text-xs">
+            Step {getStepInfo().num} of 4
+          </span>
+          <span className="text-slate-warm-500 text-xs">•</span>
+          <span className="text-white text-xs font-medium">{getStepInfo().label}</span>
+        </div>
+      )}
+
+      {/* Right: View label */}
+      <div className="text-slate-warm-400 text-xs capitalize">
+        {currentView === 'create' ? '' : currentView}
+      </div>
+    </div>
   );
 
   // Toast markup
@@ -341,79 +381,86 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
     switch (currentView) {
       case 'home':
         return (
-          <div className="p-6 max-w-6xl mx-auto page-enter">
-            {/* Hero Section */}
-            <div className="relative mb-10 overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-coral-50 via-white to-amber-light/20 rounded-3xl" />
-              <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-coral-200/30 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          <div className="p-4 max-w-6xl mx-auto page-enter">
+            {/* Compact Hero Section */}
+            <div className="relative mb-6 overflow-hidden rounded-2xl">
+              <div className="absolute inset-0 bg-gradient-to-r from-coral-50 via-white to-amber-light/30" />
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-coral-200/20 to-transparent rounded-full blur-2xl -translate-y-1/3 translate-x-1/4" />
               
-              <div className="relative px-8 py-12 md:py-16">
-                <div className="flex flex-col md:flex-row items-center gap-8">
-                  <div className="flex-1 text-center md:text-left">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur rounded-full border border-coral-200 mb-6">
-                      <Sparkles size={16} className="text-coral-500" />
-                      <span className="text-sm font-medium text-slate-warm-700">AI-Powered Content Creation</span>
-                    </div>
-                    
-                    <h1 className="text-4xl md:text-5xl font-display text-slate-warm-900 mb-4 leading-tight">
-                      Welcome to{' '}
-                      <span className="text-coral-500">SocialStitch</span>
-                    </h1>
-                    
-                    <p className="text-lg text-slate-warm-500 max-w-xl mb-8 leading-relaxed">
-                      Transform your products into stunning social media content with AI-generated lifestyle mockups and engaging captions.
-                    </p>
-                    
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-                      <button
-                        onClick={() => handleNavigationSelect('products')}
-                        className="btn-primary text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center justify-center gap-2"
-                      >
-                        Get Started
-                        <ArrowRight size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleNavigationSelect('gallery')}
-                        className="px-6 py-3 rounded-xl font-semibold text-slate-warm-700 bg-white border-2 border-slate-warm-200 hover:border-coral-300 hover:bg-coral-50 transition-all inline-flex items-center justify-center gap-2"
-                      >
-                        View Gallery
-                      </button>
-                    </div>
-                  </div>
-                  
-                  {/* Animated mockup preview */}
-                  <div className="relative w-72 h-72 flex-shrink-0">
-                    <div className="absolute inset-0 bg-gradient-to-br from-coral-500 to-coral-600 rounded-3xl rotate-6 opacity-20 animate-breathe" />
-                    <div className="absolute inset-0 bg-white rounded-3xl shadow-xl shadow-coral-500/10 overflow-hidden border border-slate-warm-200">
-                      <div className="h-full flex items-center justify-center bg-gradient-to-br from-slate-warm-50 to-white">
-                        <div className="text-center p-6">
-                          <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-coral-500 to-coral-600 flex items-center justify-center shadow-lg shadow-coral-500/30 animate-float">
-                            <Zap size={32} className="text-white" />
-                          </div>
-                          <p className="text-sm font-medium text-slate-warm-600">AI Magic</p>
-                          <p className="text-xs text-slate-warm-400 mt-1">Product → Social Post</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              <div className="relative px-6 py-6 flex items-center gap-6">
+                {/* Icon */}
+                <div className="hidden sm:flex w-16 h-16 rounded-2xl bg-gradient-to-br from-coral-500 to-coral-600 items-center justify-center shadow-lg shadow-coral-500/25 flex-shrink-0 animate-float">
+                  <Zap size={28} className="text-white" />
                 </div>
+                
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h1 className="text-2xl md:text-3xl font-display text-slate-warm-900">
+                      Welcome to <span className="text-coral-500">SocialStitch</span>
+                    </h1>
+                    <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/80 rounded-full border border-coral-200 text-xs font-medium text-coral-600">
+                      <Sparkles size={12} />
+                      AI-Powered
+                    </span>
+                  </div>
+                  <p className="text-slate-warm-500 text-sm md:text-base">
+                    Transform products into stunning social content with AI mockups and captions.
+                  </p>
+                </div>
+                
+                {/* CTA Buttons */}
+                <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+                  <button
+                    onClick={() => handleNavigationSelect('gallery')}
+                    className="px-4 py-2.5 rounded-xl font-medium text-slate-warm-600 hover:bg-white/80 transition-all text-sm"
+                  >
+                    View Gallery
+                  </button>
+                  <button
+                    onClick={() => handleNavigationSelect('products')}
+                    className="btn-primary text-white px-5 py-2.5 rounded-xl font-semibold inline-flex items-center gap-2 text-sm"
+                  >
+                    Get Started
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Mobile CTA */}
+              <div className="md:hidden px-6 pb-5 flex gap-3">
+                <button
+                  onClick={() => handleNavigationSelect('products')}
+                  className="btn-primary text-white px-5 py-2.5 rounded-xl font-semibold inline-flex items-center justify-center gap-2 text-sm flex-1"
+                >
+                  Get Started
+                  <ArrowRight size={16} />
+                </button>
+                <button
+                  onClick={() => handleNavigationSelect('gallery')}
+                  className="px-4 py-2.5 rounded-xl font-medium text-slate-warm-600 bg-white border border-slate-warm-200 text-sm"
+                >
+                  Gallery
+                </button>
               </div>
             </div>
 
-            {/* Quick Stats */}
+            {/* Quick Stats - Inline */}
             {stats.total > 0 && (
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                <div className="card-elevated p-4 text-center">
-                  <div className="text-3xl font-bold text-slate-warm-800">{stats.total}</div>
-                  <div className="text-sm text-slate-warm-500">Total Posts</div>
+              <div className="flex items-center gap-6 mb-6 px-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-slate-warm-800">{stats.total}</span>
+                  <span className="text-sm text-slate-warm-500">Posts</span>
                 </div>
-                <div className="card-elevated p-4 text-center">
-                  <div className="text-3xl font-bold text-coral-500">{stats.scheduled}</div>
-                  <div className="text-sm text-slate-warm-500">Scheduled</div>
+                <div className="w-px h-6 bg-slate-warm-200" />
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-amber-500">{stats.scheduled}</span>
+                  <span className="text-sm text-slate-warm-500">Scheduled</span>
                 </div>
-                <div className="card-elevated p-4 text-center">
-                  <div className="text-3xl font-bold text-sage-500">{stats.published}</div>
-                  <div className="text-sm text-slate-warm-500">Published</div>
+                <div className="w-px h-6 bg-slate-warm-200" />
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-bold text-sage-500">{stats.published}</span>
+                  <span className="text-sm text-slate-warm-500">Published</span>
                 </div>
               </div>
             )}
@@ -480,7 +527,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
 
       case 'products':
         return (
-          <div className="p-6 max-w-6xl mx-auto page-enter">
+          <div className="p-4 max-w-6xl mx-auto page-enter">
             <ProductBrowser
               onSelectProduct={handleProductSelect}
               onSelectImage={handleImageSelect}
@@ -490,33 +537,28 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
 
       case 'create':
         return (
-          <div className="p-6 max-w-6xl mx-auto page-enter">
+          <div className="p-4 max-w-6xl mx-auto page-enter">
             {currentStep !== AppStep.SUCCESS && (
               <StepIndicator currentStep={currentStep} onStepClick={handleStepClick} />
             )}
 
             {currentStep === AppStep.UPLOAD && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="text-center mb-10">
-                  <h2 className="text-3xl md:text-4xl font-display text-slate-warm-900 mb-4">
-                    Start with your design
-                  </h2>
-                  <p className="text-lg text-slate-warm-500 max-w-2xl mx-auto leading-relaxed">
-                    Upload your design or{' '}
-                    <button
-                      onClick={() => handleNavigationSelect('products')}
-                      className="text-coral-500 hover:text-coral-600 font-medium underline underline-offset-2"
-                    >
-                      select from your products
-                    </button>
-                  </p>
-                </div>
                 <UploadSection onUpload={handleUpload} />
+                <p className="text-center text-sm text-slate-warm-500 mt-4">
+                  Or{' '}
+                  <button
+                    onClick={() => handleNavigationSelect('products')}
+                    className="text-coral-500 hover:text-coral-600 font-medium underline underline-offset-2"
+                  >
+                    select from your products
+                  </button>
+                </p>
               </div>
             )}
 
             {currentStep === AppStep.MOCKUP_GENERATION && design && (
-              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <MockupGenerator
                   design={design}
                   onMockupsSelected={handleMockupsSelection}
@@ -526,7 +568,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
             )}
 
             {currentStep === AppStep.CAPTIONING && selectedMockups.length > 0 && (
-              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <CaptionReview
                   mockups={selectedMockups}
                   onSuccess={handleSuccess}
@@ -552,7 +594,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
 
       case 'calendar':
         return (
-          <div className="p-6 max-w-6xl mx-auto page-enter">
+          <div className="p-4 max-w-6xl mx-auto page-enter">
             <CalendarView
               onCreatePost={() => {
                 handleNavigationSelect('create');
@@ -564,7 +606,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
 
       case 'gallery':
         return (
-          <div className="p-6 max-w-6xl mx-auto page-enter">
+          <div className="p-4 max-w-6xl mx-auto page-enter">
             <GalleryView
               onCreatePost={() => {
                 handleNavigationSelect('create');
@@ -576,7 +618,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
 
       case 'settings':
         return (
-          <div className="p-6 max-w-4xl mx-auto page-enter">
+          <div className="p-4 max-w-4xl mx-auto page-enter">
             <SettingsView shop={shop} onNavigateToCreate={() => handleNavigationSelect('create')} />
           </div>
         );
@@ -589,11 +631,11 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
   return (
     <AppProvider i18n={enTranslations}>
       <Frame
-        topBar={topBarMarkup}
         navigation={navigationMarkup}
         showMobileNavigation={mobileNavigationActive}
         onNavigationDismiss={toggleMobileNavigation}
       >
+        {slimHeaderMarkup}
         {loadingMarkup}
         {renderContent()}
         {toastMarkup}
@@ -668,9 +710,9 @@ interface RecentPostItemProps {
 
 const RecentPostItem: React.FC<RecentPostItemProps> = ({ post, index }) => {
   const statusConfig = {
-    scheduled: { icon: Clock, color: 'text-coral-500', bg: 'bg-coral-50', label: 'Scheduled' },
+    scheduled: { icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', label: 'Scheduled' },
     published: { icon: CheckCircle2, color: 'text-sage-500', bg: 'bg-sage-50', label: 'Published' },
-    failed: { icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-50', label: 'Failed' },
+    failed: { icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', label: 'Failed' },
   };
 
   const config = statusConfig[post.status];

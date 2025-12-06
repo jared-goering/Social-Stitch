@@ -658,19 +658,19 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
       {/* Left: Controls */}
-      <div className="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+      <div className="lg:col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
         {/* Garment preview header */}
-        <div className="flex items-center gap-4 mb-5 pb-5 border-b border-slate-100">
+        <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100">
           <div className="relative">
             <img 
               src={design.previewUrl} 
               alt="Original Design" 
-              className="w-14 h-14 object-cover bg-slate-100 rounded-xl border border-slate-200"
+              className="w-11 h-11 object-cover bg-slate-100 rounded-lg border border-slate-200"
             />
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center">
-              <Check size={10} className="text-white" strokeWidth={3} />
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-500 rounded-full flex items-center justify-center">
+              <Check size={8} className="text-white" strokeWidth={3} />
             </div>
           </div>
           <div className="flex-1 min-w-0">
@@ -680,30 +680,30 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             </button>
           </div>
           {/* Pro badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-full">
-            <Zap size={12} className="text-amber-500" />
-            <span className="text-xs font-medium text-amber-700">Pro</span>
+          <div className="flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-full">
+            <Zap size={10} className="text-amber-500" />
+            <span className="text-[10px] font-medium text-amber-700">Pro</span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="font-semibold text-slate-700 text-sm flex items-center gap-2">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="font-semibold text-slate-700 text-xs flex items-center gap-1.5">
             {isLoadingSuggestions ? (
               <>
-                <Loader2 size={14} className="animate-spin text-indigo-500" />
-                <span>Analyzing garment...</span>
+                <Loader2 size={12} className="animate-spin text-indigo-500" />
+                <span>Analyzing...</span>
               </>
             ) : aiSuggestions.length > 0 ? (
               <>
-                <Sparkles size={14} className="text-amber-500" />
+                <Sparkles size={12} className="text-amber-500" />
                 <span>AI-Suggested Styles</span>
                 <button
                   onClick={regenerateSuggestions}
                   disabled={isLoadingSuggestions}
-                  className="ml-1 p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                  className="ml-0.5 p-0.5 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
                   title="Get new suggestions"
                 >
-                  <RefreshCcw size={12} />
+                  <RefreshCcw size={10} />
                 </button>
               </>
             ) : (
@@ -711,32 +711,32 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             )}
           </h4>
           {selectedStyles.size > 0 && (
-            <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">
               {selectedStyles.size} selected
             </span>
           )}
         </div>
 
         {isLoadingSuggestions ? (
-          <div className="space-y-2 mb-5">
+          <div className="space-y-1.5 mb-3">
             {[...Array(5)].map((_, idx) => (
               <div 
                 key={idx} 
-                className="w-full p-3 rounded-xl bg-slate-50 border border-slate-100"
+                className="w-full p-2 rounded-lg bg-slate-50 border border-slate-100"
                 style={{ animationDelay: `${idx * 100}ms` }}
               >
-                <div className="flex items-start gap-3">
-                  <div className="w-5 h-5 rounded bg-slate-200 animate-pulse" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-24 bg-slate-200 rounded animate-pulse" />
-                    <div className="h-3 w-full bg-slate-100 rounded animate-pulse" />
+                <div className="flex items-start gap-2">
+                  <div className="w-4 h-4 rounded bg-slate-200 animate-pulse" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-20 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-2.5 w-full bg-slate-100 rounded animate-pulse" />
                   </div>
                 </div>
               </div>
             ))}
           </div>
         ) : aiSuggestions.length > 0 ? (
-          <div className="space-y-2 mb-5 stagger-children">
+          <div className="space-y-1.5 mb-3 stagger-children">
             {aiSuggestions.map((suggestion, idx) => {
               const isSelected = selectedStyles.has(suggestion.description);
               return (
@@ -744,90 +744,90 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                   <div
                     onClick={() => !isGenerating && toggleStyleSelection(suggestion.description)}
                     className={`
-                      w-full text-left p-3 rounded-xl border-2 transition-all text-sm cursor-pointer
+                      w-full text-left p-2 rounded-lg border transition-all text-xs cursor-pointer
                       ${isSelected 
-                        ? 'border-indigo-500 bg-indigo-50 shadow-sm shadow-indigo-500/10' 
+                        ? 'border-indigo-500 bg-indigo-50' 
                         : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
                       }
                     `}
                   >
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-2">
                       {/* Checkbox */}
                       <div
                         className={`
-                          mt-0.5 w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center border-2 transition-all
+                          mt-0.5 w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-all
                           ${isSelected
-                            ? 'bg-indigo-600 border-indigo-600 text-white scale-110'
+                            ? 'bg-indigo-600 border-indigo-600 text-white'
                             : 'border-slate-300 group-hover:border-indigo-400'
                           }
                         `}
                       >
-                        {isSelected && <Check size={12} strokeWidth={3} />}
+                        {isSelected && <Check size={10} strokeWidth={3} />}
                       </div>
                       
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-1">
                           <div className="flex-1">
-                            <span className={`font-semibold block mb-0.5 transition-colors ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>
+                            <span className={`font-medium text-xs block transition-colors ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>
                               {suggestion.title}
                             </span>
-                            <span className="text-slate-500 text-xs line-clamp-2 leading-relaxed">
+                            <span className="text-slate-500 text-[11px] line-clamp-1 leading-snug">
                               {suggestion.description}
                             </span>
                             {/* Gender Selector */}
                             {isSelected && (
-                              <div className="flex items-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
-                                <span className="text-[10px] text-slate-400 mr-1">Model:</span>
+                              <div className="flex items-center gap-0.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-[9px] text-slate-400 mr-0.5">Model:</span>
                                 <button
                                   type="button"
                                   onClick={() => setStyleGender(suggestion.description, 'male')}
-                                  className={`p-1 rounded transition-all ${
+                                  className={`p-0.5 rounded transition-all ${
                                     getStyleGender(suggestion.description) === 'male'
                                       ? 'bg-indigo-600 text-white'
                                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                                   }`}
                                   title="Male model"
                                 >
-                                  <User size={12} />
+                                  <User size={10} />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setStyleGender(suggestion.description, 'female')}
-                                  className={`p-1 rounded transition-all ${
+                                  className={`p-0.5 rounded transition-all ${
                                     getStyleGender(suggestion.description) === 'female'
                                       ? 'bg-pink-500 text-white'
                                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                                   }`}
                                   title="Female model"
                                 >
-                                  <User size={12} />
+                                  <User size={10} />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setStyleGender(suggestion.description, 'both')}
-                                  className={`p-1 rounded transition-all ${
+                                  className={`p-0.5 rounded transition-all ${
                                     getStyleGender(suggestion.description) === 'both'
                                       ? 'bg-purple-500 text-white'
                                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                                   }`}
                                   title="One of each"
                                 >
-                                  <Users size={12} />
+                                  <Users size={10} />
                                 </button>
                               </div>
                             )}
                           </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
+                          <div className="flex items-center gap-0.5 flex-shrink-0">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setExpandedReasoning(expandedReasoning === idx ? null : idx);
                               }}
-                              className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors opacity-50 hover:opacity-100"
+                              className="p-1 hover:bg-slate-100 rounded transition-colors opacity-50 hover:opacity-100"
                               title="Why this style?"
                             >
-                              <Info size={14} className="text-slate-400" />
+                              <Info size={12} className="text-slate-400" />
                             </button>
                             <button
                               type="button"
@@ -836,10 +836,10 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                                 handleQuickGenerate(suggestion.description);
                               }}
                               disabled={isGenerating}
-                              className="p-1.5 rounded-lg transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
+                              className="p-1 rounded transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
                               title="Quick generate this style"
                             >
-                              <ArrowRight size={14} />
+                              <ArrowRight size={12} />
                             </button>
                           </div>
                         </div>
@@ -847,8 +847,8 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                     </div>
                   </div>
                   {expandedReasoning === idx && (
-                    <div className="mt-2 p-3 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-xl text-xs text-amber-700 animate-in slide-in-from-top-1">
-                      <span className="font-semibold text-amber-800">Why this works: </span>
+                    <div className="mt-1 p-2 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-lg text-[10px] text-amber-700 animate-in slide-in-from-top-1">
+                      <span className="font-semibold text-amber-800">Why: </span>
                       {suggestion.reasoning}
                     </div>
                   )}
@@ -857,12 +857,12 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             })}
             
             {/* Show preset styles as fallback options */}
-            <details className="mt-3 group/details">
-              <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-600 transition-colors flex items-center gap-1">
-                <Play size={10} className="transition-transform group-open/details:rotate-90" />
+            <details className="mt-2 group/details">
+              <summary className="text-[10px] text-slate-400 cursor-pointer hover:text-slate-600 transition-colors flex items-center gap-1">
+                <Play size={8} className="transition-transform group-open/details:rotate-90" />
                 Or try a preset style...
               </summary>
-              <div className="space-y-2 mt-3">
+              <div className="space-y-1.5 mt-2">
                 {PRESET_STYLES.map((style, idx) => {
                   const isSelected = selectedStyles.has(style);
                   return (
@@ -870,68 +870,68 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                       key={idx}
                       onClick={() => !isGenerating && toggleStyleSelection(style)}
                       className={`
-                        w-full text-left p-3 rounded-xl border-2 transition-all text-sm cursor-pointer group
+                        w-full text-left p-2 rounded-lg border transition-all text-xs cursor-pointer group
                         ${isSelected
                           ? 'border-indigo-500 bg-indigo-50'
                           : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
                         }
                       `}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                         <div
                           className={`
-                            w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center border-2 transition-all
+                            w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-all
                             ${isSelected
                               ? 'bg-indigo-600 border-indigo-600 text-white'
                               : 'border-slate-300 group-hover:border-indigo-400'
                             }
                           `}
                         >
-                          {isSelected && <Check size={12} strokeWidth={3} />}
+                          {isSelected && <Check size={10} strokeWidth={3} />}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className="text-slate-600 text-xs block">
+                          <span className="text-slate-600 text-[11px] block line-clamp-1">
                             {style}
                           </span>
                           {/* Gender Selector for preset styles */}
                           {isSelected && (
-                            <div className="flex items-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
-                              <span className="text-[10px] text-slate-400 mr-1">Model:</span>
+                            <div className="flex items-center gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-[9px] text-slate-400 mr-0.5">Model:</span>
                               <button
                                 type="button"
                                 onClick={() => setStyleGender(style, 'male')}
-                                className={`p-1 rounded transition-all ${
+                                className={`p-0.5 rounded transition-all ${
                                   getStyleGender(style) === 'male'
                                     ? 'bg-indigo-600 text-white'
                                     : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                                 }`}
                                 title="Male model"
                               >
-                                <User size={12} />
+                                <User size={10} />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setStyleGender(style, 'female')}
-                                className={`p-1 rounded transition-all ${
+                                className={`p-0.5 rounded transition-all ${
                                   getStyleGender(style) === 'female'
                                     ? 'bg-pink-500 text-white'
                                     : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                                 }`}
                                 title="Female model"
                               >
-                                <User size={12} />
+                                <User size={10} />
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setStyleGender(style, 'both')}
-                                className={`p-1 rounded transition-all ${
+                                className={`p-0.5 rounded transition-all ${
                                   getStyleGender(style) === 'both'
                                     ? 'bg-purple-500 text-white'
                                     : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                                 }`}
                                 title="One of each"
                               >
-                                <Users size={12} />
+                                <Users size={10} />
                               </button>
                             </div>
                           )}
@@ -943,10 +943,10 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                             handleQuickGenerate(style);
                           }}
                           disabled={isGenerating}
-                          className="p-1.5 rounded-lg transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
+                          className="p-1 rounded transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
                           title="Quick generate this style"
                         >
-                          <ArrowRight size={14} />
+                          <ArrowRight size={12} />
                         </button>
                       </div>
                     </div>
@@ -957,18 +957,18 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
             {/* Variations Selector */}
             {selectedStyles.size > 0 && (
-              <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="mt-2 p-2 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-600">Variations per style</span>
-                  <div className="flex gap-1">
+                  <span className="text-[10px] font-medium text-slate-600">Variations</span>
+                  <div className="flex gap-0.5">
                     {[1, 2, 3, 4].map((count) => (
                       <button
                         key={count}
                         type="button"
                         onClick={() => setVariationCount(count)}
-                        className={`w-7 h-7 rounded-lg text-xs font-semibold transition-all ${
+                        className={`w-6 h-6 rounded text-[10px] font-semibold transition-all ${
                           variationCount === count
-                            ? 'bg-indigo-600 text-white shadow-sm'
+                            ? 'bg-indigo-600 text-white'
                             : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'
                         }`}
                       >
@@ -977,12 +977,6 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                     ))}
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1.5">
-                  {variationCount === 1 
-                    ? 'Generate 1 image per style'
-                    : `Generate ${variationCount} variations to compare and choose the best`
-                  }
-                </p>
               </div>
             )}
 
@@ -991,23 +985,23 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
               onClick={handleGenerateSelected}
               disabled={isGenerating || selectedStyles.size === 0}
               className={`
-                w-full mt-3 py-3 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all
+                w-full mt-2 py-2 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all
                 ${selectedStyles.size > 0
-                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5'
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg'
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 }
               `}
             >
-              <Images size={18} />
+              <Images size={14} />
               {selectedStyles.size > 0 
-                ? `Generate ${selectedStyles.size} Style${selectedStyles.size > 1 ? 's' : ''} × ${variationCount} var${variationCount > 1 ? 's' : ''}`
-                : 'Select styles to generate'
+                ? `Generate ${selectedStyles.size} × ${variationCount}`
+                : 'Select styles'
               }
             </button>
           </div>
         ) : (
           <>
-            <div className="space-y-2 mb-5">
+            <div className="space-y-1.5 mb-3">
               {PRESET_STYLES.map((style, idx) => {
                 const isSelected = selectedStyles.has(style);
                 return (
@@ -1015,68 +1009,68 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                     key={idx}
                     onClick={() => !isGenerating && toggleStyleSelection(style)}
                     className={`
-                      w-full text-left p-3 rounded-xl border-2 transition-all text-sm cursor-pointer group
+                      w-full text-left p-2 rounded-lg border transition-all text-xs cursor-pointer group
                       ${isSelected
                         ? 'border-indigo-500 bg-indigo-50'
                         : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
                       }
                     `}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <div
                         className={`
-                          w-5 h-5 rounded-md flex-shrink-0 flex items-center justify-center border-2 transition-all
+                          w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-all
                           ${isSelected
                             ? 'bg-indigo-600 border-indigo-600 text-white'
                             : 'border-slate-300 group-hover:border-indigo-400'
                           }
                         `}
                       >
-                        {isSelected && <Check size={12} strokeWidth={3} />}
+                        {isSelected && <Check size={10} strokeWidth={3} />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span className="text-slate-600 text-xs block">
+                        <span className="text-slate-600 text-[11px] block line-clamp-1">
                           {style}
                         </span>
                         {/* Gender Selector for preset styles */}
                         {isSelected && (
-                          <div className="flex items-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
-                            <span className="text-[10px] text-slate-400 mr-1">Model:</span>
+                          <div className="flex items-center gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-[9px] text-slate-400 mr-0.5">Model:</span>
                             <button
                               type="button"
                               onClick={() => setStyleGender(style, 'male')}
-                              className={`p-1 rounded transition-all ${
+                              className={`p-0.5 rounded transition-all ${
                                 getStyleGender(style) === 'male'
                                   ? 'bg-indigo-600 text-white'
                                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                               }`}
                               title="Male model"
                             >
-                              <User size={12} />
+                              <User size={10} />
                             </button>
                             <button
                               type="button"
                               onClick={() => setStyleGender(style, 'female')}
-                              className={`p-1 rounded transition-all ${
+                              className={`p-0.5 rounded transition-all ${
                                 getStyleGender(style) === 'female'
                                   ? 'bg-pink-500 text-white'
                                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                               }`}
                               title="Female model"
                             >
-                              <User size={12} />
+                              <User size={10} />
                             </button>
                             <button
                               type="button"
                               onClick={() => setStyleGender(style, 'both')}
-                              className={`p-1 rounded transition-all ${
+                              className={`p-0.5 rounded transition-all ${
                                 getStyleGender(style) === 'both'
                                   ? 'bg-purple-500 text-white'
                                   : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                               }`}
                               title="One of each"
                             >
-                              <Users size={12} />
+                              <Users size={10} />
                             </button>
                           </div>
                         )}
@@ -1088,10 +1082,10 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                           handleQuickGenerate(style);
                         }}
                         disabled={isGenerating}
-                        className="p-1.5 rounded-lg transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
+                        className="p-1 rounded transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
                         title="Quick generate this style"
                       >
-                        <ArrowRight size={14} />
+                        <ArrowRight size={12} />
                       </button>
                     </div>
                   </div>
@@ -1101,18 +1095,18 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
             {/* Variations Selector */}
             {selectedStyles.size > 0 && (
-              <div className="mb-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="mb-2 p-2 bg-slate-50 rounded-lg border border-slate-200">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-600">Variations per style</span>
-                  <div className="flex gap-1">
+                  <span className="text-[10px] font-medium text-slate-600">Variations</span>
+                  <div className="flex gap-0.5">
                     {[1, 2, 3, 4].map((count) => (
                       <button
                         key={count}
                         type="button"
                         onClick={() => setVariationCount(count)}
-                        className={`w-7 h-7 rounded-lg text-xs font-semibold transition-all ${
+                        className={`w-6 h-6 rounded text-[10px] font-semibold transition-all ${
                           variationCount === count
-                            ? 'bg-indigo-600 text-white shadow-sm'
+                            ? 'bg-indigo-600 text-white'
                             : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'
                         }`}
                       >
@@ -1121,12 +1115,6 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                     ))}
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1.5">
-                  {variationCount === 1 
-                    ? 'Generate 1 image per style'
-                    : `Generate ${variationCount} variations to compare and choose the best`
-                  }
-                </p>
               </div>
             )}
             
@@ -1135,38 +1123,38 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
               onClick={handleGenerateSelected}
               disabled={isGenerating || selectedStyles.size === 0}
               className={`
-                w-full py-3 px-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all
+                w-full py-2 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all
                 ${selectedStyles.size > 0
-                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5'
+                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg'
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 }
               `}
             >
-              <Images size={18} />
+              <Images size={14} />
               {selectedStyles.size > 0 
-                ? `Generate ${selectedStyles.size} Style${selectedStyles.size > 1 ? 's' : ''} × ${variationCount} var${variationCount > 1 ? 's' : ''}`
-                : 'Select styles to generate'
+                ? `Generate ${selectedStyles.size} × ${variationCount}`
+                : 'Select styles'
               }
             </button>
           </>
         )}
 
-        <div className="relative my-5">
+        <div className="relative my-3">
             <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-200"></div>
             </div>
             <div className="relative flex justify-center">
-                <span className="px-3 bg-white text-xs text-slate-400 font-medium">Or describe your own</span>
+                <span className="px-2 bg-white text-[10px] text-slate-400 font-medium">Or describe your own</span>
             </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
             <input 
                 type="text"
                 value={customStyle}
                 onChange={(e) => setCustomStyle(e.target.value)}
-                placeholder="e.g. Cyberpunk neon city night..."
-                className="flex-1 border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all placeholder:text-slate-400"
+                placeholder="e.g. Cyberpunk neon city..."
+                className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all placeholder:text-slate-400"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && customStyle && !isGenerating) {
                     handleQuickGenerate(customStyle);
@@ -1180,34 +1168,34 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                   setCustomStyle('');
                 }}
                 disabled={!customStyle || isGenerating}
-                className="bg-slate-800 text-white p-2.5 rounded-xl hover:bg-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                className="bg-slate-800 text-white p-2 rounded-lg hover:bg-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 title="Generate mockup"
             >
-                <ArrowRight size={20} />
+                <ArrowRight size={16} />
             </button>
         </div>
       </div>
 
       {/* Right: Gallery Area */}
-      <div className="lg:col-span-3 bg-gradient-to-b from-slate-50 to-slate-100/50 rounded-2xl min-h-[500px] flex flex-col relative overflow-hidden border border-slate-200">
+      <div className="lg:col-span-3 bg-gradient-to-b from-slate-50 to-slate-100/50 rounded-xl min-h-[380px] flex flex-col relative overflow-hidden border border-slate-200">
         
         {/* Generation Progress Overlay */}
         {isGenerating && (
             <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
                 <div className="text-center">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-5 shadow-lg shadow-indigo-500/30">
-                    <Loader2 className="animate-spin text-white" size={36} />
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-indigo-500/30">
+                    <Loader2 className="animate-spin text-white" size={24} />
                   </div>
-                  <p className="font-display font-semibold text-slate-800 text-lg mb-1">
+                  <p className="font-semibold text-slate-800 text-sm mb-1">
                     Generating {generationProgress && generationProgress.total > 1 ? 'Mockups' : 'Mockup'}...
                   </p>
                   {generationProgress && (
-                    <div className="mt-4 w-48 mx-auto">
-                      <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+                    <div className="mt-2 w-40 mx-auto">
+                      <div className="flex justify-between text-[10px] text-slate-500 mb-1">
                         <span>Progress</span>
                         <span className="font-semibold text-indigo-600">{generationProgress.current} / {generationProgress.total}</span>
                       </div>
-                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
                         <div 
                           className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
                           style={{ width: `${(generationProgress.current / generationProgress.total) * 100}%` }}
@@ -1215,33 +1203,33 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                       </div>
                     </div>
                   )}
-                  <p className="text-xs text-slate-400 mt-4">Using Gemini 3 Pro for best results</p>
+                  <p className="text-[10px] text-slate-400 mt-2">Using Gemini 3 Pro</p>
                 </div>
             </div>
         )}
 
         {/* Loading State */}
         {isLoadingMockups && !isGenerating && (
-          <div className="flex-1 flex items-center justify-center text-center p-8">
+          <div className="flex-1 flex items-center justify-center text-center p-6">
             <div>
-              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                <Loader2 size={28} className="text-slate-400 animate-spin" />
+              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                <Loader2 size={20} className="text-slate-400 animate-spin" />
               </div>
-              <p className="font-semibold text-slate-500 mb-1">Loading saved mockups...</p>
+              <p className="font-medium text-slate-500 text-sm">Loading mockups...</p>
             </div>
           </div>
         )}
 
         {/* Empty State */}
         {!isLoadingMockups && generatedMockups.length === 0 && !isGenerating && !error && (
-             <div className={`flex items-center justify-center text-center p-8 ${(savedMockups.length === 0 && !isLoadingHistory) ? 'flex-1' : 'py-12'}`}>
+             <div className={`flex items-center justify-center text-center p-6 ${(savedMockups.length === 0 && !isLoadingHistory) ? 'flex-1' : 'py-8'}`}>
                 <div>
-                  <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                    <Wand2 size={28} className="text-slate-300" />
+                  <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                    <Wand2 size={20} className="text-slate-300" />
                   </div>
-                  <p className="font-semibold text-slate-500 mb-1">Select styles and generate mockups</p>
-                  <p className="text-xs text-slate-400 max-w-[200px] mx-auto leading-relaxed">
-                    Click the arrow to quick-generate, or select multiple and batch generate
+                  <p className="font-medium text-slate-500 text-sm mb-0.5">Select styles to generate</p>
+                  <p className="text-[10px] text-slate-400 max-w-[180px] mx-auto">
+                    Choose styles on the left, then generate
                   </p>
                 </div>
              </div>
@@ -1249,23 +1237,23 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
         {/* Error Message */}
         {error && !isGenerating && (
-             <div className="p-4 mx-4 mt-4 bg-red-50 border border-red-200 rounded-xl text-center text-red-600 text-sm">
+             <div className="p-3 mx-3 mt-3 bg-red-50 border border-red-200 rounded-lg text-center text-red-600 text-xs">
                 {error}
              </div>
         )}
 
         {/* Gallery Grid */}
         {generatedMockups.length > 0 && (
-          <div className="flex-1 overflow-auto p-4">
+          <div className="flex-1 overflow-auto p-3">
             {/* Gallery Header */}
-            <div className="flex items-center justify-between mb-4 px-1">
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <Images size={14} className="text-slate-400" />
+            <div className="flex items-center justify-between mb-2 px-0.5">
+              <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                <Images size={12} className="text-slate-400" />
                 <span className="font-medium">{generatedMockups.length} mockup{generatedMockups.length > 1 ? 's' : ''}</span>
                 <span className="text-slate-300">•</span>
                 <span className="text-indigo-600 font-semibold">{selectedMockupIds.size} selected</span>
               </div>
-              <div className="flex gap-2 text-xs">
+              <div className="flex gap-1.5 text-[10px]">
                 <button
                   onClick={selectAllMockups}
                   className="text-indigo-600 font-medium hover:text-indigo-700"
@@ -1283,14 +1271,14 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             </div>
 
             {/* Mockup Grid */}
-            <div className="grid grid-cols-2 gap-3 stagger-children">
+            <div className="grid grid-cols-2 gap-2 stagger-children">
               {generatedMockups.map((mockup) => {
                 const isSelected = selectedMockupIds.has(mockup.id);
                 return (
                   <div 
                     key={mockup.id}
                     className={`
-                      relative group rounded-xl overflow-hidden bg-white shadow-sm border-2 transition-all cursor-pointer hover-lift
+                      relative group rounded-lg overflow-hidden bg-white shadow-sm border transition-all cursor-pointer
                       ${isSelected 
                         ? 'border-indigo-500 shadow-md shadow-indigo-500/10' 
                         : 'border-transparent hover:border-slate-200'
@@ -1306,27 +1294,27 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                     
                     {/* Selection Checkbox */}
                     <div className={`
-                      absolute top-2.5 left-2.5 w-6 h-6 rounded-lg flex items-center justify-center transition-all
+                      absolute top-2 left-2 w-5 h-5 rounded flex items-center justify-center transition-all
                       ${isSelected
                         ? 'bg-indigo-600 text-white shadow-md'
-                        : 'bg-white/90 backdrop-blur-sm border-2 border-slate-300 group-hover:border-indigo-400'
+                        : 'bg-white/90 backdrop-blur-sm border border-slate-300 group-hover:border-indigo-400'
                       }
                     `}>
-                      {isSelected && <Check size={14} strokeWidth={3} />}
+                      {isSelected && <Check size={12} strokeWidth={3} />}
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="absolute top-2.5 right-2.5 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
+                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
                       {/* Expand Button */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setEnlargedMockup(mockup);
                         }}
-                        className="w-6 h-6 rounded-lg bg-white/90 backdrop-blur-sm text-slate-700 flex items-center justify-center hover:bg-white hover:scale-110 transition-all shadow-sm"
+                        className="w-5 h-5 rounded bg-white/90 backdrop-blur-sm text-slate-700 flex items-center justify-center hover:bg-white transition-all shadow-sm"
                         title="View larger"
                       >
-                        <Maximize2 size={12} />
+                        <Maximize2 size={10} />
                       </button>
                       {/* Remove Button */}
                       <button
@@ -1334,16 +1322,16 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                           e.stopPropagation();
                           removeMockup(mockup.id);
                         }}
-                        className="w-6 h-6 rounded-lg bg-red-500/90 backdrop-blur-sm text-white flex items-center justify-center hover:bg-red-600 hover:scale-110 transition-all"
+                        className="w-5 h-5 rounded bg-red-500/90 backdrop-blur-sm text-white flex items-center justify-center hover:bg-red-600 transition-all"
                         title="Remove mockup"
                       >
-                        <X size={14} />
+                        <X size={12} />
                       </button>
                     </div>
 
                     {/* Style Description */}
-                    <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-                      <p className="text-white text-xs line-clamp-2 font-medium">{mockup.styleDescription}</p>
+                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+                      <p className="text-white text-[10px] line-clamp-1 font-medium">{mockup.styleDescription}</p>
                     </div>
                   </div>
                 );
@@ -1357,48 +1345,48 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             {/* Section Header */}
             <button
               onClick={() => setHistoryExpanded(!historyExpanded)}
-              className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+              className="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-50 transition-colors"
             >
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <Clock size={14} className="text-slate-400" />
-                <span className="font-medium">Previously Generated</span>
+              <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                <Clock size={12} className="text-slate-400" />
+                <span className="font-medium">History</span>
                 {!isLoadingHistory && (
-                  <span className="text-xs text-slate-400">({savedMockups.length})</span>
+                  <span className="text-[10px] text-slate-400">({savedMockups.length})</span>
                 )}
                 {isSavingToCloud && (
-                  <span className="flex items-center gap-1 text-xs text-indigo-500">
-                    <Loader2 size={10} className="animate-spin" />
-                    Saving...
+                  <span className="flex items-center gap-0.5 text-[10px] text-indigo-500">
+                    <Loader2 size={8} className="animate-spin" />
+                    Saving
                   </span>
                 )}
               </div>
               <ChevronRight 
-                size={16} 
+                size={14} 
                 className={`text-slate-400 transition-transform ${historyExpanded ? 'rotate-90' : ''}`} 
               />
             </button>
             
             {/* History Content */}
             {historyExpanded && (
-              <div className="px-4 pb-4">
+              <div className="px-3 pb-3">
                 {isLoadingHistory ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    {[...Array(6)].map((_, idx) => (
-                      <div key={idx} className="aspect-square rounded-lg bg-slate-100 animate-pulse" />
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[...Array(4)].map((_, idx) => (
+                      <div key={idx} className="aspect-square rounded bg-slate-100 animate-pulse" />
                     ))}
                   </div>
                 ) : savedMockups.length === 0 ? (
-                  <div className="text-center py-6 text-sm text-slate-400">
-                    No previously generated mockups
+                  <div className="text-center py-4 text-[10px] text-slate-400">
+                    No history yet
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                  <div className="grid grid-cols-4 gap-1.5 max-h-32 overflow-y-auto">
                     {savedMockups.map((mockup) => {
                       const isInCarousel = generatedMockups.some(m => m.id === mockup.id);
                       return (
                         <div 
                           key={mockup.id}
-                          className="relative group aspect-square rounded-lg overflow-hidden bg-white border border-slate-200 hover:border-indigo-300 transition-all"
+                          className="relative group aspect-square rounded overflow-hidden bg-white border border-slate-200 hover:border-indigo-300 transition-all"
                         >
                           <img 
                             src={mockup.imageUrl} 
@@ -1407,42 +1395,37 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                           />
                           
                           {/* Overlay with actions */}
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100">
                             {/* Add to Carousel Button */}
                             <button
                               onClick={() => addFromHistory(mockup)}
                               className={`
-                                p-2 rounded-lg transition-all
+                                p-1 rounded transition-all
                                 ${isInCarousel 
                                   ? 'bg-emerald-500 text-white' 
                                   : 'bg-white text-slate-700 hover:bg-indigo-500 hover:text-white'
                                 }
                               `}
-                              title={isInCarousel ? 'Already in carousel' : 'Add to carousel'}
+                              title={isInCarousel ? 'Already added' : 'Add'}
                             >
-                              {isInCarousel ? <Check size={16} /> : <Plus size={16} />}
+                              {isInCarousel ? <Check size={12} /> : <Plus size={12} />}
                             </button>
                             {/* Delete Button */}
                             <button
                               onClick={() => deleteFromHistory(mockup.id)}
-                              className="p-2 rounded-lg bg-white text-slate-700 hover:bg-red-500 hover:text-white transition-all"
-                              title="Delete from history"
+                              className="p-1 rounded bg-white text-slate-700 hover:bg-red-500 hover:text-white transition-all"
+                              title="Delete"
                             >
-                              <Trash2 size={16} />
+                              <Trash2 size={12} />
                             </button>
                           </div>
                           
                           {/* Already Added Indicator */}
                           {isInCarousel && (
-                            <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                              <Check size={10} className="text-white" strokeWidth={3} />
+                            <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                              <Check size={8} className="text-white" strokeWidth={3} />
                             </div>
                           )}
-                          
-                          {/* Time indicator */}
-                          <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/70 to-transparent">
-                            <p className="text-white text-[10px] truncate">{formatRelativeTime(mockup.createdAt)}</p>
-                          </div>
                         </div>
                       );
                     })}
@@ -1454,40 +1437,40 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
         {/* Bottom Action Bar */}
         {generatedMockups.length > 0 && (
-          <div className="p-4 bg-white border-t border-slate-200 flex justify-between items-center">
-            <div className="text-sm text-slate-600">
+          <div className="px-3 py-2 bg-white border-t border-slate-200 flex justify-between items-center">
+            <div className="text-xs text-slate-600">
               {selectedMockupIds.size === 0 ? (
-                <span className="text-amber-600 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                  Select at least one mockup
+                <span className="text-amber-600 flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+                  Select mockups
                 </span>
               ) : selectedMockupIds.size === 1 ? (
-                <span>Post as a <strong className="text-slate-800">single image</strong></span>
+                <span><strong className="text-slate-800">1</strong> selected</span>
               ) : (
-                <span>Post as a <strong className="text-indigo-600">carousel</strong> ({selectedMockupIds.size} images)</span>
+                <span><strong className="text-indigo-600">{selectedMockupIds.size}</strong> selected</span>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               <button 
                 onClick={() => setGeneratedMockups([])}
-                className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-sm font-medium transition-colors"
+                className="flex items-center gap-1 px-2 py-1.5 text-slate-600 hover:bg-slate-100 rounded-lg text-xs font-medium transition-colors"
               >
-                <RefreshCcw size={14} />
-                Start Over
+                <RefreshCcw size={12} />
+                Clear
               </button>
               <button 
                 onClick={handleProceed}
                 disabled={selectedMockupIds.size === 0}
                 className={`
-                  px-5 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 transition-all
+                  px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all
                   ${selectedMockupIds.size > 0
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/20 hover:shadow-lg hover:-translate-y-0.5'
+                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-sm shadow-indigo-500/20 hover:shadow-md'
                     : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                   }
                 `}
               >
-                <CheckCircle size={16} />
-                Use {selectedMockupIds.size > 0 ? `${selectedMockupIds.size} Selected` : 'Selected'}
+                <CheckCircle size={12} />
+                Continue
               </button>
             </div>
           </div>

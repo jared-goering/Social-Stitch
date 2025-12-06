@@ -175,14 +175,14 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
             className={`
               p-4 rounded-2xl border-2 transition-all
               ${filter === 'scheduled' 
-                ? 'border-coral-400 bg-coral-50' 
+                ? 'border-amber-400 bg-amber-50' 
                 : 'border-slate-warm-200 bg-white hover:border-slate-warm-300'
               }
             `}
           >
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'scheduled' ? 'bg-coral-500' : 'bg-coral-100'}`}>
-                <Clock size={18} className={filter === 'scheduled' ? 'text-white' : 'text-coral-600'} />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'scheduled' ? 'bg-amber-500' : 'bg-amber-100'}`}>
+                <Clock size={18} className={filter === 'scheduled' ? 'text-white' : 'text-amber-600'} />
               </div>
               <div className="text-left">
                 <p className="text-2xl font-bold text-slate-warm-800">{statusCounts.scheduled}</p>
@@ -217,14 +217,14 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
             className={`
               p-4 rounded-2xl border-2 transition-all
               ${filter === 'failed' 
-                ? 'border-red-400 bg-red-50' 
+                ? 'border-rose-400 bg-rose-50' 
                 : 'border-slate-warm-200 bg-white hover:border-slate-warm-300'
               }
             `}
           >
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'failed' ? 'bg-red-500' : 'bg-red-100'}`}>
-                <AlertCircle size={18} className={filter === 'failed' ? 'text-white' : 'text-red-600'} />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'failed' ? 'bg-rose-600' : 'bg-rose-100'}`}>
+                <AlertCircle size={18} className={filter === 'failed' ? 'text-white' : 'text-rose-600'} />
               </div>
               <div className="text-left">
                 <p className="text-2xl font-bold text-slate-warm-800">{statusCounts.failed}</p>
@@ -304,7 +304,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
                     className={`
                       calendar-day relative aspect-square p-1 rounded-xl flex flex-col items-center justify-start pt-2
                       ${isSelected 
-                        ? 'bg-coral-500 text-white shadow-lg shadow-coral-500/30 scale-105' 
+                        ? 'bg-slate-warm-700 text-white shadow-lg shadow-slate-warm-700/30 scale-105' 
                         : isToday 
                           ? 'bg-coral-50 text-coral-600 ring-2 ring-coral-300'
                           : isPast
@@ -328,7 +328,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
                           />
                         ))}
                         {dayPosts.length > 3 && (
-                          <span className={`text-[8px] ml-0.5 ${isSelected ? 'text-coral-200' : 'text-slate-warm-400'}`}>
+                          <span className={`text-[8px] ml-0.5 ${isSelected ? 'text-slate-warm-300' : 'text-slate-warm-400'}`}>
                             +{dayPosts.length - 3}
                           </span>
                         )}
@@ -343,7 +343,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
           {/* Legend */}
           <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-slate-warm-100">
             <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-coral-500" />
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
               <span className="text-xs text-slate-warm-500">Scheduled</span>
             </div>
             <div className="flex items-center gap-2">
@@ -351,7 +351,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
               <span className="text-xs text-slate-warm-500">Published</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+              <div className="w-2.5 h-2.5 rounded-full bg-rose-600" />
               <span className="text-xs text-slate-warm-500">Failed</span>
             </div>
           </div>
