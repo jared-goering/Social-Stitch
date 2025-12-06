@@ -272,6 +272,10 @@ export const shopifyAuthCallback = functions.https.onRequest(async (req, res) =>
       scope: string;
     };
 
+    console.log('[shopifyAuthCallback] Token exchange successful, got access token:', 
+      tokenData.access_token ? `${tokenData.access_token.substring(0, 10)}...` : 'NONE');
+    console.log('[shopifyAuthCallback] Scopes:', tokenData.scope);
+
     // Fetch shop information
     const shopResponse = await fetch(`https://${shop}/admin/api/2024-01/shop.json`, {
       headers: {
@@ -283,9 +287,13 @@ export const shopifyAuthCallback = functions.https.onRequest(async (req, res) =>
     if (shopResponse.ok) {
       const shopData = await shopResponse.json() as { shop: Record<string, any> };
       shopInfo = shopData.shop;
+      console.log('[shopifyAuthCallback] Shop info retrieved:', shopInfo.name);
+    } else {
+      console.warn('[shopifyAuthCallback] Failed to fetch shop info:', shopResponse.status);
     }
 
-    // Store access token securely in Firestore
+    // Store access token securely in Firestore (overwrite old token completely)
+    console.log('[shopifyAuthCallback] Storing token for shop:', shop);
     await db.collection('shopifyStores').doc(shop as string).set({
       accessToken: tokenData.access_token,
       scope: tokenData.scope,
@@ -295,7 +303,8 @@ export const shopifyAuthCallback = functions.https.onRequest(async (req, res) =>
       shopOwner: shopInfo.shop_owner || '',
       installedAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
+    }); // Removed merge:true to ensure complete overwrite
+    console.log('[shopifyAuthCallback] Token stored successfully');
 
     // Create initial settings document for the shop
     await db.collection('shops').doc(shop as string).set({

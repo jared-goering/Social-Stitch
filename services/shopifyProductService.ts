@@ -94,8 +94,11 @@ export function getShopDomain(): string | null {
  * Check if an error indicates the shop needs to complete OAuth
  */
 export function isOAuthRequired(error: Error): boolean {
-  return error.message.includes('access token not found') || 
-         error.message.includes('Shop has not installed');
+  const message = error.message.toLowerCase();
+  return message.includes('access token not found') || 
+         message.includes('shop has not installed') ||
+         message.includes('invalid') ||
+         message.includes('reinstall');
 }
 
 /**

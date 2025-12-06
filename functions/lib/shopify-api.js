@@ -60,6 +60,10 @@ async function shopifyFetch(shop, endpoint, accessToken, options = {}) {
     if (!response.ok) {
         const errorText = await response.text();
         console.error(`Shopify API error (${response.status}):`, errorText);
+        // If token is invalid, throw a specific error that frontend can detect
+        if (response.status === 401 || response.status === 403) {
+            throw new Error('INVALID_ACCESS_TOKEN');
+        }
         throw new Error(`Shopify API error: ${response.status}`);
     }
     return response.json();
@@ -89,7 +93,8 @@ exports.shopifyGetProducts = functions.https.onRequest((req, res) => {
             res.status(401).json({ error: 'Shop access token not found. Please reinstall the app.' });
             return;
         }
-        console.log('[shopifyGetProducts] Access token found, fetching products...');
+        console.log('[shopifyGetProducts] Access token found:', accessToken.substring(0, 10) + '...');
+        console.log('[shopifyGetProducts] Fetching products...');
         try {
             // Build query parameters
             const params = new URLSearchParams();
@@ -157,6 +162,14 @@ exports.shopifyGetProducts = functions.https.onRequest((req, res) => {
         }
         catch (error) {
             console.error('Error fetching products:', error);
+            // If the access token is invalid, tell the frontend to re-auth
+            if (error.message === 'INVALID_ACCESS_TOKEN') {
+                res.status(401).json({
+                    error: 'Access token is invalid. Please reinstall the app.',
+                    code: 'INVALID_ACCESS_TOKEN'
+                });
+                return;
+            }
             res.status(500).json({ error: 'Failed to fetch products' });
         }
     });
