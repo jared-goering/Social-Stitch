@@ -10,18 +10,44 @@ import { SocialPlatform } from '../types';
 // Store the Shopify shop domain for Shopify mode
 let shopifyShopDomain: string | null = null;
 
+// Try to restore from sessionStorage on load
+try {
+  const stored = sessionStorage.getItem('shopify_shop_domain');
+  if (stored) {
+    shopifyShopDomain = stored;
+  }
+} catch {
+  // sessionStorage not available
+}
+
 /**
  * Set the Shopify shop domain (called by ShopifyProvider)
  */
 export function setShopifyShop(shop: string | null) {
   shopifyShopDomain = shop;
+  // Persist to sessionStorage for page navigations
+  try {
+    if (shop) {
+      sessionStorage.setItem('shopify_shop_domain', shop);
+    } else {
+      sessionStorage.removeItem('shopify_shop_domain');
+    }
+  } catch {
+    // sessionStorage not available
+  }
 }
 
 /**
  * Check if we're running in Shopify mode
  */
 function isShopifyMode(): boolean {
-  return import.meta.env.VITE_APP_MODE === 'shopify';
+  // Check env var first, then fall back to URL detection
+  if (import.meta.env.VITE_APP_MODE === 'shopify') {
+    return true;
+  }
+  // Also check if we're in a Shopify iframe (has shop or host param)
+  const params = new URLSearchParams(window.location.search);
+  return !!(params.get('shop') || params.get('host'));
 }
 
 /**
@@ -29,18 +55,22 @@ function isShopifyMode(): boolean {
  * Returns Firebase user ID in standalone mode, or shop domain in Shopify mode
  */
 function getSessionId(): string {
-  if (isShopifyMode()) {
-    if (!shopifyShopDomain) {
-      // Try to get from URL
-      const params = new URLSearchParams(window.location.search);
-      const shop = params.get('shop');
-      if (shop) {
-        shopifyShopDomain = shop;
-        return shop;
-      }
-      throw new Error('No Shopify shop context. Please access through Shopify admin.');
-    }
+  // Try to get shop from stored value or URL
+  const params = new URLSearchParams(window.location.search);
+  const shopFromUrl = params.get('shop');
+  
+  if (shopFromUrl) {
+    shopifyShopDomain = shopFromUrl;
+  }
+  
+  // If we have a shop domain (from URL or previously set), use it
+  if (shopifyShopDomain) {
     return shopifyShopDomain;
+  }
+  
+  // Check if we're in Shopify mode without a shop domain
+  if (isShopifyMode()) {
+    throw new Error('No Shopify shop context. Please access through Shopify admin.');
   }
   
   // Standalone mode - use Firebase Auth
