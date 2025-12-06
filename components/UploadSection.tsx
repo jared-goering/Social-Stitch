@@ -9,15 +9,17 @@ import {
   FolderOpen, 
   Sparkles,
   Upload,
-  Check
+  Check,
+  Package
 } from 'lucide-react';
 import { getSavedStyles, saveStyle, deleteStyle } from '../services/stylesService';
 
 interface Props {
   onUpload: (design: UploadedDesign) => void;
+  onNavigateToProducts?: () => void;
 }
 
-export const UploadSection: React.FC<Props> = ({ onUpload }) => {
+export const UploadSection: React.FC<Props> = ({ onUpload, onNavigateToProducts }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [savedStyles, setSavedStyles] = useState<SavedStyle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -194,10 +196,27 @@ export const UploadSection: React.FC<Props> = ({ onUpload }) => {
                 accept="image/*"
                 onChange={(e) => e.target.files && handleFile(e.target.files[0])}
               />
-              <button className="btn-primary text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2">
-                <Upload size={18} />
-                Select Photo
-              </button>
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <button className="btn-primary text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2">
+                  <Upload size={18} />
+                  Select Photo
+                </button>
+                {onNavigateToProducts && (
+                  <>
+                    <span className="text-slate-warm-400 text-sm">or</span>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToProducts();
+                      }}
+                      className="px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 border-2 border-slate-warm-200 text-slate-warm-700 hover:border-coral-300 hover:bg-coral-50 transition-all"
+                    >
+                      <Package size={18} />
+                      Choose from Products
+                    </button>
+                  </>
+                )}
+              </div>
             </>
           )}
         </div>

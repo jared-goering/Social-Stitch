@@ -287,18 +287,6 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
     </Navigation>
   );
 
-  // Get step info for the slim header
-  const getStepInfo = () => {
-    const stepLabels: Record<AppStep, { num: number; label: string }> = {
-      [AppStep.UPLOAD]: { num: 1, label: 'Upload' },
-      [AppStep.MOCKUP_GENERATION]: { num: 2, label: 'AI Mockup' },
-      [AppStep.CAPTIONING]: { num: 3, label: 'Captions' },
-      [AppStep.REVIEW]: { num: 4, label: 'Review' },
-      [AppStep.SUCCESS]: { num: 4, label: 'Done' },
-    };
-    return stepLabels[currentStep] || { num: 1, label: 'Upload' };
-  };
-
   // Slim custom header component
   const slimHeaderMarkup = (
     <div className="h-10 bg-slate-warm-800 flex items-center justify-between px-4 border-b border-slate-warm-700">
@@ -319,40 +307,12 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
         </div>
       </div>
 
-      {/* Center: Step indicator (only in create view) */}
-      {currentView === 'create' && currentStep !== AppStep.SUCCESS && (
-        <div className="hidden sm:flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            {[1, 2, 3, 4].map((step) => {
-              const stepInfo = getStepInfo();
-              const isCompleted = step < stepInfo.num;
-              const isCurrent = step === stepInfo.num;
-              return (
-                <div
-                  key={step}
-                  className={`w-2 h-2 rounded-full transition-all ${
-                    isCompleted
-                      ? 'bg-coral-400'
-                      : isCurrent
-                        ? 'bg-coral-500 ring-2 ring-coral-400/50'
-                        : 'bg-slate-warm-600'
-                  }`}
-                />
-              );
-            })}
-          </div>
-          <span className="text-slate-warm-300 text-xs">
-            Step {getStepInfo().num} of 4
-          </span>
-          <span className="text-slate-warm-500 text-xs">•</span>
-          <span className="text-white text-xs font-medium">{getStepInfo().label}</span>
+      {/* Right: View label (only show for non-create views) */}
+      {currentView !== 'create' && (
+        <div className="text-slate-warm-400 text-xs capitalize">
+          {currentView}
         </div>
       )}
-
-      {/* Right: View label */}
-      <div className="text-slate-warm-400 text-xs capitalize">
-        {currentView === 'create' ? '' : currentView}
-      </div>
     </div>
   );
 
@@ -544,16 +504,10 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
 
             {currentStep === AppStep.UPLOAD && (
               <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <UploadSection onUpload={handleUpload} />
-                <p className="text-center text-sm text-slate-warm-500 mt-4">
-                  Or{' '}
-                  <button
-                    onClick={() => handleNavigationSelect('products')}
-                    className="text-coral-500 hover:text-coral-600 font-medium underline underline-offset-2"
-                  >
-                    select from your products
-                  </button>
-                </p>
+                <UploadSection 
+                  onUpload={handleUpload} 
+                  onNavigateToProducts={() => handleNavigationSelect('products')}
+                />
               </div>
             )}
 
