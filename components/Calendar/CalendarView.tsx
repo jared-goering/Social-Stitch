@@ -153,14 +153,14 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-display font-bold text-slate-900 mb-2">Content Calendar</h1>
-            <p className="text-slate-500">Manage your scheduled posts and publishing history</p>
+            <h1 className="text-3xl md:text-4xl font-display text-slate-warm-900 mb-2">Content Calendar</h1>
+            <p className="text-slate-warm-500">Manage your scheduled posts and publishing history</p>
           </div>
           
           {onCreatePost && (
             <button
               onClick={onCreatePost}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 hover:-translate-y-0.5 transition-all"
+              className="btn-primary text-white px-5 py-3 rounded-xl font-semibold inline-flex items-center gap-2"
             >
               <Plus size={18} />
               Create Post
@@ -173,20 +173,20 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
           <button
             onClick={() => setFilter(filter === 'scheduled' ? 'all' : 'scheduled')}
             className={`
-              p-4 rounded-xl border-2 transition-all
+              p-4 rounded-2xl border-2 transition-all
               ${filter === 'scheduled' 
-                ? 'border-indigo-400 bg-indigo-50' 
-                : 'border-slate-200 bg-white hover:border-slate-300'
+                ? 'border-coral-400 bg-coral-50' 
+                : 'border-slate-warm-200 bg-white hover:border-slate-warm-300'
               }
             `}
           >
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'scheduled' ? 'bg-indigo-500' : 'bg-indigo-100'}`}>
-                <Clock size={18} className={filter === 'scheduled' ? 'text-white' : 'text-indigo-600'} />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'scheduled' ? 'bg-coral-500' : 'bg-coral-100'}`}>
+                <Clock size={18} className={filter === 'scheduled' ? 'text-white' : 'text-coral-600'} />
               </div>
               <div className="text-left">
-                <p className="text-2xl font-bold text-slate-900">{statusCounts.scheduled}</p>
-                <p className="text-xs text-slate-500 font-medium">Scheduled</p>
+                <p className="text-2xl font-bold text-slate-warm-800">{statusCounts.scheduled}</p>
+                <p className="text-xs text-slate-warm-500 font-medium">Scheduled</p>
               </div>
             </div>
           </button>
@@ -194,20 +194,20 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
           <button
             onClick={() => setFilter(filter === 'published' ? 'all' : 'published')}
             className={`
-              p-4 rounded-xl border-2 transition-all
+              p-4 rounded-2xl border-2 transition-all
               ${filter === 'published' 
-                ? 'border-emerald-400 bg-emerald-50' 
-                : 'border-slate-200 bg-white hover:border-slate-300'
+                ? 'border-sage-400 bg-sage-50' 
+                : 'border-slate-warm-200 bg-white hover:border-slate-warm-300'
               }
             `}
           >
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'published' ? 'bg-emerald-500' : 'bg-emerald-100'}`}>
-                <CheckCircle size={18} className={filter === 'published' ? 'text-white' : 'text-emerald-600'} />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'published' ? 'bg-sage-500' : 'bg-sage-100'}`}>
+                <CheckCircle size={18} className={filter === 'published' ? 'text-white' : 'text-sage-600'} />
               </div>
               <div className="text-left">
-                <p className="text-2xl font-bold text-slate-900">{statusCounts.published}</p>
-                <p className="text-xs text-slate-500 font-medium">Published</p>
+                <p className="text-2xl font-bold text-slate-warm-800">{statusCounts.published}</p>
+                <p className="text-xs text-slate-warm-500 font-medium">Published</p>
               </div>
             </div>
           </button>
@@ -215,20 +215,20 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
           <button
             onClick={() => setFilter(filter === 'failed' ? 'all' : 'failed')}
             className={`
-              p-4 rounded-xl border-2 transition-all
+              p-4 rounded-2xl border-2 transition-all
               ${filter === 'failed' 
-                ? 'border-rose-400 bg-rose-50' 
-                : 'border-slate-200 bg-white hover:border-slate-300'
+                ? 'border-red-400 bg-red-50' 
+                : 'border-slate-warm-200 bg-white hover:border-slate-warm-300'
               }
             `}
           >
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'failed' ? 'bg-rose-500' : 'bg-rose-100'}`}>
-                <AlertCircle size={18} className={filter === 'failed' ? 'text-white' : 'text-rose-600'} />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${filter === 'failed' ? 'bg-red-500' : 'bg-red-100'}`}>
+                <AlertCircle size={18} className={filter === 'failed' ? 'text-white' : 'text-red-600'} />
               </div>
               <div className="text-left">
-                <p className="text-2xl font-bold text-slate-900">{statusCounts.failed}</p>
-                <p className="text-xs text-slate-500 font-medium">Failed</p>
+                <p className="text-2xl font-bold text-slate-warm-800">{statusCounts.failed}</p>
+                <p className="text-xs text-slate-warm-500 font-medium">Failed</p>
               </div>
             </div>
           </button>
@@ -237,32 +237,32 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendar Grid */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div className="lg:col-span-2 card-elevated p-6">
           {/* Month Navigation */}
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={handlePrevMonth}
-              className="p-2 rounded-xl hover:bg-slate-100 transition-colors"
+              className="p-2.5 rounded-xl hover:bg-slate-warm-100 transition-colors border border-transparent hover:border-slate-warm-200"
             >
-              <ChevronLeft size={20} className="text-slate-600" />
+              <ChevronLeft size={20} className="text-slate-warm-600" />
             </button>
             
-            <h2 className="text-xl font-display font-bold text-slate-800">
+            <h2 className="text-xl font-display text-slate-warm-800">
               {MONTHS[month]} {year}
             </h2>
             
             <button
               onClick={handleNextMonth}
-              className="p-2 rounded-xl hover:bg-slate-100 transition-colors"
+              className="p-2.5 rounded-xl hover:bg-slate-warm-100 transition-colors border border-transparent hover:border-slate-warm-200"
             >
-              <ChevronRight size={20} className="text-slate-600" />
+              <ChevronRight size={20} className="text-slate-warm-600" />
             </button>
           </div>
 
           {/* Day Headers */}
           <div className="grid grid-cols-7 gap-1 mb-2">
             {DAYS.map(day => (
-              <div key={day} className="text-center text-xs font-semibold text-slate-400 py-2">
+              <div key={day} className="text-center text-xs font-semibold text-slate-warm-400 py-2">
                 {day}
               </div>
             ))}
@@ -272,8 +272,8 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-3" />
-                <p className="text-sm text-slate-500">Loading your posts...</p>
+                <Loader2 className="w-8 h-8 animate-spin text-coral-500 mx-auto mb-3" />
+                <p className="text-sm text-slate-warm-500">Loading your posts...</p>
               </div>
             </div>
           ) : (
@@ -304,12 +304,12 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
                     className={`
                       calendar-day relative aspect-square p-1 rounded-xl flex flex-col items-center justify-start pt-2
                       ${isSelected 
-                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 scale-105' 
+                        ? 'bg-coral-500 text-white shadow-lg shadow-coral-500/30 scale-105' 
                         : isToday 
-                          ? 'bg-indigo-50 text-indigo-600 ring-2 ring-indigo-300'
+                          ? 'bg-coral-50 text-coral-600 ring-2 ring-coral-300'
                           : isPast
-                            ? 'text-slate-300 hover:bg-slate-50 cursor-default'
-                            : 'text-slate-700 hover:bg-slate-100'
+                            ? 'text-slate-warm-300 hover:bg-slate-warm-50 cursor-default'
+                            : 'text-slate-warm-700 hover:bg-slate-warm-100'
                       }
                     `}
                   >
@@ -328,7 +328,7 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
                           />
                         ))}
                         {dayPosts.length > 3 && (
-                          <span className={`text-[8px] ml-0.5 ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
+                          <span className={`text-[8px] ml-0.5 ${isSelected ? 'text-coral-200' : 'text-slate-warm-400'}`}>
                             +{dayPosts.length - 3}
                           </span>
                         )}
@@ -341,46 +341,46 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
           )}
 
           {/* Legend */}
-          <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-slate-warm-100">
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-indigo-500" />
-              <span className="text-xs text-slate-500">Scheduled</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-coral-500" />
+              <span className="text-xs text-slate-warm-500">Scheduled</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-xs text-slate-500">Published</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-sage-500" />
+              <span className="text-xs text-slate-warm-500">Published</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-rose-500" />
-              <span className="text-xs text-slate-500">Failed</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+              <span className="text-xs text-slate-warm-500">Failed</span>
             </div>
           </div>
         </div>
 
         {/* Day Detail Panel */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sticky top-24">
+          <div className="card-elevated p-5 sticky top-24">
             {selectedDate ? (
               <>
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="font-display font-bold text-slate-800">
+                    <h3 className="font-display text-slate-warm-800">
                       {selectedDate.toLocaleDateString('en-US', { weekday: 'long' })}
                     </h3>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-warm-500">
                       {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                     </p>
                   </div>
                   <button
                     onClick={() => setSelectedDate(null)}
-                    className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
+                    className="p-2 rounded-xl hover:bg-slate-warm-100 text-slate-warm-400 transition-colors"
                   >
                     <X size={16} />
                   </button>
                 </div>
 
                 {selectedDatePosts.length > 0 ? (
-                  <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                  <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
                     {selectedDatePosts
                       .sort((a, b) => a.scheduledFor.getTime() - b.scheduledFor.getTime())
                       .map(post => (
@@ -398,14 +398,14 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
                   </div>
                 ) : (
                   <div className="text-center py-8">
-                    <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                      <CalendarIcon size={20} className="text-slate-400" />
+                    <div className="w-14 h-14 rounded-2xl bg-slate-warm-100 flex items-center justify-center mx-auto mb-4">
+                      <CalendarIcon size={22} className="text-slate-warm-400" />
                     </div>
-                    <p className="text-sm text-slate-500 mb-4">No posts scheduled for this day</p>
+                    <p className="text-sm text-slate-warm-600 mb-4">No posts scheduled for this day</p>
                     {onCreatePost && new Date(selectedDate) >= new Date(today.getFullYear(), today.getMonth(), today.getDate()) && (
                       <button
                         onClick={onCreatePost}
-                        className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1 mx-auto"
+                        className="text-sm font-medium text-coral-500 hover:text-coral-600 flex items-center gap-1 mx-auto transition-colors"
                       >
                         <Plus size={14} />
                         Create a post
@@ -416,20 +416,20 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
               </>
             ) : (
               <div className="text-center py-8">
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center mx-auto mb-3">
-                  <CalendarIcon size={20} className="text-indigo-500" />
+                <div className="w-14 h-14 rounded-2xl bg-coral-50 flex items-center justify-center mx-auto mb-4">
+                  <CalendarIcon size={22} className="text-coral-500" />
                 </div>
-                <p className="text-sm font-medium text-slate-700 mb-1">Select a day</p>
-                <p className="text-xs text-slate-500">Click on a day to see scheduled posts</p>
+                <p className="text-sm font-medium text-slate-warm-700 mb-1">Select a day</p>
+                <p className="text-xs text-slate-warm-500">Click on a day to see scheduled posts</p>
               </div>
             )}
           </div>
 
           {/* Upcoming Posts */}
           {!selectedDate && filteredPosts.filter(p => p.status === 'scheduled').length > 0 && (
-            <div className="mt-4 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-              <h3 className="font-display font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <Clock size={16} className="text-indigo-500" />
+            <div className="mt-4 card-elevated p-5">
+              <h3 className="font-display text-slate-warm-800 mb-4 flex items-center gap-2">
+                <Clock size={16} className="text-coral-500" />
                 Upcoming
               </h3>
               <div className="space-y-3">
@@ -506,13 +506,13 @@ const RescheduleModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 bg-slate-warm-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 modal-backdrop">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 modal-content">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-display font-bold text-slate-900">Reschedule Post</h3>
+          <h3 className="text-xl font-display text-slate-warm-900">Reschedule Post</h3>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
+            className="p-2 rounded-xl hover:bg-slate-warm-100 text-slate-warm-400 transition-colors"
           >
             <X size={18} />
           </button>
@@ -520,23 +520,23 @@ const RescheduleModal: React.FC<{
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+            <label className="block text-sm font-medium text-slate-warm-700 mb-2">Date</label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               min={new Date().toISOString().split('T')[0]}
-              className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+              className="w-full px-4 py-3 rounded-xl border-2 border-slate-warm-200 focus:border-coral-400 focus:ring-2 focus:ring-coral-100 outline-none transition-all"
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Time</label>
+            <label className="block text-sm font-medium text-slate-warm-700 mb-2">Time</label>
             <input
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+              className="w-full px-4 py-3 rounded-xl border-2 border-slate-warm-200 focus:border-coral-400 focus:ring-2 focus:ring-coral-100 outline-none transition-all"
             />
           </div>
         </div>
@@ -544,14 +544,14 @@ const RescheduleModal: React.FC<{
         <div className="flex gap-3 mt-6">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+            className="flex-1 py-3 rounded-xl font-medium text-slate-warm-700 bg-slate-warm-100 hover:bg-slate-warm-200 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+            className="flex-1 py-3 rounded-xl font-medium text-white btn-primary disabled:opacity-70 flex items-center justify-center gap-2"
           >
             {loading ? (
               <>
@@ -611,32 +611,32 @@ const RetryModal: React.FC<{
   const previewCaption = caption.length > 80 ? caption.slice(0, 80) + '...' : caption;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 bg-slate-warm-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 modal-backdrop">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 modal-content">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-display font-bold text-slate-900">Retry Post</h3>
+          <h3 className="text-xl font-display text-slate-warm-900">Retry Post</h3>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"
+            className="p-2 rounded-xl hover:bg-slate-warm-100 text-slate-warm-400 transition-colors"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Post preview */}
-        <div className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl mb-6">
+        <div className="flex items-start gap-3 p-4 bg-slate-warm-50 rounded-2xl mb-6">
           {post.imageUrls[0] && (
             <img 
               src={post.imageUrls[0]} 
               alt="Post preview" 
-              className="w-14 h-14 rounded-lg object-cover"
+              className="w-16 h-16 rounded-xl object-cover"
             />
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-slate-700 line-clamp-2">{previewCaption}</p>
-            <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-slate-warm-700 line-clamp-2">{previewCaption}</p>
+            <div className="flex items-center gap-2 mt-2">
               {post.platforms.map(p => (
-                <span key={p} className={`text-xs px-1.5 py-0.5 rounded ${
+                <span key={p} className={`text-xs px-2 py-1 rounded-lg font-medium ${
                   p === 'instagram' ? 'bg-pink-100 text-pink-600' : 'bg-blue-100 text-blue-600'
                 }`}>
                   {p === 'instagram' ? 'Instagram' : 'Facebook'}
@@ -651,32 +651,32 @@ const RetryModal: React.FC<{
             <button
               onClick={handlePostNow}
               disabled={loading}
-              className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300 transition-all group"
+              className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-sage-200 bg-sage-50 hover:bg-sage-100 hover:border-sage-300 transition-all group"
             >
-              <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <div className="w-12 h-12 rounded-xl bg-sage-500 flex items-center justify-center group-hover:scale-105 transition-transform">
                 {loading ? (
-                  <Loader2 size={20} className="text-white animate-spin" />
+                  <Loader2 size={22} className="text-white animate-spin" />
                 ) : (
-                  <Zap size={20} className="text-white" />
+                  <Zap size={22} className="text-white" />
                 )}
               </div>
               <div className="text-left">
-                <p className="font-semibold text-slate-900">Post Now</p>
-                <p className="text-xs text-slate-500">Publish immediately</p>
+                <p className="font-semibold text-slate-warm-800">Post Now</p>
+                <p className="text-xs text-slate-warm-500">Publish immediately</p>
               </div>
             </button>
 
             <button
               onClick={() => setMode('schedule')}
               disabled={loading}
-              className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all group"
+              className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-slate-warm-200 hover:bg-slate-warm-50 hover:border-slate-warm-300 transition-all group"
             >
-              <div className="w-10 h-10 rounded-xl bg-indigo-500 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <CalendarClock size={20} className="text-white" />
+              <div className="w-12 h-12 rounded-xl bg-coral-500 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <CalendarClock size={22} className="text-white" />
               </div>
               <div className="text-left">
-                <p className="font-semibold text-slate-900">Schedule for Later</p>
-                <p className="text-xs text-slate-500">Pick a specific date and time</p>
+                <p className="font-semibold text-slate-warm-800">Schedule for Later</p>
+                <p className="text-xs text-slate-warm-500">Pick a specific date and time</p>
               </div>
             </button>
           </div>
@@ -684,43 +684,43 @@ const RetryModal: React.FC<{
           <div className="space-y-4">
             <button
               onClick={() => setMode('choose')}
-              className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1 mb-2"
+              className="text-sm text-coral-500 hover:text-coral-600 flex items-center gap-1 mb-2 font-medium transition-colors"
             >
               ← Back to options
             </button>
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+              <label className="block text-sm font-medium text-slate-warm-700 mb-2">Date</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
-                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl border-2 border-slate-warm-200 focus:border-coral-400 focus:ring-2 focus:ring-coral-100 outline-none transition-all"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Time</label>
+              <label className="block text-sm font-medium text-slate-warm-700 mb-2">Time</label>
               <input
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                className="w-full px-4 py-3 rounded-xl border-2 border-slate-warm-200 focus:border-coral-400 focus:ring-2 focus:ring-coral-100 outline-none transition-all"
               />
             </div>
 
             <div className="flex gap-3 mt-6">
               <button
                 onClick={onClose}
-                className="flex-1 py-2.5 rounded-xl font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+                className="flex-1 py-3 rounded-xl font-medium text-slate-warm-700 bg-slate-warm-100 hover:bg-slate-warm-200 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSchedule}
                 disabled={loading}
-                className="flex-1 py-2.5 rounded-xl font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+                className="flex-1 py-3 rounded-xl font-medium text-white btn-primary disabled:opacity-70 flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -738,7 +738,7 @@ const RetryModal: React.FC<{
         {mode === 'choose' && (
           <button
             onClick={onClose}
-            className="w-full mt-4 py-2.5 rounded-xl font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-full mt-4 py-3 rounded-xl font-medium text-slate-warm-500 hover:text-slate-warm-700 hover:bg-slate-warm-100 transition-colors"
           >
             Cancel
           </button>

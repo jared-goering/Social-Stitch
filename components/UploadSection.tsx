@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { UploadedDesign, SavedStyle } from '../types';
-import { Shirt, Trash2, Clock, Loader2, Lightbulb, ImagePlus, FolderOpen } from 'lucide-react';
+import { 
+  Trash2, 
+  Clock, 
+  Loader2, 
+  Lightbulb, 
+  ImagePlus, 
+  FolderOpen, 
+  Sparkles,
+  Upload,
+  Check
+} from 'lucide-react';
 import { getSavedStyles, saveStyle, deleteStyle } from '../services/stylesService';
 
 interface Props {
@@ -129,14 +139,14 @@ export const UploadSection: React.FC<Props> = ({ onUpload }) => {
       {/* Upload area with animated gradient border on drag */}
       <div className="relative group">
         {isDragging && (
-          <div className="absolute -inset-1 rounded-2xl animate-gradient-border opacity-75 blur-sm" />
+          <div className="absolute -inset-1 rounded-3xl animate-gradient-border opacity-75 blur-sm" />
         )}
         <div 
           className={`
-            relative rounded-2xl p-10 text-center transition-all cursor-pointer overflow-hidden
+            relative rounded-3xl p-10 text-center transition-all cursor-pointer overflow-hidden
             ${isDragging 
-              ? 'bg-indigo-50 border-2 border-indigo-400 shadow-lg shadow-indigo-500/10' 
-              : 'bg-white border-2 border-slate-200 hover:border-indigo-300 hover:shadow-md'
+              ? 'bg-coral-50 border-2 border-coral-400 shadow-lg shadow-coral-500/10' 
+              : 'bg-white border-2 border-slate-warm-200 hover:border-coral-300 hover:shadow-lg hover:shadow-coral-500/5'
             }
             ${isUploading ? 'pointer-events-none opacity-70' : ''}
           `}
@@ -147,25 +157,36 @@ export const UploadSection: React.FC<Props> = ({ onUpload }) => {
         >
           {isUploading ? (
             <div className="py-8">
-              <Loader2 size={48} className="mx-auto mb-4 text-indigo-500 animate-spin" />
-              <p className="text-slate-600 font-medium">Processing your image...</p>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-coral-100 flex items-center justify-center">
+                <Loader2 size={32} className="text-coral-500 animate-spin" />
+              </div>
+              <p className="text-slate-warm-700 font-medium">Processing your image...</p>
+              <p className="text-sm text-slate-warm-400 mt-1">This won't take long</p>
             </div>
           ) : (
             <>
               <div className={`
-                w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 transition-all
+                w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 transition-all
                 ${isDragging 
-                  ? 'bg-indigo-500 text-white scale-110' 
-                  : 'bg-gradient-to-br from-indigo-50 to-slate-100 text-indigo-500'
+                  ? 'bg-coral-500 text-white scale-110 shadow-lg shadow-coral-500/30' 
+                  : 'bg-gradient-to-br from-coral-100 to-coral-50 text-coral-500 group-hover:scale-105'
                 }
               `}>
-                <ImagePlus size={28} strokeWidth={1.5} />
+                {isDragging ? (
+                  <Upload size={32} strokeWidth={2} />
+                ) : (
+                  <ImagePlus size={32} strokeWidth={1.5} />
+                )}
               </div>
-              <h3 className="text-xl font-display font-semibold text-slate-800 mb-2">Upload your Apparel Style</h3>
-              <p className="text-slate-500 mb-2">
-                  Drag and drop a photo of your t-shirt or garment.
+              <h3 className="text-2xl font-display text-slate-warm-900 mb-3">
+                {isDragging ? 'Drop it here!' : 'Upload your Apparel Style'}
+              </h3>
+              <p className="text-slate-warm-500 mb-2 max-w-sm mx-auto">
+                Drag and drop a photo of your t-shirt or garment
               </p>
-              <p className="text-xs text-slate-400 mb-6">Flat lay or ghost mannequin photos work best.</p>
+              <p className="text-xs text-slate-warm-400 mb-6">
+                Flat lay or ghost mannequin photos work best
+              </p>
               <input 
                 id="fileInput"
                 type="file" 
@@ -173,7 +194,8 @@ export const UploadSection: React.FC<Props> = ({ onUpload }) => {
                 accept="image/*"
                 onChange={(e) => e.target.files && handleFile(e.target.files[0])}
               />
-              <button className="bg-gradient-to-r from-indigo-600 to-indigo-500 text-white px-6 py-2.5 rounded-xl font-semibold hover:from-indigo-700 hover:to-indigo-600 transition-all shadow-md shadow-indigo-500/20 hover:shadow-lg hover:shadow-indigo-500/25">
+              <button className="btn-primary text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2">
+                <Upload size={18} />
                 Select Photo
               </button>
             </>
@@ -182,74 +204,88 @@ export const UploadSection: React.FC<Props> = ({ onUpload }) => {
       </div>
 
       {/* Save to library toggle */}
-      <div className="mt-4 flex items-center justify-center gap-3">
+      <div className="mt-5 flex items-center justify-center gap-3">
         <button
           onClick={() => setSaveToLibrary(!saveToLibrary)}
           className={`
-            relative w-11 h-6 rounded-full transition-colors duration-200
-            ${saveToLibrary ? 'bg-indigo-600' : 'bg-slate-200'}
+            relative w-12 h-7 rounded-full transition-colors duration-200
+            ${saveToLibrary ? 'bg-coral-500' : 'bg-slate-warm-300'}
           `}
         >
           <span className={`
-            absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200
+            absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 flex items-center justify-center
             ${saveToLibrary ? 'translate-x-5' : 'translate-x-0'}
-          `} />
+          `}>
+            {saveToLibrary && <Check size={12} className="text-coral-500" />}
+          </span>
         </button>
-        <span className="text-sm text-slate-600">Save to library for future use</span>
+        <span className="text-sm text-slate-warm-600">Save to library for future use</span>
       </div>
       
       {/* Enhanced tip box */}
-      <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200/50 flex gap-3">
-        <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-          <Lightbulb size={20} className="text-amber-600" />
+      <div className="mt-6 p-5 bg-gradient-to-r from-amber-light/50 to-amber-light/30 rounded-2xl border border-amber-accent/20 flex gap-4">
+        <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-amber-accent/20 flex items-center justify-center">
+          <Sparkles size={20} className="text-amber-dark" />
         </div>
         <div className="text-sm">
-          <p className="font-semibold text-amber-800 mb-0.5">Pro Tip</p>
-          <p className="text-amber-700 leading-relaxed">
-            Upload the actual garment photo. We'll use <span className="font-medium">Gemini 3 Pro</span> to faithfully place this exact item on a model in your chosen setting.
+          <p className="font-semibold text-slate-warm-800 mb-1">AI Magic Tip</p>
+          <p className="text-slate-warm-600 leading-relaxed">
+            Upload the actual garment photo. Our <span className="font-medium text-coral-600">Gemini AI</span> will faithfully place this exact item on a model in your chosen lifestyle setting.
           </p>
         </div>
       </div>
 
       {/* Saved Styles Section */}
-      <div className="mt-10">
-        <div className="flex items-center gap-2 mb-4">
-          <Clock size={16} className="text-slate-400" />
-          <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Saved Styles</h4>
+      <div className="mt-12">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-8 h-8 rounded-lg bg-slate-warm-100 flex items-center justify-center">
+            <Clock size={16} className="text-slate-warm-500" />
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-slate-warm-700">Saved Styles</h4>
+            <p className="text-xs text-slate-warm-400">Quick access to your designs</p>
+          </div>
         </div>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 size={24} className="animate-spin text-indigo-500" />
+          <div className="flex items-center justify-center py-12">
+            <Loader2 size={28} className="animate-spin text-coral-500" />
           </div>
         ) : savedStyles.length === 0 ? (
-          <div className="text-center py-10 bg-gradient-to-b from-slate-50 to-white rounded-2xl border border-dashed border-slate-200">
-            <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <FolderOpen size={24} className="text-slate-400" />
+          <div className="text-center py-12 bg-gradient-to-b from-slate-warm-50 to-white rounded-2xl border-2 border-dashed border-slate-warm-200">
+            <div className="w-16 h-16 bg-slate-warm-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <FolderOpen size={28} className="text-slate-warm-400" />
             </div>
-            <p className="text-slate-500 text-sm font-medium mb-1">No saved styles yet</p>
-            <p className="text-slate-400 text-xs">
+            <p className="text-slate-warm-600 text-sm font-medium mb-1">No saved styles yet</p>
+            <p className="text-slate-warm-400 text-xs">
               Upload a style and it'll appear here for quick access
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-3 stagger-children">
+          <div className="grid grid-cols-3 gap-4 stagger-children">
             {savedStyles.map((style) => (
               <div
                 key={style.id}
-                className="group relative aspect-square rounded-xl overflow-hidden border-2 border-slate-200 hover:border-indigo-400 transition-all cursor-pointer hover-lift"
+                className="group relative aspect-square rounded-2xl overflow-hidden border-2 border-slate-warm-200 hover:border-coral-400 transition-all cursor-pointer hover-lift"
                 onClick={() => handleSelectSavedStyle(style)}
               >
                 <img 
                   src={style.imageUrl} 
                   alt={style.name}
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />
                 
                 {/* Overlay on hover */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-warm-900/80 via-slate-warm-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                   <div className="absolute bottom-0 left-0 right-0 p-3">
                     <p className="text-white text-xs font-medium truncate">{style.name}</p>
+                  </div>
+                </div>
+
+                {/* Use indicator */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div className="w-12 h-12 bg-white/90 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
+                    <Upload size={20} className="text-coral-500" />
                   </div>
                 </div>
 
@@ -257,7 +293,7 @@ export const UploadSection: React.FC<Props> = ({ onUpload }) => {
                 <button
                   onClick={(e) => handleDeleteStyle(e, style.id)}
                   disabled={deletingId === style.id}
-                  className="absolute top-2 right-2 w-7 h-7 bg-red-500/90 backdrop-blur-sm text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-red-600 hover:scale-110 disabled:opacity-50"
+                  className="absolute top-2 right-2 w-8 h-8 bg-white/90 backdrop-blur-sm text-slate-warm-600 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white hover:scale-110 disabled:opacity-50 shadow-sm"
                   title="Delete style"
                 >
                   {deletingId === style.id ? (
