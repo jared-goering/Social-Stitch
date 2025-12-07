@@ -58,7 +58,112 @@ export interface StyleSuggestion {
   title: string;
   description: string;
   reasoning: string;
+  category?: ContentCategory;
 }
+
+// =============================================================================
+// CONTENT CATEGORIES
+// =============================================================================
+
+// Content category types for AI style suggestions
+export type ContentCategory = 
+  | 'lifestyle'
+  | 'product'
+  | 'editorial'
+  | 'ugc'
+  | 'seasonal'
+  | 'minimalist';
+
+// Detected product type from AI analysis
+export type DetectedProductType = 
+  | 'apparel'
+  | 'jewelry'
+  | 'accessories'
+  | 'home_decor'
+  | 'food_beverage'
+  | 'electronics'
+  | 'beauty'
+  | 'art'
+  | 'other';
+
+// Configuration for each content category
+export interface CategoryConfig {
+  id: ContentCategory;
+  label: string;
+  shortLabel: string;
+  description: string;
+  icon: string; // Lucide icon name
+  // Which product types this category works well with
+  applicableTo: DetectedProductType[] | 'all';
+}
+
+// Result from AI product analysis
+export interface ProductAnalysisResult {
+  productType: DetectedProductType;
+  productDescription: string;
+  applicableCategories: ContentCategory[];
+  suggestedDefaultCategory: ContentCategory;
+}
+
+// Extended style suggestion with category-specific metadata
+export interface CategoryStyleSuggestions {
+  category: ContentCategory;
+  suggestions: StyleSuggestion[];
+  isLoading: boolean;
+  error?: string;
+}
+
+// Category configurations - defines UI and behavior for each category
+export const CONTENT_CATEGORIES: CategoryConfig[] = [
+  {
+    id: 'lifestyle',
+    label: 'Lifestyle',
+    shortLabel: 'Life',
+    description: 'Authentic moments of real people using your product in their daily lives',
+    icon: 'Heart',
+    applicableTo: 'all',
+  },
+  {
+    id: 'product',
+    label: 'Product Focus',
+    shortLabel: 'Product',
+    description: 'Detail shots, flat lays, and beauty shots highlighting product features',
+    icon: 'Camera',
+    applicableTo: 'all',
+  },
+  {
+    id: 'editorial',
+    label: 'Editorial',
+    shortLabel: 'Editorial',
+    description: 'Magazine-quality photography with dramatic lighting and artistic composition',
+    icon: 'Sparkles',
+    applicableTo: 'all',
+  },
+  {
+    id: 'ugc',
+    label: 'UGC Style',
+    shortLabel: 'UGC',
+    description: 'Authentic user-generated content aesthetic - casual, relatable, real',
+    icon: 'Smartphone',
+    applicableTo: ['apparel', 'jewelry', 'accessories', 'beauty', 'food_beverage'],
+  },
+  {
+    id: 'seasonal',
+    label: 'Seasonal',
+    shortLabel: 'Seasonal',
+    description: 'Holiday themes, seasonal settings, and event-specific contexts',
+    icon: 'Calendar',
+    applicableTo: 'all',
+  },
+  {
+    id: 'minimalist',
+    label: 'Minimalist',
+    shortLabel: 'Minimal',
+    description: 'Clean backgrounds, elegant simplicity, focus on form and details',
+    icon: 'Square',
+    applicableTo: 'all',
+  },
+];
 
 export enum AppStep {
   UPLOAD = 'UPLOAD',

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup, SourceProduct, BrandProfile } from '../types';
-import { generateMockupImage, analyzeGarmentAndSuggestStyles } from '../services/geminiService';
+import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup, SourceProduct, BrandProfile, ContentCategory, CONTENT_CATEGORIES, ProductAnalysisResult } from '../types';
+import { generateMockupImage, analyzeProductAndSuggestStyles } from '../services/geminiService';
 import { saveMockupToFirebase, fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
 import { getBrandProfile } from '../services/brandProfileService';
-import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, Clock, Plus, Trash2, Pencil } from 'lucide-react';
+import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, Clock, Plus, Trash2, Pencil, Heart, Camera, Smartphone, Calendar, Square } from 'lucide-react';
 import { EditMockupModal } from './EditMockupModal';
 
 interface Props {
@@ -209,6 +209,31 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   // Brand profile for AI-enhanced generation
   const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
 
+  // Content category selection and product analysis
+  const [selectedCategory, setSelectedCategory] = useState<ContentCategory | null>(null);
+  const [productAnalysis, setProductAnalysis] = useState<ProductAnalysisResult | null>(null);
+  const [categorySuggestionsCache, setCategorySuggestionsCache] = useState<Map<ContentCategory, StyleSuggestion[]>>(new Map());
+
+  // Get icon component for category
+  const getCategoryIcon = (iconName: string, size: number = 14) => {
+    const icons: Record<string, React.ReactNode> = {
+      Heart: <Heart size={size} />,
+      Camera: <Camera size={size} />,
+      Sparkles: <Sparkles size={size} />,
+      Smartphone: <Smartphone size={size} />,
+      Calendar: <Calendar size={size} />,
+      Square: <Square size={size} />,
+    };
+    return icons[iconName] || <Sparkles size={size} />;
+  };
+
+  // Filter categories based on product type
+  const applicableCategories = CONTENT_CATEGORIES.filter(cat => {
+    if (cat.applicableTo === 'all') return true;
+    if (!productAnalysis) return true; // Show all if no analysis yet
+    return cat.applicableTo.includes(productAnalysis.productType);
+  });
+
   // Persist generated mockups to IndexedDB (and sessionStorage as fallback)
   useEffect(() => {
     if (isLoadingMockups || generatedMockups.length === 0) {
@@ -328,26 +353,82 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     loadBrandProfile();
   }, []);
 
-  // Fetch AI suggestions when component mounts or design changes (only if not cached)
+  // Fetch AI suggestions when component mounts, design changes, or category changes
   useEffect(() => {
     const fetchSuggestions = async () => {
-      // Check if we already have cached suggestions for this design
-      try {
-        const saved = sessionStorage.getItem(SUGGESTIONS_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.designId === design.id && parsed.suggestions?.length > 0) {
-            // Already have cached suggestions, skip fetching
-            return;
-          }
+      // Check if we already have cached suggestions for this design and category
+      const cacheKey = selectedCategory || 'all';
+      
+      // First check in-memory cache
+      if (selectedCategory && categorySuggestionsCache.has(selectedCategory)) {
+        const cached = categorySuggestionsCache.get(selectedCategory);
+        if (cached && cached.length > 0) {
+          setAiSuggestions(cached);
+          return;
         }
-      } catch (e) {}
+      }
+      
+      // Then check sessionStorage for the default/all category
+      if (!selectedCategory) {
+        try {
+          const saved = sessionStorage.getItem(SUGGESTIONS_STORAGE_KEY);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed.designId === design.id && parsed.suggestions?.length > 0) {
+              setAiSuggestions(parsed.suggestions);
+              if (parsed.productAnalysis) {
+                setProductAnalysis(parsed.productAnalysis);
+              }
+              return;
+            }
+          }
+        } catch (e) {}
+      }
 
       setIsLoadingSuggestions(true);
       try {
-        // Pass brand profile for brand-aware style suggestions
-        const suggestions = await analyzeGarmentAndSuggestStyles(design.base64, brandProfile || undefined);
-        setAiSuggestions(suggestions);
+        // Pass brand profile and selected category for contextual suggestions
+        const result = await analyzeProductAndSuggestStyles(
+          design.base64, 
+          brandProfile || undefined,
+          selectedCategory || undefined
+        );
+        
+        // Store product analysis
+        setProductAnalysis({
+          productType: result.productType,
+          productDescription: result.productDescription,
+          applicableCategories: result.applicableCategories,
+          suggestedDefaultCategory: result.suggestedDefaultCategory,
+        });
+        
+        // Store suggestions
+        setAiSuggestions(result.suggestions);
+        
+        // Update cache
+        if (selectedCategory) {
+          setCategorySuggestionsCache(prev => {
+            const newCache = new Map(prev);
+            newCache.set(selectedCategory, result.suggestions);
+            return newCache;
+          });
+        } else {
+          // Cache to sessionStorage for default/all category
+          try {
+            sessionStorage.setItem(SUGGESTIONS_STORAGE_KEY, JSON.stringify({
+              designId: design.id,
+              suggestions: result.suggestions,
+              productAnalysis: {
+                productType: result.productType,
+                productDescription: result.productDescription,
+                applicableCategories: result.applicableCategories,
+                suggestedDefaultCategory: result.suggestedDefaultCategory,
+              }
+            }));
+          } catch (e) {
+            console.error('Failed to cache suggestions:', e);
+          }
+        }
       } catch (err) {
         console.error('Failed to fetch AI suggestions:', err);
         // Silently fail - will show preset styles instead
@@ -357,7 +438,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     };
 
     fetchSuggestions();
-  }, [design.base64, design.id, brandProfile]);
+  }, [design.base64, design.id, brandProfile, selectedCategory]);
 
   // Keyboard navigation for modal
   useEffect(() => {
@@ -691,19 +772,42 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
   // Regenerate AI suggestions
   const regenerateSuggestions = async () => {
-    // Clear cached suggestions
+    // Clear all cached suggestions
     try {
       sessionStorage.removeItem(SUGGESTIONS_STORAGE_KEY);
     } catch (e) {}
+    setCategorySuggestionsCache(new Map());
     
     // Clear current suggestions and show loading
     setAiSuggestions([]);
     setIsLoadingSuggestions(true);
     
     try {
-      // Pass brand profile for brand-aware suggestions
-      const suggestions = await analyzeGarmentAndSuggestStyles(design.base64, brandProfile || undefined);
-      setAiSuggestions(suggestions);
+      // Pass brand profile and selected category for contextual suggestions
+      const result = await analyzeProductAndSuggestStyles(
+        design.base64, 
+        brandProfile || undefined,
+        selectedCategory || undefined
+      );
+      
+      // Update product analysis
+      setProductAnalysis({
+        productType: result.productType,
+        productDescription: result.productDescription,
+        applicableCategories: result.applicableCategories,
+        suggestedDefaultCategory: result.suggestedDefaultCategory,
+      });
+      
+      setAiSuggestions(result.suggestions);
+      
+      // Cache the new suggestions
+      if (selectedCategory) {
+        setCategorySuggestionsCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(selectedCategory, result.suggestions);
+          return newCache;
+        });
+      }
     } catch (err) {
       console.error('Failed to fetch AI suggestions:', err);
     } finally {
@@ -780,7 +884,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-slate-800 text-sm">Your Garment</h3>
+            <h3 className="font-semibold text-slate-800 text-sm">Your Product</h3>
             <button onClick={onBack} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
               Change upload
             </button>
@@ -790,6 +894,53 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             <Zap size={10} className="text-amber-500" />
             <span className="text-[10px] font-medium text-amber-700">Pro</span>
           </div>
+        </div>
+
+        {/* Content Category Pills */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Content Type</span>
+            {productAnalysis && (
+              <span className="text-[10px] text-slate-400">
+                {productAnalysis.productDescription}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {applicableCategories.map((category) => {
+              const isActive = selectedCategory === category.id;
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(isActive ? null : category.id)}
+                  disabled={isLoadingSuggestions}
+                  className={`
+                    group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium
+                    transition-all duration-200 ease-out
+                    ${isActive
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25 scale-[1.02]'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                    }
+                    ${isLoadingSuggestions ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                  `}
+                  title={category.description}
+                >
+                  <span className={`transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
+                    {getCategoryIcon(category.icon, 12)}
+                  </span>
+                  <span>{category.shortLabel}</span>
+                  {isActive && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {selectedCategory && (
+            <p className="mt-2 text-[10px] text-slate-500 leading-relaxed animate-in fade-in slide-in-from-top-1 duration-200">
+              {CONTENT_CATEGORIES.find(c => c.id === selectedCategory)?.description}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center justify-between mb-2">
