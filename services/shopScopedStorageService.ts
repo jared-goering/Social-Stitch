@@ -8,6 +8,7 @@
  * - shops/{shopDomain}/mockups/{mockupId}
  * - shops/{shopDomain}/scheduledPosts/{postId}
  * - shops/{shopDomain}/settings
+ * - shops/{shopDomain}/brandProfile
  */
 
 import { ref, uploadBytes, getDownloadURL, deleteObject, uploadString } from 'firebase/storage';
@@ -28,7 +29,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { db, storage } from './firebaseConfig';
-import { SavedMockup, ScheduledPost, CreateScheduledPostData, PostStatus, SocialPlatform } from '../types';
+import { SavedMockup, ScheduledPost, CreateScheduledPostData, PostStatus, SocialPlatform, BrandProfile } from '../types';
 import { shopifyConfig } from '../shopify.config';
 import { getSessionId } from './socialAuthService';
 
@@ -474,6 +475,58 @@ export async function updateSettings(settings: Partial<ShopSettings>): Promise<v
   const collectionPath = getCollectionPath('settings');
   const docRef = doc(db, collectionPath, 'preferences');
   await setDoc(docRef, settings, { merge: true });
+}
+
+// =============================================================================
+// BRAND PROFILE
+// =============================================================================
+
+/**
+ * Save brand profile to Firestore
+ */
+export async function saveBrandProfile(profile: BrandProfile): Promise<void> {
+  const collectionPath = getCollectionPath('brandProfile');
+  const docRef = doc(db, collectionPath, 'current');
+  
+  // Convert dates to Timestamps for Firestore
+  const firestoreData = {
+    ...profile,
+    generatedAt: Timestamp.fromDate(profile.generatedAt),
+    lastUpdatedAt: Timestamp.fromDate(profile.lastUpdatedAt),
+  };
+  
+  await setDoc(docRef, firestoreData);
+}
+
+/**
+ * Get brand profile from Firestore
+ */
+export async function getBrandProfile(): Promise<BrandProfile | null> {
+  const collectionPath = getCollectionPath('brandProfile');
+  const docRef = doc(db, collectionPath, 'current');
+  const docSnap = await getDoc(docRef);
+  
+  if (!docSnap.exists()) {
+    return null;
+  }
+  
+  const data = docSnap.data();
+  
+  // Convert Timestamps back to Dates
+  return {
+    ...data,
+    generatedAt: data.generatedAt?.toDate() || new Date(),
+    lastUpdatedAt: data.lastUpdatedAt?.toDate() || new Date(),
+  } as BrandProfile;
+}
+
+/**
+ * Delete brand profile from Firestore
+ */
+export async function deleteBrandProfile(): Promise<void> {
+  const collectionPath = getCollectionPath('brandProfile');
+  const docRef = doc(db, collectionPath, 'current');
+  await deleteDoc(docRef);
 }
 
 // =============================================================================

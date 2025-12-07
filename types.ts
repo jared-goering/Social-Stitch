@@ -123,3 +123,82 @@ export interface EditMockupOptions {
   editInstructions: string;  // User's instructions for what to change
   preserveGarment?: boolean; // Whether to preserve the garment exactly (default: true)
 }
+
+// =============================================================================
+// BRAND PROFILE
+// =============================================================================
+
+export type BrandProfileStatus = 'not_generated' | 'generating' | 'complete' | 'error';
+
+// Brand Identity section
+export interface BrandIdentity {
+  name: string;
+  positioningStatement: string;
+  storySummary: string;
+  coreValues: string[];
+  missionThemes: string[];
+}
+
+// Product Intelligence section (product-type agnostic)
+export interface ProductIntelligence {
+  primaryCategories: string[];           // Main product categories (apparel, jewelry, electronics, etc.)
+  productCharacteristics: string[];      // Materials, craftsmanship, key features
+  useCases: string[];                    // How customers use the products
+  uniqueSellingPoints: string[];         // What makes products different
+  signatureItems: string[];              // Key product types or hero products
+  priceRange: {
+    min: number;
+    max: number;
+    average: number;
+    currency: string;
+  };
+}
+
+// Market Positioning section
+export interface MarketPositioning {
+  targetAudience: {
+    demographics: string[];              // Age, gender, location hints
+    psychographics: string[];            // Lifestyle, interests, values
+    lifestyle: string[];                 // How they live, what they care about
+  };
+  pricePositioning: 'budget' | 'mid-range' | 'premium' | 'luxury';
+  geographicFocus: string[];             // Markets they seem to target
+  competitivePositioning: string;        // Brief competitive stance
+}
+
+// Brand Voice & Aesthetic section
+export interface BrandVoiceAesthetic {
+  toneCharacteristics: string[];         // playful, sophisticated, minimalist, bold, etc.
+  visualAesthetic: string;               // Description of visual style
+  colorPaletteTendencies: string[];      // Color themes observed
+  photographyStyle: string;              // Style of product photography
+  communicationStyle: 'formal' | 'casual' | 'technical' | 'emotional' | 'mixed';
+  moodKeywords: string[];                // Keywords describing the brand mood
+}
+
+// Complete Brand Profile
+export interface BrandProfile {
+  id: string;
+  shopDomain: string;
+  status: BrandProfileStatus;
+  
+  // Profile sections
+  identity: BrandIdentity;
+  productIntelligence: ProductIntelligence;
+  marketPositioning: MarketPositioning;
+  voiceAndAesthetic: BrandVoiceAesthetic;
+  
+  // Summary for quick reference
+  elevatorPitch: string;                 // One-paragraph brand summary
+  
+  // Metadata
+  generatedAt: Date;
+  lastUpdatedAt: Date;
+  dataSourceSummary: {
+    productsAnalyzed: number;
+    collectionsAnalyzed: number;
+  };
+  
+  // Error tracking
+  error?: string;
+}
