@@ -115,3 +115,11 @@ export interface CreateScheduledPostData {
 
 // App view modes
 export type AppView = 'workflow' | 'calendar' | 'gallery';
+
+// Options for editing an existing mockup image
+export interface EditMockupOptions {
+  mockupImage: string;       // Base64 of the current mockup to edit
+  originalGarment: string;   // Base64 of the original garment design
+  editInstructions: string;  // User's instructions for what to change
+  preserveGarment?: boolean; // Whether to preserve the garment exactly (default: true)
+}

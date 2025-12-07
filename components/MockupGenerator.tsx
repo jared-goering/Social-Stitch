@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup, SourceProduct } from '../types';
 import { generateMockupImage, analyzeGarmentAndSuggestStyles } from '../services/geminiService';
 import { saveMockupToFirebase, fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
-import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, Clock, Plus, Trash2 } from 'lucide-react';
+import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, Clock, Plus, Trash2, Pencil } from 'lucide-react';
+import { EditMockupModal } from './EditMockupModal';
 
 interface Props {
   design: UploadedDesign;
@@ -194,6 +195,9 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   // Image modal/lightbox
   const [enlargedMockup, setEnlargedMockup] = useState<MockupOption | null>(null);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  
+  // Edit modal state
+  const [editingMockup, setEditingMockup] = useState<MockupOption | null>(null);
   
   // Cloud-saved mockups history
   const [savedMockups, setSavedMockups] = useState<SavedMockup[]>([]);
@@ -612,6 +616,47 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       newSet.delete(mockupId);
       return newSet;
     });
+  };
+
+  // Handle saving an edited mockup
+  const handleEditSave = async (editedMockup: MockupOption) => {
+    // Replace the mockup in the gallery
+    setGeneratedMockups(prev => 
+      prev.map(m => m.id === editedMockup.id ? editedMockup : m)
+    );
+    
+    // Save to Firebase in the background
+    setIsSavingToCloud(true);
+    try {
+      const savedMockup = await saveMockupToFirebase(
+        editedMockup.id, 
+        editedMockup.imageUrl, 
+        editedMockup.styleDescription, 
+        design.id, 
+        sourceProduct
+      );
+      // Update in saved mockups list if it exists there
+      setSavedMockups(prev => {
+        const existingIndex = prev.findIndex(m => m.id === editedMockup.id);
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = savedMockup;
+          return updated;
+        }
+        return [savedMockup, ...prev];
+      });
+    } catch (saveError) {
+      console.error('Failed to save edited mockup to cloud:', saveError);
+    } finally {
+      setIsSavingToCloud(false);
+    }
+    
+    // Close the edit modal
+    setEditingMockup(null);
+    // Also update enlarged mockup if viewing it
+    if (enlargedMockup?.id === editedMockup.id) {
+      setEnlargedMockup(editedMockup);
+    }
   };
 
   // Regenerate AI suggestions
@@ -1344,6 +1389,17 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
                     {/* Action Buttons */}
                     <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      {/* Edit Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingMockup(mockup);
+                        }}
+                        className="w-5 h-5 rounded bg-indigo-500/90 backdrop-blur-sm text-white flex items-center justify-center hover:bg-indigo-600 transition-all shadow-sm"
+                        title="Edit mockup"
+                      >
+                        <Pencil size={10} />
+                      </button>
                       {/* Expand Button */}
                       <button
                         onClick={(e) => {
@@ -1584,16 +1640,29 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                       {generatedMockups.findIndex(m => m.id === enlargedMockup.id) + 1} of {generatedMockups.length}
                     </span>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsDescriptionExpanded(!isDescriptionExpanded);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-all"
-                  >
-                    <span>{isDescriptionExpanded ? 'Show less' : 'Show more'}</span>
-                    <ChevronDown size={14} className={`transition-transform ${isDescriptionExpanded ? 'rotate-180' : ''}`} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Edit Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingMockup(enlargedMockup);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white text-xs font-medium transition-all shadow-lg shadow-indigo-500/25"
+                    >
+                      <Pencil size={12} />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsDescriptionExpanded(!isDescriptionExpanded);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-all"
+                    >
+                      <span>{isDescriptionExpanded ? 'Show less' : 'Show more'}</span>
+                      <ChevronDown size={14} className={`transition-transform ${isDescriptionExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
                 </div>
                 <div className={`overflow-hidden transition-all ${isDescriptionExpanded ? 'max-h-48' : 'max-h-12'}`}>
                   <p className={`text-sm text-white/90 leading-relaxed ${!isDescriptionExpanded ? 'line-clamp-2' : ''}`}>
@@ -1605,6 +1674,17 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Edit Mockup Modal */}
+      {editingMockup && (
+        <EditMockupModal
+          mockup={editingMockup}
+          originalGarment={design.base64}
+          isOpen={!!editingMockup}
+          onClose={() => setEditingMockup(null)}
+          onSave={handleEditSave}
+        />
       )}
     </div>
   );

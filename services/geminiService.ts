@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { GeneratedCaptions, StyleSuggestion, ModelGender, CaptionGenerationOptions, CaptionTone } from "../types";
+import { GeneratedCaptions, StyleSuggestion, ModelGender, CaptionGenerationOptions, CaptionTone, EditMockupOptions } from "../types";
 
 // Map tone presets to descriptive instructions
 const toneInstructions: Record<CaptionTone, string> = {
@@ -104,6 +104,102 @@ export const generateMockupImage = async (
     throw new Error("No image generated.");
   } catch (error) {
     console.error("Error generating mockup:", error);
+    throw error;
+  }
+};
+
+/**
+ * Edits an existing mockup image based on user instructions.
+ * Uses Gemini to modify the image while preserving the garment design.
+ */
+export const editMockupImage = async (
+  options: EditMockupOptions
+): Promise<string> => {
+  const { mockupImage, originalGarment, editInstructions, preserveGarment = true } = options;
+  
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY environment variable is not set');
+  }
+  const ai = new GoogleGenAI({ apiKey });
+
+  try {
+    // Strip data URL prefixes and detect mime types
+    const cleanMockupImage = mockupImage.includes(',') ? mockupImage.split(',')[1] : mockupImage;
+    const mockupMimeMatch = mockupImage.match(/^data:(image\/[a-zA-Z]+);base64,/);
+    const mockupMimeType = mockupMimeMatch ? mockupMimeMatch[1] : 'image/png';
+
+    const cleanGarmentImage = originalGarment.includes(',') ? originalGarment.split(',')[1] : originalGarment;
+    const garmentMimeMatch = originalGarment.match(/^data:(image\/[a-zA-Z]+);base64,/);
+    const garmentMimeType = garmentMimeMatch ? garmentMimeMatch[1] : 'image/png';
+
+    const garmentPreservation = preserveGarment 
+      ? `CRITICAL: The person MUST be wearing the EXACT same garment as shown in the second reference image. 
+         Preserve the garment's design, colors, graphics, and style EXACTLY as it appears.
+         Only change what the user has specifically requested - keep everything else about the garment identical.`
+      : `You may adjust the garment slightly to match the new scene, but keep it recognizable as the same design.`;
+
+    const prompt = `
+      You are an expert photo editor and lifestyle photographer.
+      
+      TASK: Edit the first image (the mockup) based on the user's instructions while maintaining high quality.
+      
+      USER'S EDIT REQUEST: ${editInstructions}
+      
+      ${garmentPreservation}
+      
+      EDITING GUIDELINES:
+      1. Apply ONLY the changes the user has requested
+      2. Maintain the overall quality and photorealistic style of the original image
+      3. Keep the same aspect ratio and composition unless specifically asked to change it
+      4. Preserve natural lighting and shadows that match the scene
+      5. Ensure any changes blend seamlessly with the existing image
+      6. The result should look like a professional lifestyle photograph
+      
+      REFERENCE IMAGES:
+      - First image: The current mockup that needs editing
+      - Second image: The original garment design (for reference to preserve the garment accurately)
+      
+      Generate an edited version of the mockup that incorporates the user's requested changes.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-image-preview',
+      contents: {
+        parts: [
+          { text: prompt },
+          {
+            inlineData: {
+              mimeType: mockupMimeType,
+              data: cleanMockupImage
+            }
+          },
+          {
+            inlineData: {
+              mimeType: garmentMimeType,
+              data: cleanGarmentImage
+            }
+          }
+        ]
+      },
+      config: {
+        imageConfig: {
+          aspectRatio: "3:4",
+          imageSize: "2K"
+        }
+      }
+    });
+
+    // Extract the image from the response
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData && part.inlineData.data) {
+        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+      }
+    }
+
+    throw new Error("No edited image generated.");
+  } catch (error) {
+    console.error("Error editing mockup:", error);
     throw error;
   }
 };
