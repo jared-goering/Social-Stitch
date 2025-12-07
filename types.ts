@@ -95,6 +95,8 @@ export interface CategoryConfig {
   icon: string; // Lucide icon name
   // Which product types this category works well with
   applicableTo: DetectedProductType[] | 'all';
+  // Whether this category typically includes people/models (affects gender selector visibility)
+  includesPeople: boolean;
 }
 
 // Result from AI product analysis
@@ -122,6 +124,7 @@ export const CONTENT_CATEGORIES: CategoryConfig[] = [
     description: 'Authentic moments of real people using your product in their daily lives',
     icon: 'Heart',
     applicableTo: 'all',
+    includesPeople: true,
   },
   {
     id: 'product',
@@ -130,6 +133,7 @@ export const CONTENT_CATEGORIES: CategoryConfig[] = [
     description: 'Detail shots, flat lays, and beauty shots highlighting product features',
     icon: 'Camera',
     applicableTo: 'all',
+    includesPeople: false,
   },
   {
     id: 'editorial',
@@ -138,6 +142,7 @@ export const CONTENT_CATEGORIES: CategoryConfig[] = [
     description: 'Magazine-quality photography with dramatic lighting and artistic composition',
     icon: 'Sparkles',
     applicableTo: 'all',
+    includesPeople: true,
   },
   {
     id: 'ugc',
@@ -146,6 +151,7 @@ export const CONTENT_CATEGORIES: CategoryConfig[] = [
     description: 'Authentic user-generated content aesthetic - casual, relatable, real',
     icon: 'Smartphone',
     applicableTo: ['apparel', 'jewelry', 'accessories', 'beauty', 'food_beverage'],
+    includesPeople: true,
   },
   {
     id: 'seasonal',
@@ -154,6 +160,7 @@ export const CONTENT_CATEGORIES: CategoryConfig[] = [
     description: 'Holiday themes, seasonal settings, and event-specific contexts',
     icon: 'Calendar',
     applicableTo: 'all',
+    includesPeople: true,
   },
   {
     id: 'minimalist',
@@ -162,6 +169,7 @@ export const CONTENT_CATEGORIES: CategoryConfig[] = [
     description: 'Clean backgrounds, elegant simplicity, focus on form and details',
     icon: 'Square',
     applicableTo: 'all',
+    includesPeople: false,
   },
 ];
 

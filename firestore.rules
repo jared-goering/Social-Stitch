@@ -49,13 +49,13 @@ service cloud.firestore {
         allow read, write: if true;
       }
       
-      // Subscription document (single doc per shop)
-      match /subscription {
+      // Subscription subcollection (shops/{shopDomain}/subscription/{docId})
+      match /subscription/{document=**} {
         allow read: if true;
         allow write: if true; // For demo - in production, restrict to server-side only
       }
       
-      // Monthly usage tracking
+      // Monthly usage tracking (shops/{shopDomain}/usage/{monthKey})
       match /usage/{monthKey} {
         allow read: if true;
         allow write: if true; // For demo - in production, restrict to server-side only
@@ -64,8 +64,8 @@ service cloud.firestore {
     
     // User-scoped subscription and usage (for standalone mode)
     match /users/{userId} {
-      // Subscription document
-      match /subscription {
+      // Subscription subcollection (users/{userId}/subscription/{docId})
+      match /subscription/{document=**} {
         allow read: if true;
         allow write: if true; // For demo - in production, restrict to server-side only
       }

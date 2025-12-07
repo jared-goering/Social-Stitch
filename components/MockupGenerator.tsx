@@ -255,6 +255,9 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     return cat.applicableTo.includes(productAnalysis.productType);
   });
 
+  // Check if current category includes people (for showing gender selector)
+  const currentCategoryIncludesPeople = CONTENT_CATEGORIES.find(c => c.id === selectedCategory)?.includesPeople ?? true;
+
   // Persist generated mockups to IndexedDB (and sessionStorage as fallback)
   useEffect(() => {
     if (isLoadingMockups || generatedMockups.length === 0) {
@@ -1083,8 +1086,8 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                             <span className="text-slate-500 text-[11px] line-clamp-1 leading-snug">
                               {suggestion.description}
                             </span>
-                            {/* Gender Selector */}
-                            {isSelected && (
+                            {/* Gender Selector - only show for categories with people */}
+                            {isSelected && currentCategoryIncludesPeople && (
                               <div className="flex items-center gap-1 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
                                 <span className="text-[10px] font-medium text-slate-600 mr-0.5">Model:</span>
                                 <button
@@ -1205,8 +1208,8 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                           <span className="text-slate-600 text-[11px] block line-clamp-1">
                             {style}
                           </span>
-                          {/* Gender Selector for preset styles */}
-                          {isSelected && (
+                          {/* Gender Selector for preset styles - only show for categories with people */}
+                          {isSelected && currentCategoryIncludesPeople && (
                             <div className="flex items-center gap-1 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
                               <span className="text-[10px] font-medium text-slate-600 mr-0.5">Model:</span>
                               <button
@@ -1347,8 +1350,8 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                         <span className="text-slate-600 text-[11px] block line-clamp-1">
                           {style}
                         </span>
-                        {/* Gender Selector for preset styles */}
-                        {isSelected && (
+                        {/* Gender Selector for preset styles - only show for categories with people */}
+                        {isSelected && currentCategoryIncludesPeople && (
                           <div className="flex items-center gap-1 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
                             <span className="text-[10px] font-medium text-slate-600 mr-0.5">Model:</span>
                             <button

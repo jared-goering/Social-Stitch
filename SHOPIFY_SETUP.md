@@ -102,6 +102,16 @@ The Shopify OAuth flow is handled by Firebase Functions. The following endpoints
 | `shopifyGetShop` | Get shop information |
 | `shopifyProxyImage` | Proxy Shopify CDN images (CORS) |
 
+### Billing Endpoints (Subscription Management)
+
+| Endpoint | Purpose |
+|----------|---------|
+| `shopifyCreateSubscription` | Create subscription for Pro/Business tiers |
+| `shopifyBillingCallback` | Handle return from Shopify payment approval |
+| `shopifyGetActiveSubscription` | Get current subscription status |
+| `shopifyCancelSubscription` | Cancel an active subscription |
+| `shopifySubscriptionWebhook` | Handle APP_SUBSCRIPTIONS_UPDATE webhook |
+
 ### GDPR Webhooks (Required for Public Apps)
 
 | Endpoint | Purpose |
@@ -126,12 +136,34 @@ Deploy:
 npm run functions:deploy
 ```
 
-### Register GDPR Webhooks in Shopify Partners
+### Register Webhooks in Shopify Partners
 
 In your app settings, configure these webhook URLs:
+
+**GDPR Webhooks (Required):**
 - Customer data request: `https://[YOUR_FUNCTIONS_URL]/gdprCustomersDataRequest`
 - Customer data erasure: `https://[YOUR_FUNCTIONS_URL]/gdprCustomersRedact`
 - Shop data erasure: `https://[YOUR_FUNCTIONS_URL]/gdprShopRedact`
+
+**Billing Webhooks (For subscription management):**
+
+In the Partners Dashboard, go to **Webhooks** and add:
+- Topic: `APP_SUBSCRIPTIONS_UPDATE`
+- URL: `https://[YOUR_FUNCTIONS_URL]/shopifySubscriptionWebhook`
+
+This webhook is triggered when:
+- A subscription is approved/activated
+- A subscription is cancelled
+- A subscription expires or payment fails
+
+### Enable Billing Test Mode (Development)
+
+For testing subscriptions without real charges:
+```bash
+firebase functions:config:set shopify.billing_test_mode="true"
+```
+
+When `test: true` is passed to Shopify billing mutations, charges appear as test charges and won't actually bill the merchant.
 
 ## 6. Local Development
 

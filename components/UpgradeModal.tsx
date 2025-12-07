@@ -3,10 +3,14 @@
  *
  * Shown when user exhausts their quota or clicks upgrade.
  * Displays tier comparison and upgrade options.
+ * 
+ * Integrates with Shopify Billing API for embedded apps,
+ * with fallback to direct update for development/standalone mode.
  */
 
-import React, { useState } from 'react';
-import { X, Check, Zap, Sparkles, Building2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { X, Check, Zap, Sparkles, Building2, ExternalLink, Loader2 } from 'lucide-react';
 import {
   SUBSCRIPTION_TIERS,
   SubscriptionTier,
@@ -14,6 +18,14 @@ import {
   QuotaCheckResult,
 } from '../types';
 import { formatPrice, updateSubscriptionTier } from '../services/subscriptionService';
+import {
+  initiateUpgrade,
+  redirectToPaymentApproval,
+  isUpgrade as checkIsUpgrade,
+  isDowngrade as checkIsDowngrade,
+  BillingError,
+} from '../services/shopifyBillingService';
+import { getSessionToken } from '../services/shopifyProductService';
 
 interface UpgradeModalProps {
   /** Whether the modal is open */
@@ -24,6 +36,22 @@ interface UpgradeModalProps {
   quotaStatus?: QuotaCheckResult;
   /** Callback after successful upgrade */
   onUpgradeSuccess?: (newTier: SubscriptionTier) => void;
+  /** Force demo mode (bypass Shopify billing) */
+  demoMode?: boolean;
+}
+
+/**
+ * Check if we're running as a Shopify embedded app
+ */
+function isShopifyContext(): boolean {
+  // Check if we have a Shopify session token
+  const hasSessionToken = !!getSessionToken();
+  // Check if we're in an iframe (embedded app)
+  const isEmbedded = window.top !== window.self;
+  // Check for Shopify-specific URL params
+  const hasShopParam = new URLSearchParams(window.location.search).has('shop');
+  
+  return hasSessionToken || (isEmbedded && hasShopParam);
 }
 
 // Map tiers to icons
@@ -38,10 +66,27 @@ export function UpgradeModal({
   onClose,
   quotaStatus,
   onUpgradeSuccess,
+  demoMode = false,
 }: UpgradeModalProps) {
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check if we should use Shopify billing
+  const useShopifyBilling = !demoMode && isShopifyContext();
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -55,22 +100,91 @@ export function UpgradeModal({
     setError(null);
 
     try {
-      // In production, this would integrate with Shopify Billing API or Stripe
-      // For now, we directly update the subscription (demo mode)
+      // Check if this is an upgrade to a paid tier
+      const isUpgradeToPaid = checkIsUpgrade(currentTier, tier) && tier !== 'free';
+      
+      if (useShopifyBilling && isUpgradeToPaid) {
+        // Use Shopify Billing API for upgrades to paid tiers
+        console.log('[UpgradeModal] Initiating Shopify billing for tier:', tier);
+        
+        const { confirmationUrl } = await initiateUpgrade(tier);
+        
+        // Show redirecting state
+        setRedirecting(true);
+        
+        // Redirect to Shopify payment approval page
+        // This will navigate away from the app
+        redirectToPaymentApproval(confirmationUrl);
+        
+        // Note: The page will redirect, so we don't close the modal here
+        // The success callback will be triggered when the user returns
+        return;
+      }
+      
+      // For downgrades or demo mode, update directly
+      // In demo mode, we bypass Shopify billing
+      console.log('[UpgradeModal] Direct tier update (demo/downgrade):', tier);
       await updateSubscriptionTier(tier);
       
       onUpgradeSuccess?.(tier);
       onClose();
     } catch (err) {
       console.error('Upgrade failed:', err);
-      setError('Failed to process upgrade. Please try again.');
+      
+      if (err instanceof BillingError) {
+        setError(err.message);
+      } else {
+        setError('Failed to process upgrade. Please try again.');
+      }
     } finally {
       setUpgrading(false);
       setSelectedTier(null);
+      setRedirecting(false);
     }
   };
 
-  return (
+  const handleDowngrade = async (tier: SubscriptionTier) => {
+    if (tier === currentTier) return;
+    
+    setSelectedTier(tier);
+    setUpgrading(true);
+    setError(null);
+
+    try {
+      // Downgrades go through direct update
+      // The subscription will remain active until end of billing period
+      // then automatically revert to the free tier via webhook
+      console.log('[UpgradeModal] Processing downgrade to:', tier);
+      
+      if (tier === 'free') {
+        // For downgrade to free, we just update the local record
+        // The actual cancellation is handled by Shopify webhook
+        // when the current billing period ends
+        await updateSubscriptionTier(tier);
+      } else {
+        // Downgrade to a lower paid tier - use Shopify billing
+        if (useShopifyBilling) {
+          const { confirmationUrl } = await initiateUpgrade(tier);
+          setRedirecting(true);
+          redirectToPaymentApproval(confirmationUrl);
+          return;
+        }
+        await updateSubscriptionTier(tier);
+      }
+      
+      onUpgradeSuccess?.(tier);
+      onClose();
+    } catch (err) {
+      console.error('Downgrade failed:', err);
+      setError('Failed to process plan change. Please try again.');
+    } finally {
+      setUpgrading(false);
+      setSelectedTier(null);
+      setRedirecting(false);
+    }
+  };
+
+  const modalContent = (
     <div className="upgrade-modal-overlay" onClick={onClose}>
       <div className="upgrade-modal" onClick={(e) => e.stopPropagation()}>
         <button className="upgrade-modal__close" onClick={onClose}>
@@ -105,8 +219,10 @@ export function UpgradeModal({
         <div className="upgrade-modal__tiers">
           {SUBSCRIPTION_TIERS.map((tier) => {
             const isCurrent = tier.id === currentTier;
-            const isDowngrade = getTierOrder(tier.id) < getTierOrder(currentTier);
+            const tierIsDowngrade = checkIsDowngrade(currentTier, tier.id);
+            const tierIsUpgrade = checkIsUpgrade(currentTier, tier.id);
             const isSelected = selectedTier === tier.id;
+            const isProcessing = isSelected && (upgrading || redirecting);
 
             return (
               <div
@@ -153,22 +269,44 @@ export function UpgradeModal({
                 <button
                   className={`upgrade-modal__tier-btn ${
                     isCurrent ? 'upgrade-modal__tier-btn--current' : ''
-                  } ${isDowngrade ? 'upgrade-modal__tier-btn--downgrade' : ''}`}
-                  onClick={() => handleUpgrade(tier.id)}
-                  disabled={isCurrent || upgrading}
+                  } ${tierIsDowngrade ? 'upgrade-modal__tier-btn--downgrade' : ''}`}
+                  onClick={() => tierIsDowngrade ? handleDowngrade(tier.id) : handleUpgrade(tier.id)}
+                  disabled={isCurrent || upgrading || redirecting}
                 >
-                  {isCurrent
-                    ? 'Current Plan'
-                    : isDowngrade
-                    ? 'Downgrade'
-                    : isSelected && upgrading
-                    ? 'Processing...'
-                    : `Upgrade to ${tier.name}`}
+                  {isCurrent ? (
+                    'Current Plan'
+                  ) : isProcessing && redirecting ? (
+                    <>
+                      <Loader2 size={14} className="upgrade-modal__spinner" />
+                      Redirecting to Shopify...
+                    </>
+                  ) : isProcessing ? (
+                    <>
+                      <Loader2 size={14} className="upgrade-modal__spinner" />
+                      Processing...
+                    </>
+                  ) : tierIsDowngrade ? (
+                    'Downgrade'
+                  ) : tierIsUpgrade && useShopifyBilling && tier.monthlyPriceCents > 0 ? (
+                    <>
+                      Upgrade to {tier.name}
+                      <ExternalLink size={12} style={{ marginLeft: 4, opacity: 0.7 }} />
+                    </>
+                  ) : (
+                    `Upgrade to ${tier.name}`
+                  )}
                 </button>
               </div>
             );
           })}
         </div>
+
+        {useShopifyBilling && !error && (
+          <div className="upgrade-modal__info">
+            You'll be redirected to Shopify to confirm your subscription. 
+            Charges will appear on your Shopify bill.
+          </div>
+        )}
 
         {error && <div className="upgrade-modal__error">{error}</div>}
 
@@ -182,31 +320,28 @@ export function UpgradeModal({
       </div>
     </div>
   );
+
+  // Use portal to render at document.body level, escaping iframe/container constraints
+  return createPortal(modalContent, document.body);
 }
 
-function getTierOrder(tier: SubscriptionTier): number {
-  const order: Record<SubscriptionTier, number> = {
-    free: 0,
-    pro: 1,
-    business: 2,
-  };
-  return order[tier];
-}
+// Note: getTierOrder replaced by checkIsUpgrade/checkIsDowngrade from shopifyBillingService
 
 const styles = `
   .upgrade-modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
+    width: 100vw;
+    height: 100vh;
     background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 9999;
+    z-index: 99999;
     padding: 20px;
     font-family: system-ui, -apple-system, sans-serif;
+    box-sizing: border-box;
   }
 
   .upgrade-modal {
@@ -214,10 +349,11 @@ const styles = `
     border-radius: 16px;
     width: 100%;
     max-width: 900px;
-    max-height: 90vh;
+    max-height: calc(100vh - 40px);
     overflow-y: auto;
     position: relative;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    margin: auto;
   }
 
   .upgrade-modal__close {
@@ -482,6 +618,32 @@ const styles = `
 
   .upgrade-modal__footer a:hover {
     text-decoration: underline;
+  }
+
+  .upgrade-modal__spinner {
+    animation: spin 1s linear infinite;
+    margin-right: 6px;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .upgrade-modal__tier-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .upgrade-modal__info {
+    margin: 0 40px 16px;
+    padding: 12px 16px;
+    background: #e0f2fe;
+    color: #0369a1;
+    border-radius: 8px;
+    font-size: 13px;
+    text-align: center;
   }
 `;
 

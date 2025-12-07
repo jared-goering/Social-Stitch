@@ -83,10 +83,13 @@ function getBillingCycleDates(): { start: Date; end: Date } {
 /**
  * Get the current subscription for the shop/user
  * Creates a free tier subscription if none exists
+ * 
+ * Note: Firestore document paths must have an even number of segments.
+ * We use: shops/{shopDomain}/subscription/current (4 segments)
  */
 export async function getSubscription(): Promise<ShopSubscription> {
   const basePath = getBasePath();
-  const docRef = doc(db, basePath, 'subscription');
+  const docRef = doc(db, basePath, 'subscription', 'current');
   const docSnap = await getDoc(docRef);
 
   if (docSnap.exists()) {
@@ -138,7 +141,7 @@ export async function updateSubscriptionTier(
   externalSubscriptionId?: string
 ): Promise<ShopSubscription> {
   const basePath = getBasePath();
-  const docRef = doc(db, basePath, 'subscription');
+  const docRef = doc(db, basePath, 'subscription', 'current');
   const tierConfig = getTierConfig(newTier);
   const { start, end } = getBillingCycleDates();
   const now = new Date();
@@ -186,7 +189,7 @@ export function subscribeToSubscription(
   callback: (subscription: ShopSubscription | null) => void
 ): Unsubscribe {
   const basePath = getBasePath();
-  const docRef = doc(db, basePath, 'subscription');
+  const docRef = doc(db, basePath, 'subscription', 'current');
 
   return onSnapshot(docRef, (docSnap) => {
     if (!docSnap.exists()) {
@@ -411,5 +414,70 @@ export function getDaysRemainingInCycle(subscription: ShopSubscription): number 
   const end = subscription.billingCycleEnd;
   const diffTime = end.getTime() - now.getTime();
   return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+}
+
+// =============================================================================
+// SHOPIFY BILLING INTEGRATION
+// =============================================================================
+
+/**
+ * Handle successful billing callback
+ * Called after merchant returns from Shopify payment approval
+ * 
+ * The webhook handler (shopifySubscriptionWebhook) updates Firestore,
+ * so this function just refreshes the local subscription state.
+ * 
+ * @param tier - The tier that was successfully purchased
+ * @returns Updated subscription
+ */
+export async function handleBillingSuccess(tier: SubscriptionTier): Promise<ShopSubscription> {
+  // Give the webhook a moment to process (it should be very fast)
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  // Fetch the updated subscription from Firestore
+  // The webhook handler should have already updated this
+  const subscription = await getSubscription();
+  
+  // Verify the tier matches what we expect
+  if (subscription.tier !== tier) {
+    console.warn(
+      `[handleBillingSuccess] Tier mismatch: expected ${tier}, got ${subscription.tier}. ` +
+      'Webhook may not have processed yet.'
+    );
+    
+    // If the webhook hasn't processed yet, wait a bit longer and try again
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    const retrySubscription = await getSubscription();
+    
+    if (retrySubscription.tier === tier) {
+      return retrySubscription;
+    }
+    
+    // If still mismatched, return what we have
+    // The webhook will eventually sync the correct state
+    console.warn('[handleBillingSuccess] Tier still mismatched after retry');
+  }
+  
+  return subscription;
+}
+
+/**
+ * Refresh subscription from remote source
+ * Useful after billing operations to ensure local state is up to date
+ */
+export async function refreshSubscription(): Promise<ShopSubscription> {
+  // Simply re-fetch from Firestore
+  // The document listener will pick up changes automatically,
+  // but this ensures we have the latest state synchronously
+  return getSubscription();
+}
+
+/**
+ * Check if the current subscription was updated by a Shopify webhook
+ * by comparing the externalSubscriptionId
+ */
+export async function hasActiveShopifySubscription(): Promise<boolean> {
+  const subscription = await getSubscription();
+  return !!subscription.externalSubscriptionId && subscription.status === 'active';
 }
 

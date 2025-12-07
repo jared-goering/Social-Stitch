@@ -46,6 +46,15 @@ export {
   exportShopData,
 } from './shopify-gdpr';
 
+// Export Shopify Billing functions
+export {
+  shopifyCreateSubscription,
+  shopifyBillingCallback,
+  shopifyGetActiveSubscription,
+  shopifyCancelSubscription,
+  shopifySubscriptionWebhook,
+} from './shopify-billing';
+
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();

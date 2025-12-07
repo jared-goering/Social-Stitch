@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.disconnectAccount = exports.postCarouselToFacebook = exports.postCarouselToInstagram = exports.postToInstagram = exports.postToFacebook = exports.getConnectedAccounts = exports.authCallback = exports.authStart = exports.exportShopData = exports.gdprShopRedact = exports.gdprCustomersRedact = exports.gdprCustomersDataRequest = exports.shopifyAddProductImage = exports.shopifyProxyImage = exports.shopifyGetShop = exports.shopifySearchProducts = exports.shopifyGetCollections = exports.shopifyGetProductImages = exports.shopifyGetProduct = exports.shopifyGetProducts = exports.shopifyAppUninstalled = exports.shopifyCheckInstall = exports.shopifyVerifySession = exports.shopifyAuthCallback = exports.shopifyAuthStart = exports.triggerScheduledPosts = exports.processScheduledPosts = void 0;
+exports.disconnectAccount = exports.postCarouselToFacebook = exports.postCarouselToInstagram = exports.postToInstagram = exports.postToFacebook = exports.getConnectedAccounts = exports.authCallback = exports.authStart = exports.shopifySubscriptionWebhook = exports.shopifyCancelSubscription = exports.shopifyGetActiveSubscription = exports.shopifyBillingCallback = exports.shopifyCreateSubscription = exports.exportShopData = exports.gdprShopRedact = exports.gdprCustomersRedact = exports.gdprCustomersDataRequest = exports.shopifyAddProductImage = exports.shopifyProxyImage = exports.shopifyGetShop = exports.shopifySearchProducts = exports.shopifyGetCollections = exports.shopifyGetProductImages = exports.shopifyGetProduct = exports.shopifyGetProducts = exports.shopifyAppUninstalled = exports.shopifyCheckInstall = exports.shopifyVerifySession = exports.shopifyAuthCallback = exports.shopifyAuthStart = exports.triggerScheduledPosts = exports.processScheduledPosts = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const cors_1 = __importDefault(require("cors"));
@@ -68,6 +68,13 @@ Object.defineProperty(exports, "gdprCustomersDataRequest", { enumerable: true, g
 Object.defineProperty(exports, "gdprCustomersRedact", { enumerable: true, get: function () { return shopify_gdpr_1.gdprCustomersRedact; } });
 Object.defineProperty(exports, "gdprShopRedact", { enumerable: true, get: function () { return shopify_gdpr_1.gdprShopRedact; } });
 Object.defineProperty(exports, "exportShopData", { enumerable: true, get: function () { return shopify_gdpr_1.exportShopData; } });
+// Export Shopify Billing functions
+var shopify_billing_1 = require("./shopify-billing");
+Object.defineProperty(exports, "shopifyCreateSubscription", { enumerable: true, get: function () { return shopify_billing_1.shopifyCreateSubscription; } });
+Object.defineProperty(exports, "shopifyBillingCallback", { enumerable: true, get: function () { return shopify_billing_1.shopifyBillingCallback; } });
+Object.defineProperty(exports, "shopifyGetActiveSubscription", { enumerable: true, get: function () { return shopify_billing_1.shopifyGetActiveSubscription; } });
+Object.defineProperty(exports, "shopifyCancelSubscription", { enumerable: true, get: function () { return shopify_billing_1.shopifyCancelSubscription; } });
+Object.defineProperty(exports, "shopifySubscriptionWebhook", { enumerable: true, get: function () { return shopify_billing_1.shopifySubscriptionWebhook; } });
 // Initialize Firebase Admin
 admin.initializeApp();
 const db = admin.firestore();

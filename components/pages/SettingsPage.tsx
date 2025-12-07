@@ -55,7 +55,9 @@ import { subscribeToScheduledPosts } from '../../services/scheduledPostsService'
 import { fetchUserMockups } from '../../services/mockupStorageService';
 import { generateBrandProfile, getBrandProfile, regenerateSection, regenerateElevatorPitch, BrandProfileSection } from '../../services/brandProfileService';
 import { isOAuthRequired, redirectToOAuth } from '../../services/shopifyProductService';
-import { ScheduledPost, SavedMockup, BrandProfile } from '../../types';
+import { getSubscription, getCurrentUsage, getTierConfig, formatPrice, getUpgradeTier, subscribeToUsage, subscribeToSubscription } from '../../services/subscriptionService';
+import { ScheduledPost, SavedMockup, BrandProfile, ShopSubscription, UsageRecord, SUBSCRIPTION_TIERS } from '../../types';
+import { UpgradeModal } from '../UpgradeModal';
 
 interface SettingsPageProps {
   onNavigateToCreate?: () => void;
@@ -78,6 +80,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
     failedPosts: 0,
     totalMockups: 0,
   });
+
+  // Subscription state
+  const [subscription, setSubscription] = useState<ShopSubscription | null>(null);
+  const [usage, setUsage] = useState<UsageRecord | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Brand Profile state
   const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
@@ -112,6 +119,35 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
     }).catch(console.error);
 
     return () => unsubscribe();
+  }, []);
+
+  // Load subscription and usage data
+  useEffect(() => {
+    const loadSubscriptionData = async () => {
+      try {
+        const [sub, use] = await Promise.all([getSubscription(), getCurrentUsage()]);
+        setSubscription(sub);
+        setUsage(use);
+      } catch (error) {
+        console.error('Error loading subscription data:', error);
+      }
+    };
+
+    loadSubscriptionData();
+
+    // Subscribe to real-time updates
+    const unsubUsage = subscribeToUsage((newUsage) => {
+      setUsage(newUsage);
+    });
+
+    const unsubSubscription = subscribeToSubscription((newSub) => {
+      if (newSub) setSubscription(newSub);
+    });
+
+    return () => {
+      unsubUsage();
+      unsubSubscription();
+    };
   }, []);
 
   // Load existing brand profile
@@ -246,6 +282,143 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Subscription & Plan Card */}
+        <div className="card-elevated p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="icon-container w-12 h-12" style={{ background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }}>
+                <Zap size={22} className="text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-warm-800">Subscription & Plan</h2>
+                <p className="text-sm text-slate-warm-500">Manage your image generation quota</p>
+              </div>
+            </div>
+            {subscription && (
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
+                subscription.tier === 'free' 
+                  ? 'bg-slate-warm-100 text-slate-warm-600'
+                  : subscription.tier === 'pro'
+                  ? 'bg-indigo-100 text-indigo-600'
+                  : 'bg-amber-100 text-amber-600'
+              }`}>
+                {subscription.tier === 'free' ? 'Free' : subscription.tier === 'pro' ? 'Pro' : 'Business'}
+              </span>
+            )}
+          </div>
+
+          {subscription && usage ? (
+            <div className="space-y-6">
+              {/* Usage Progress */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-warm-700">Monthly Image Generations</span>
+                  <span className="text-sm text-slate-warm-500">
+                    {usage.imagesGenerated} / {subscription.imageQuota} used
+                  </span>
+                </div>
+                <div className="w-full bg-slate-warm-100 rounded-full h-3">
+                  <div
+                    className={`h-3 rounded-full transition-all duration-500 ${
+                      usage.imagesGenerated >= subscription.imageQuota
+                        ? 'bg-red-500'
+                        : usage.imagesGenerated >= subscription.imageQuota * 0.8
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${Math.min(100, (usage.imagesGenerated / subscription.imageQuota) * 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-warm-400 mt-2">
+                  {Math.max(0, subscription.imageQuota - usage.imagesGenerated)} generations remaining this month
+                </p>
+              </div>
+
+              {/* Plan Details */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-warm-50 rounded-xl">
+                  <p className="text-xs text-slate-warm-500 mb-1">Current Plan</p>
+                  <p className="font-semibold text-slate-warm-800 capitalize">{subscription.tier}</p>
+                  <p className="text-xs text-slate-warm-400 mt-1">
+                    {formatPrice(getTierConfig(subscription.tier).monthlyPriceCents)}/month
+                  </p>
+                </div>
+                <div className="p-4 bg-slate-warm-50 rounded-xl">
+                  <p className="text-xs text-slate-warm-500 mb-1">Monthly Quota</p>
+                  <p className="font-semibold text-slate-warm-800">{subscription.imageQuota} images</p>
+                  <p className="text-xs text-slate-warm-400 mt-1">
+                    Resets monthly
+                  </p>
+                </div>
+              </div>
+
+              {/* Tier Comparison */}
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-slate-warm-500 uppercase tracking-wide">Available Plans</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {SUBSCRIPTION_TIERS.map((tier) => {
+                    const isCurrent = tier.id === subscription.tier;
+                    return (
+                      <div
+                        key={tier.id}
+                        className={`p-4 rounded-xl border-2 transition-all ${
+                          isCurrent
+                            ? 'border-emerald-500 bg-emerald-50/50'
+                            : tier.recommended
+                            ? 'border-indigo-200 bg-indigo-50/30 hover:border-indigo-400'
+                            : 'border-slate-warm-200 hover:border-slate-warm-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-slate-warm-800">{tier.name}</span>
+                          {isCurrent && (
+                            <span className="text-[10px] font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                              Current
+                            </span>
+                          )}
+                          {tier.recommended && !isCurrent && (
+                            <span className="text-[10px] font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">
+                              Popular
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-2xl font-bold text-slate-warm-900 mb-1">
+                          {formatPrice(tier.monthlyPriceCents)}
+                          {tier.monthlyPriceCents > 0 && <span className="text-sm font-normal text-slate-warm-400">/mo</span>}
+                        </p>
+                        <p className="text-sm text-slate-warm-600 mb-3">{tier.imageQuota} images/month</p>
+                        <ul className="text-xs text-slate-warm-500 space-y-1">
+                          {tier.features.slice(0, 3).map((feature, i) => (
+                            <li key={i} className="flex items-start gap-1.5">
+                              <CheckCircle size={12} className="text-emerald-500 mt-0.5 flex-shrink-0" />
+                              {feature}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Upgrade Button */}
+              {subscription.tier !== 'business' && (
+                <button
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="w-full btn-primary text-white py-3 rounded-xl font-medium text-sm inline-flex items-center justify-center gap-2"
+                >
+                  <Zap size={18} />
+                  {subscription.tier === 'free' ? 'Upgrade to Pro' : 'Upgrade to Business'}
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="animate-spin text-slate-warm-400" size={24} />
+            </div>
+          )}
         </div>
 
         {/* Brand Profile Card */}
@@ -811,6 +984,25 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
           </BlockStack>
         </Modal.Section>
       </Modal>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        quotaStatus={subscription && usage ? {
+          allowed: usage.imagesGenerated < subscription.imageQuota,
+          used: usage.imagesGenerated,
+          quota: subscription.imageQuota,
+          remaining: Math.max(0, subscription.imageQuota - usage.imagesGenerated),
+          tier: subscription.tier,
+        } : undefined}
+        onUpgradeSuccess={async () => {
+          // Refresh subscription data
+          const [newSub, newUsage] = await Promise.all([getSubscription(), getCurrentUsage()]);
+          setSubscription(newSub);
+          setUsage(newUsage);
+        }}
+      />
     </div>
   );
 };
