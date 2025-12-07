@@ -392,7 +392,7 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
 
             {/* Filter Panel Dropdown */}
             {showFilterPanel && (
-              <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border-2 border-slate-warm-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="absolute top-full right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border-2 border-slate-warm-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="p-4 border-b border-slate-warm-100 bg-gradient-to-r from-slate-warm-50 to-white">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-slate-warm-800">Filter Products</h3>
