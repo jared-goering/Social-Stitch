@@ -134,6 +134,8 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   // Crop modal state
   const [showCropModal, setShowCropModal] = useState(false);
   const [cropMockup, setCropMockup] = useState<SavedMockup | null>(null);
+  const [cropImageDataUrl, setCropImageDataUrl] = useState<string | null>(null);
+  const [isLoadingCropImage, setIsLoadingCropImage] = useState(false);
   const [selectedRatio, setSelectedRatio] = useState<AspectRatioOption>(ASPECT_RATIOS[0]);
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
@@ -326,18 +328,48 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   };
 
   // Crop modal handlers
-  const openCropModal = (mockup: SavedMockup) => {
+  const openCropModal = async (mockup: SavedMockup) => {
     setCropMockup(mockup);
     setShowCropModal(true);
     setSelectedRatio(ASPECT_RATIOS[0]);
     setCrop(undefined);
     setCompletedCrop(undefined);
     setImageDimensions(null);
+    setCropImageDataUrl(null);
+    setIsLoadingCropImage(true);
+    
+    try {
+      // Fetch image as blob using Firebase's getBlob to bypass CORS
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        throw new Error('Not authenticated');
+      }
+      
+      const storageRef = ref(storage, `mockups/${userId}/${mockup.id}.png`);
+      const blob = await getBlob(storageRef);
+      
+      // Convert blob to data URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCropImageDataUrl(reader.result as string);
+        setIsLoadingCropImage(false);
+      };
+      reader.onerror = () => {
+        setToast({ message: 'Failed to load image for cropping', type: 'error' });
+        setIsLoadingCropImage(false);
+      };
+      reader.readAsDataURL(blob);
+    } catch (error) {
+      console.error('Failed to load image for cropping:', error);
+      setToast({ message: 'Failed to load image for cropping', type: 'error' });
+      setIsLoadingCropImage(false);
+    }
   };
 
   const closeCropModal = () => {
     setShowCropModal(false);
     setCropMockup(null);
+    setCropImageDataUrl(null);
     setCrop(undefined);
     setCompletedCrop(undefined);
     setImageDimensions(null);
@@ -381,12 +413,12 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   };
 
   const handleApplyCrop = async () => {
-    if (!cropMockup || !completedCrop || !imageDimensions) return;
+    if (!cropMockup || !completedCrop || !imageDimensions || !cropImageDataUrl) return;
     
     setIsCropping(true);
     try {
       const croppedBase64 = await getCroppedImg(
-        cropMockup.imageUrl,
+        cropImageDataUrl,
         completedCrop,
         imageDimensions.width,
         imageDimensions.height
@@ -912,24 +944,35 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
 
             {/* Crop Area */}
             <div className="flex-1 overflow-hidden flex flex-col items-center justify-center p-6 bg-slate-100 min-h-[400px]">
-              <div className="max-w-full max-h-[50vh] overflow-hidden rounded-xl shadow-lg">
-                <ReactCrop
-                  crop={crop}
-                  onChange={(c) => setCrop(c)}
-                  onComplete={(c) => setCompletedCrop(c)}
-                  aspect={selectedRatio.ratio}
-                  className="max-h-[50vh]"
-                >
-                  <img
-                    ref={cropImgRef}
-                    src={cropMockup.imageUrl}
-                    alt="Crop preview"
-                    onLoad={handleCropImageLoad}
-                    className="max-h-[50vh] max-w-full"
-                    crossOrigin="anonymous"
-                  />
-                </ReactCrop>
-              </div>
+              {isLoadingCropImage ? (
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <Loader2 size={32} className="animate-spin text-indigo-500" />
+                  <p className="text-slate-500 text-sm">Loading image...</p>
+                </div>
+              ) : cropImageDataUrl ? (
+                <div className="max-w-full max-h-[50vh] overflow-hidden rounded-xl shadow-lg">
+                  <ReactCrop
+                    crop={crop}
+                    onChange={(c) => setCrop(c)}
+                    onComplete={(c) => setCompletedCrop(c)}
+                    aspect={selectedRatio.ratio}
+                    className="max-h-[50vh]"
+                  >
+                    <img
+                      ref={cropImgRef}
+                      src={cropImageDataUrl}
+                      alt="Crop preview"
+                      onLoad={handleCropImageLoad}
+                      className="max-h-[50vh] max-w-full"
+                    />
+                  </ReactCrop>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <AlertCircle size={32} className="text-red-500" />
+                  <p className="text-slate-500 text-sm">Failed to load image</p>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -946,7 +989,7 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
                 </button>
                 <button
                   onClick={handleApplyCrop}
-                  disabled={isCropping || !completedCrop}
+                  disabled={isCropping || !completedCrop || isLoadingCropImage || !cropImageDataUrl}
                   className="px-5 py-2.5 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 flex items-center gap-2"
                 >
                   {isCropping ? (
