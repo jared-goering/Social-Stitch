@@ -21,7 +21,8 @@ import {
   AlertCircle,
   Loader2,
   Zap,
-  CalendarClock
+  CalendarClock,
+  Trash2
 } from 'lucide-react';
 
 interface Props {
@@ -42,6 +43,8 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
   const [showRescheduleModal, setShowRescheduleModal] = useState<ScheduledPost | null>(null);
   const [showRetryModal, setShowRetryModal] = useState<ScheduledPost | null>(null);
   const [showEditModal, setShowEditModal] = useState<ScheduledPost | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState<ScheduledPost | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Subscribe to real-time updates
   useEffect(() => {
@@ -115,9 +118,18 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
     }
   };
 
-  const handleDelete = async (post: ScheduledPost) => {
-    if (confirm('Are you sure you want to delete this scheduled post?')) {
-      await deleteScheduledPost(post.id);
+  const handleDelete = (post: ScheduledPost) => {
+    setShowDeleteModal(post);
+  };
+
+  const confirmDelete = async () => {
+    if (!showDeleteModal) return;
+    setDeleting(true);
+    try {
+      await deleteScheduledPost(showDeleteModal.id);
+      setShowDeleteModal(null);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -490,6 +502,16 @@ export const CalendarView: React.FC<Props> = ({ onCreatePost }) => {
         onClose={() => setShowEditModal(null)}
         onSaved={() => setShowEditModal(null)}
       />
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <DeleteConfirmModal
+          post={showDeleteModal}
+          onClose={() => setShowDeleteModal(null)}
+          onConfirm={confirmDelete}
+          deleting={deleting}
+        />
+      )}
     </div>
   );
 };
@@ -759,6 +781,101 @@ const RetryModal: React.FC<{
             Cancel
           </button>
         )}
+      </div>
+    </div>
+  );
+};
+
+// Delete confirmation modal
+const DeleteConfirmModal: React.FC<{
+  post: ScheduledPost;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+  deleting: boolean;
+}> = ({ post, onClose, onConfirm, deleting }) => {
+  const caption = post.captions.instagram || post.captions.facebook || '';
+  const previewCaption = caption.length > 100 ? caption.slice(0, 100) + '...' : caption;
+
+  return (
+    <div className="fixed inset-0 bg-slate-warm-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 modal-backdrop">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden modal-content">
+        {/* Header with warning styling */}
+        <div className="bg-gradient-to-br from-rose-50 to-rose-100 px-6 py-5 border-b border-rose-100">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500 flex items-center justify-center shadow-lg shadow-rose-500/30">
+              <AlertCircle size={24} className="text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-display text-slate-warm-900">Delete Post</h3>
+              <p className="text-sm text-rose-600">This action cannot be undone</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6">
+          {/* Post preview */}
+          <div className="flex items-start gap-4 p-4 bg-slate-warm-50 rounded-2xl mb-6">
+            {post.imageUrls[0] && (
+              <img 
+                src={post.imageUrls[0]} 
+                alt="Post preview" 
+                className="w-20 h-20 rounded-xl object-cover flex-shrink-0 shadow-md"
+              />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-slate-warm-700 line-clamp-3 leading-relaxed">{previewCaption}</p>
+              <div className="flex items-center gap-2 mt-3">
+                {post.platforms.map(p => (
+                  <span key={p} className={`text-xs px-2.5 py-1 rounded-lg font-medium ${
+                    p === 'instagram' 
+                      ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-pink-600' 
+                      : 'bg-blue-100 text-blue-600'
+                  }`}>
+                    {p === 'instagram' ? 'Instagram' : 'Facebook'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Warning message */}
+          <p className="text-sm text-slate-warm-600 text-center mb-6">
+            Are you sure you want to delete this scheduled post? 
+            {post.status === 'scheduled' && (
+              <span className="block mt-1 text-slate-warm-500">
+                It will be removed and won't be published.
+              </span>
+            )}
+          </p>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              disabled={deleting}
+              className="flex-1 py-3 rounded-xl font-medium text-slate-warm-700 bg-slate-warm-100 hover:bg-slate-warm-200 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={deleting}
+              className="flex-1 py-3 rounded-xl font-medium text-white bg-rose-500 hover:bg-rose-600 transition-all disabled:opacity-70 flex items-center justify-center gap-2 shadow-lg shadow-rose-500/30 hover:shadow-rose-500/40"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 size={16} />
+                  Delete Post
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
