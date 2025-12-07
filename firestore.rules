@@ -48,6 +48,33 @@ service cloud.firestore {
       match /brandProfile/{document=**} {
         allow read, write: if true;
       }
+      
+      // Subscription document (single doc per shop)
+      match /subscription {
+        allow read: if true;
+        allow write: if true; // For demo - in production, restrict to server-side only
+      }
+      
+      // Monthly usage tracking
+      match /usage/{monthKey} {
+        allow read: if true;
+        allow write: if true; // For demo - in production, restrict to server-side only
+      }
+    }
+    
+    // User-scoped subscription and usage (for standalone mode)
+    match /users/{userId} {
+      // Subscription document
+      match /subscription {
+        allow read: if true;
+        allow write: if true; // For demo - in production, restrict to server-side only
+      }
+      
+      // Monthly usage tracking
+      match /usage/{monthKey} {
+        allow read: if true;
+        allow write: if true; // For demo - in production, restrict to server-side only
+      }
     }
   }
 }

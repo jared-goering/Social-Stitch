@@ -204,7 +204,7 @@ Be creative but grounded in the actual data provided. Make inferences that would
 `;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-pro-preview',
     contents: { parts: [{ text: prompt }] },
     config: {
       responseMimeType: "application/json",
@@ -573,7 +573,7 @@ export async function regenerateSection(
   const schema = getSectionSchema(section);
   
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-pro-preview',
     contents: { parts: [{ text: prompt }] },
     config: {
       responseMimeType: "application/json",
@@ -668,7 +668,7 @@ Write the elevator pitch in the brand's voice. Make it memorable and compelling.
 `;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-pro-preview',
     contents: { parts: [{ text: prompt }] },
     config: {
       responseMimeType: "application/json",

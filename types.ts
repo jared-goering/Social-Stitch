@@ -307,3 +307,128 @@ export interface BrandProfile {
   // Error tracking
   error?: string;
 }
+
+// =============================================================================
+// SUBSCRIPTION & USAGE
+// =============================================================================
+
+/**
+ * Subscription tier identifiers
+ */
+export type SubscriptionTier = 'free' | 'pro' | 'business';
+
+/**
+ * Configuration for each subscription tier
+ * Pricing is in USD cents to avoid floating point issues
+ */
+export interface TierConfig {
+  id: SubscriptionTier;
+  name: string;
+  description: string;
+  monthlyPriceCents: number;        // Price in cents (e.g., 2900 = $29)
+  imageQuota: number;               // Images allowed per month
+  features: string[];               // Feature list for marketing
+  recommended?: boolean;            // Highlight this tier in UI
+}
+
+/**
+ * Tier configurations with pricing and quotas
+ * Cost per image: ~$0.135 (Gemini 3 Pro Image Preview)
+ */
+export const SUBSCRIPTION_TIERS: TierConfig[] = [
+  {
+    id: 'free',
+    name: 'Free',
+    description: 'Perfect for trying out AI mockups',
+    monthlyPriceCents: 0,
+    imageQuota: 10,
+    features: [
+      '10 AI mockups per month',
+      'All style categories',
+      'Basic caption generation',
+      'Download images',
+    ],
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    description: 'For growing brands and creators',
+    monthlyPriceCents: 2900,         // $29/month
+    imageQuota: 100,
+    features: [
+      '100 AI mockups per month',
+      'All style categories',
+      'Advanced caption generation',
+      'Brand profile integration',
+      'Priority support',
+    ],
+    recommended: true,
+  },
+  {
+    id: 'business',
+    name: 'Business',
+    description: 'For agencies and high-volume sellers',
+    monthlyPriceCents: 7900,         // $79/month
+    imageQuota: 300,
+    features: [
+      '300 AI mockups per month',
+      'All style categories',
+      'Advanced caption generation',
+      'Brand profile integration',
+      'Priority support',
+      'Bulk generation tools',
+    ],
+  },
+];
+
+/**
+ * Shop subscription record stored in Firestore
+ */
+export interface ShopSubscription {
+  tier: SubscriptionTier;
+  imageQuota: number;                // Current quota (may differ from tier default if custom)
+  billingCycleStart: Date;
+  billingCycleEnd: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  // Billing integration fields (for future Shopify/Stripe integration)
+  externalSubscriptionId?: string;   // Shopify charge ID or Stripe subscription ID
+  status?: 'active' | 'cancelled' | 'past_due';
+}
+
+/**
+ * Monthly usage record stored in Firestore
+ * Document ID format: YYYY-MM (e.g., "2025-01")
+ */
+export interface UsageRecord {
+  imagesGenerated: number;
+  lastUpdated: Date;
+}
+
+/**
+ * Result of checking if generation is allowed
+ */
+export interface QuotaCheckResult {
+  allowed: boolean;
+  used: number;
+  quota: number;
+  remaining: number;
+  tier: SubscriptionTier;
+}
+
+/**
+ * Error thrown when quota is exceeded
+ */
+export class QuotaExceededError extends Error {
+  public readonly used: number;
+  public readonly quota: number;
+  public readonly tier: SubscriptionTier;
+
+  constructor(used: number, quota: number, tier: SubscriptionTier) {
+    super(`Monthly quota exceeded: ${used}/${quota} images used on ${tier} tier`);
+    this.name = 'QuotaExceededError';
+    this.used = used;
+    this.quota = quota;
+    this.tier = tier;
+  }
+}

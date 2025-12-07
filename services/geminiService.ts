@@ -1,5 +1,10 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { GeneratedCaptions, StyleSuggestion, ModelGender, CaptionGenerationOptions, CaptionTone, EditMockupOptions, BrandProfile, ContentCategory, DetectedProductType, ProductAnalysisResult } from "../types";
+import { GeneratedCaptions, StyleSuggestion, ModelGender, CaptionGenerationOptions, CaptionTone, EditMockupOptions, BrandProfile, ContentCategory, DetectedProductType, ProductAnalysisResult, QuotaExceededError } from "../types";
+import { enforceQuota, incrementUsage, canGenerateImage } from "./subscriptionService";
+
+// Re-export quota checking for UI components
+export { canGenerateImage } from "./subscriptionService";
+export { QuotaExceededError } from "../types";
 
 // =============================================================================
 // BRAND CONTEXT BUILDER
@@ -248,12 +253,18 @@ export interface MockupGenerationOptions {
  * 
  * When a brandProfile is provided, the prompt is enhanced with brand-specific
  * photography style, visual aesthetic, color guidance, and target audience lifestyle.
+ * 
+ * QUOTA ENFORCEMENT: This function checks and enforces the user's monthly image quota.
+ * Throws QuotaExceededError if the quota is exhausted.
  */
 export const generateMockupImage = async (
   base64Design: string,
   stylePrompt: string,
   genderOrOptions?: ModelGender | MockupGenerationOptions
 ): Promise<string> => {
+  // Enforce quota before generating
+  await enforceQuota();
+  
   // Handle both old signature (gender only) and new signature (options object)
   let gender: ModelGender | undefined;
   let brandProfile: BrandProfile | undefined;
@@ -344,6 +355,8 @@ export const generateMockupImage = async (
     // Extract the image from the response
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData && part.inlineData.data) {
+        // Increment usage after successful generation
+        await incrementUsage();
         return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
       }
     }
@@ -358,10 +371,16 @@ export const generateMockupImage = async (
 /**
  * Edits an existing mockup image based on user instructions.
  * Uses Gemini to modify the image while preserving the garment design.
+ * 
+ * QUOTA ENFORCEMENT: This function checks and enforces the user's monthly image quota.
+ * Throws QuotaExceededError if the quota is exhausted.
  */
 export const editMockupImage = async (
   options: EditMockupOptions
 ): Promise<string> => {
+  // Enforce quota before editing (edits count against quota)
+  await enforceQuota();
+  
   const { mockupImage, originalGarment, editInstructions, preserveGarment = true } = options;
   
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
@@ -440,6 +459,8 @@ export const editMockupImage = async (
     // Extract the image from the response
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData && part.inlineData.data) {
+        // Increment usage after successful edit
+        await incrementUsage();
         return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
       }
     }
