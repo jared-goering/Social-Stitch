@@ -1320,55 +1320,44 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                           <span className="text-slate-600 text-[11px] block line-clamp-1">
                             {style}
                           </span>
-                          {/* Gender Selector for preset styles - only show for categories with people */}
+                          {/* Gender Selector for preset styles - multi-select toggle */}
                           {isSelected && currentCategoryIncludesPeople && (
-                            <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
-                              <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wide">Model</span>
-                              <div className="flex gap-0.5 p-0.5 bg-slate-100 rounded-lg">
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wide">Generate</span>
+                              <div className="flex gap-1">
                                 <button
                                   type="button"
-                                  onClick={() => setStyleGender(style, 'male')}
-                                  className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
-                                    getStyleGender(style) === 'male'
-                                      ? 'bg-sky-500 text-white shadow-sm scale-105'
-                                      : 'text-slate-500 hover:text-sky-600 hover:bg-sky-50'
+                                  onClick={() => toggleStyleGender(style, 'male')}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all duration-200 flex items-center gap-1.5 border-2 ${
+                                    getSelectedGenders(style).has('male')
+                                      ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                                      : 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500'
                                   }`}
-                                  title="Male model"
+                                  title="Generate male model photo"
                                 >
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <circle cx="12" cy="7" r="4"/>
                                     <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
                                   </svg>
                                   <span>Male</span>
+                                  {getSelectedGenders(style).has('male') && <Check size={10} className="ml-0.5" />}
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setStyleGender(style, 'female')}
-                                  className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
-                                    getStyleGender(style) === 'female'
-                                      ? 'bg-pink-500 text-white shadow-sm scale-105'
-                                      : 'text-slate-500 hover:text-pink-600 hover:bg-pink-50'
+                                  onClick={() => toggleStyleGender(style, 'female')}
+                                  className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all duration-200 flex items-center gap-1.5 border-2 ${
+                                    getSelectedGenders(style).has('female')
+                                      ? 'bg-pink-500 text-white border-pink-500 shadow-sm'
+                                      : 'bg-white text-slate-400 border-slate-200 hover:border-pink-300 hover:text-pink-500'
                                   }`}
-                                  title="Female model"
+                                  title="Generate female model photo"
                                 >
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <circle cx="12" cy="7" r="4"/>
                                     <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
                                   </svg>
                                   <span>Female</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setStyleGender(style, 'both')}
-                                  className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
-                                    getStyleGender(style) === 'both'
-                                      ? 'bg-gradient-to-r from-sky-500 to-pink-500 text-white shadow-sm scale-105'
-                                      : 'text-slate-500 hover:text-purple-600 hover:bg-purple-50'
-                                  }`}
-                                  title="Both (generates one of each)"
-                                >
-                                  <Users size={12} />
-                                  <span>Both</span>
+                                  {getSelectedGenders(style).has('female') && <Check size={10} className="ml-0.5" />}
                                 </button>
                               </div>
                             </div>
@@ -1478,54 +1467,44 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                           {style}
                         </span>
                         {/* Gender Selector for preset styles - only show for categories with people */}
+                        {/* Gender Selector for preset styles - multi-select toggle */}
                         {isSelected && currentCategoryIncludesPeople && (
-                          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
-                            <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wide">Model</span>
-                            <div className="flex gap-0.5 p-0.5 bg-slate-100 rounded-lg">
+                          <div className="flex items-center gap-2 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wide">Generate</span>
+                            <div className="flex gap-1">
                               <button
                                 type="button"
-                                onClick={() => setStyleGender(style, 'male')}
-                                className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
-                                  getStyleGender(style) === 'male'
-                                    ? 'bg-sky-500 text-white shadow-sm scale-105'
-                                    : 'text-slate-500 hover:text-sky-600 hover:bg-sky-50'
+                                onClick={() => toggleStyleGender(style, 'male')}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all duration-200 flex items-center gap-1.5 border-2 ${
+                                  getSelectedGenders(style).has('male')
+                                    ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                                    : 'bg-white text-slate-400 border-slate-200 hover:border-sky-300 hover:text-sky-500'
                                 }`}
-                                title="Male model"
+                                title="Generate male model photo"
                               >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                   <circle cx="12" cy="7" r="4"/>
                                   <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
                                 </svg>
                                 <span>Male</span>
+                                {getSelectedGenders(style).has('male') && <Check size={10} className="ml-0.5" />}
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setStyleGender(style, 'female')}
-                                className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
-                                  getStyleGender(style) === 'female'
-                                    ? 'bg-pink-500 text-white shadow-sm scale-105'
-                                    : 'text-slate-500 hover:text-pink-600 hover:bg-pink-50'
+                                onClick={() => toggleStyleGender(style, 'female')}
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-medium transition-all duration-200 flex items-center gap-1.5 border-2 ${
+                                  getSelectedGenders(style).has('female')
+                                    ? 'bg-pink-500 text-white border-pink-500 shadow-sm'
+                                    : 'bg-white text-slate-400 border-slate-200 hover:border-pink-300 hover:text-pink-500'
                                 }`}
-                                title="Female model"
+                                title="Generate female model photo"
                               >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                   <circle cx="12" cy="7" r="4"/>
                                   <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
                                 </svg>
                                 <span>Female</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setStyleGender(style, 'both')}
-                                className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
-                                  getStyleGender(style) === 'both'
-                                    ? 'bg-gradient-to-r from-sky-500 to-pink-500 text-white shadow-sm scale-105'
-                                    : 'text-slate-500 hover:text-purple-600 hover:bg-purple-50'
-                                }`}
-                                title="Both (generates one of each)"
-                              >
-                                <Users size={12} />
-                                <span>Both</span>
+                                {getSelectedGenders(style).has('female') && <Check size={10} className="ml-0.5" />}
                               </button>
                             </div>
                           </div>
