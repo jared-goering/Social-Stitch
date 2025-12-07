@@ -118,7 +118,7 @@ export const CONTENT_CATEGORIES: CategoryConfig[] = [
   {
     id: 'lifestyle',
     label: 'Lifestyle',
-    shortLabel: 'Life',
+    shortLabel: 'Lifestyle',
     description: 'Authentic moments of real people using your product in their daily lives',
     icon: 'Heart',
     applicableTo: 'all',

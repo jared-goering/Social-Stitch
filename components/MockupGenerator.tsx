@@ -420,6 +420,10 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             parsed.designId = design.id;
             parsed.categoryCache = {};
           }
+          // Ensure categoryCache exists (for backwards compatibility with old cache format)
+          if (!parsed.categoryCache) {
+            parsed.categoryCache = {};
+          }
           parsed.categoryCache[selectedCategory] = result.suggestions;
           parsed.productAnalysis = {
             productType: result.productType,
