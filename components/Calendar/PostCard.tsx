@@ -269,7 +269,7 @@ export const PostCard: React.FC<Props> = ({
 
         {/* Quick actions on hover */}
         {(onReschedule || onDelete || onRetry || onEdit) && (
-          <div className={`transition-opacity ${showMenu ? 'opacity-100 z-50' : 'opacity-0 group-hover:opacity-100'}`}>
+          <div className={`relative transition-opacity ${showMenu ? 'opacity-100 z-50' : 'opacity-0 group-hover:opacity-100'}`}>
             <button
               onClick={(e) => {
                 e.stopPropagation();
