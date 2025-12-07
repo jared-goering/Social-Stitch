@@ -28,6 +28,27 @@ service cloud.firestore {
     match /scheduledPosts/{postId} {
       allow read, write: if true; // For demo purposes - in production, use proper auth
     }
+    
+    // Shop-scoped data for Shopify embedded app
+    match /shops/{shopDomain} {
+      allow read, write: if true; // For demo purposes - in production, validate shop ownership
+      
+      match /mockups/{mockupId} {
+        allow read, write: if true;
+      }
+      
+      match /scheduledPosts/{postId} {
+        allow read, write: if true;
+      }
+      
+      match /settings/{document=**} {
+        allow read, write: if true;
+      }
+      
+      match /brandProfile/{document=**} {
+        allow read, write: if true;
+      }
+    }
   }
 }
 
