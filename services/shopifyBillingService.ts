@@ -90,30 +90,42 @@ export class BillingError extends Error {
 
 /**
  * Make an authenticated request to our billing API
+ * Uses session token if available, otherwise falls back to shop domain
  */
 async function billingApiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const sessionToken = getSessionToken();
-  if (!sessionToken) {
-    throw new BillingError('No session token available. Please authenticate with Shopify.', 'NO_SESSION');
-  }
-
   const functionsUrl = getFunctionsUrl();
   if (!functionsUrl) {
     throw new BillingError('Firebase Functions URL not configured', 'CONFIG_ERROR');
   }
 
-  const url = `${functionsUrl}/${endpoint}`;
+  // Build URL - add shop param if no session token
+  let url = `${functionsUrl}/${endpoint}`;
+  const sessionToken = getSessionToken();
+  const shopDomain = getShopDomain();
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers as Record<string, string>,
+  };
+
+  if (sessionToken) {
+    // Use session token if available
+    headers['Authorization'] = `Bearer ${sessionToken}`;
+  } else if (shopDomain) {
+    // Fall back to shop domain - backend will use stored access token
+    const separator = url.includes('?') ? '&' : '?';
+    url = `${url}${separator}shop=${encodeURIComponent(shopDomain)}`;
+    console.log('[billingApiRequest] Using shop domain auth:', shopDomain);
+  } else {
+    throw new BillingError('No session token or shop domain available. Please authenticate with Shopify.', 'NO_SESSION');
+  }
 
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Authorization': `Bearer ${sessionToken}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {

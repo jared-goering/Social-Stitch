@@ -1111,10 +1111,22 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                             </span>
                             {/* Expandable description */}
                             <div className="relative">
+                              <p 
+                                className={`text-slate-500 text-[11px] leading-snug transition-all duration-300`}
+                                style={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: expandedDescriptions.has(idx) ? 'unset' : 1,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: expandedDescriptions.has(idx) ? 'visible' : 'hidden',
+                                }}
+                              >
+                                {suggestion.description}
+                              </p>
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  e.preventDefault();
                                   setExpandedDescriptions(prev => {
                                     const newSet = new Set(prev);
                                     if (newSet.has(idx)) {
@@ -1125,28 +1137,21 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                                     return newSet;
                                   });
                                 }}
-                                className="w-full text-left group/desc"
-                              >
-                                <span className={`text-slate-500 text-[11px] leading-snug block transition-all duration-300 ${
-                                  expandedDescriptions.has(idx) ? '' : 'line-clamp-1'
-                                }`}>
-                                  {suggestion.description}
-                                </span>
-                                <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium mt-0.5 transition-colors ${
+                                className={`inline-flex items-center gap-0.5 text-[9px] font-medium mt-1 transition-colors ${
                                   isSelected ? 'text-indigo-500 hover:text-indigo-600' : 'text-slate-400 hover:text-slate-600'
-                                }`}>
-                                  {expandedDescriptions.has(idx) ? (
-                                    <>
-                                      <ChevronUp size={10} />
-                                      <span>Show less</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ChevronDown size={10} />
-                                      <span>Show full prompt</span>
-                                    </>
-                                  )}
-                                </span>
+                                }`}
+                              >
+                                {expandedDescriptions.has(idx) ? (
+                                  <>
+                                    <ChevronUp size={10} />
+                                    <span>Show less</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown size={10} />
+                                    <span>Show full prompt</span>
+                                  </>
+                                )}
                               </button>
                             </div>
                             {/* Gender Selector - only show for categories with people */}
