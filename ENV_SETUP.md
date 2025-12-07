@@ -25,6 +25,10 @@ VITE_FIREBASE_FUNCTIONS_URL=https://us-central1-your-project-id.cloudfunctions.n
 
 # Optional: For local Firebase emulators (set to true to use local emulators)
 VITE_USE_EMULATORS=false
+
+# Demo Mode: Bypass Shopify Billing API (for development/testing)
+# Set to "true" to enable direct tier changes without Shopify billing
+VITE_DEMO_MODE=true
 ```
 
 ## Important Notes

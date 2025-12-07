@@ -37,7 +37,10 @@
       { "source": "/api/shopify/products/:id", "function": "shopifyGetProduct" },
       { "source": "/api/shopify/products/:id/images", "function": "shopifyGetProductImages" },
       { "source": "/api/meta/data-deletion", "function": "metaDataDeletion" },
-      { "source": "/api/gdpr/**", "function": "gdprCustomersDataRequest" }
+      { "source": "/api/shopify/webhooks/app/uninstalled", "function": "shopifyAppUninstalled" },
+      { "source": "/api/gdpr/customers/data_request", "function": "gdprCustomersDataRequest" },
+      { "source": "/api/gdpr/customers/redact", "function": "gdprCustomersRedact" },
+      { "source": "/api/gdpr/shop/redact", "function": "gdprShopRedact" }
     ]
   },
   "emulators": {

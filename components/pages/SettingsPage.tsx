@@ -1149,6 +1149,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
           remaining: Math.max(0, subscription.imageQuota - usage.imagesGenerated),
           tier: subscription.tier,
         } : undefined}
+        demoMode={import.meta.env.VITE_DEMO_MODE === 'true'}
         onUpgradeSuccess={async () => {
           // Refresh subscription data
           const [newSub, newUsage] = await Promise.all([getSubscription(), getCurrentUsage()]);

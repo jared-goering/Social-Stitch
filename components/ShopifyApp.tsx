@@ -818,6 +818,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
         quotaStatus={quotaStatus || undefined}
+        demoMode={import.meta.env.VITE_DEMO_MODE === 'true'}
         onUpgradeSuccess={() => {
           // Refresh quota after upgrade
           canGenerateImage().then(setQuotaStatus);

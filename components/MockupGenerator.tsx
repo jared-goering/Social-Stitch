@@ -763,7 +763,13 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         .filter((r): r is PromiseFulfilledResult<MockupOption> => r.status === 'fulfilled')
         .map(r => r.value);
       
-      const failedCount = results.filter(r => r.status === 'rejected').length;
+      const failedResults = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      const failedCount = failedResults.length;
+      
+      // Check if any failures were due to quota exceeded
+      const quotaError = failedResults.find(r => 
+        r.reason instanceof QuotaExceededError || r.reason?.name === 'QuotaExceededError'
+      )?.reason;
       
       if (successfulMockups.length > 0) {
         setGeneratedMockups(prev => [...prev, ...successfulMockups]);
@@ -799,7 +805,20 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       }
       
       if (failedCount > 0) {
-        setError(`${failedCount} mockup(s) failed to generate.`);
+        if (quotaError) {
+          // Quota exceeded - show upgrade modal
+          setQuotaStatus({
+            allowed: false,
+            used: quotaError.used || 0,
+            quota: quotaError.quota || 0,
+            remaining: 0,
+            tier: quotaError.tier || 'free',
+          });
+          setShowUpgradeModal(true);
+          setError("Monthly quota reached. Upgrade to continue generating.");
+        } else {
+          setError(`${failedCount} mockup(s) failed to generate.`);
+        }
       }
       
       // Clear selected styles after generation
@@ -2201,6 +2220,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
         quotaStatus={quotaStatus || undefined}
+        demoMode={import.meta.env.VITE_DEMO_MODE === 'true'}
         onUpgradeSuccess={() => {
           // Refresh quota after upgrade
           canGenerateImage().then(setQuotaStatus).catch(console.error);
