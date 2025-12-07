@@ -787,7 +787,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
           content: 'Regenerate Section',
           onAction: handleRegenerateSection,
           disabled: !sectionContext.trim(),
-          icon: Sparkles,
         }}
         secondaryActions={[
           {
