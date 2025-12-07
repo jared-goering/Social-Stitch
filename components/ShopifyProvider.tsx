@@ -74,9 +74,10 @@ function SessionTokenProvider({
       console.log('[SessionTokenProvider] Fetching session token...');
       console.log('[SessionTokenProvider] App Bridge state:', app ? 'initialized' : 'null');
       
-      // Add timeout to prevent hanging forever
+      // Add short timeout - session tokens often fail in App Bridge 3.x
+      // We proceed without them since we use backend access tokens anyway
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Session token fetch timed out after 10s')), 10000);
+        setTimeout(() => reject(new Error('Session token fetch timed out')), 3000);
       });
       
       const token = await Promise.race([
