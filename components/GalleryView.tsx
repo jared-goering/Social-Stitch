@@ -6,7 +6,7 @@ import { ref, getBlob } from 'firebase/storage';
 import { SavedMockup } from '../types';
 import { fetchUserMockups, deleteMockupFromFirebase, updateMockupImage } from '../services/mockupStorageService';
 import { getSessionId } from '../services/socialAuthService';
-import { addProductImage, getSessionToken } from '../services/shopifyProductService';
+import { addProductImage, getSessionToken, getShopDomain } from '../services/shopifyProductService';
 import { storage } from '../services/firebaseConfig';
 import { 
   Download, 
@@ -147,8 +147,8 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   const [filterBy, setFilterBy] = useState<FilterOption>('all');
   const [showFilters, setShowFilters] = useState(false);
   
-  // Check if we're in Shopify context (has session token)
-  const isShopifyContext = !!getSessionToken();
+  // Check if we're in Shopify context (has session token or shop domain)
+  const isShopifyContext = !!getSessionToken() || !!getShopDomain();
 
   // Fetch mockups on mount
   useEffect(() => {

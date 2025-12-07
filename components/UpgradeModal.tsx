@@ -25,7 +25,7 @@ import {
   isDowngrade as checkIsDowngrade,
   BillingError,
 } from '../services/shopifyBillingService';
-import { getSessionToken } from '../services/shopifyProductService';
+import { getSessionToken, getShopDomain } from '../services/shopifyProductService';
 
 interface UpgradeModalProps {
   /** Whether the modal is open */
@@ -44,14 +44,15 @@ interface UpgradeModalProps {
  * Check if we're running as a Shopify embedded app
  */
 function isShopifyContext(): boolean {
-  // Check if we have a Shopify session token
+  // Check if we have a Shopify session token or shop domain
   const hasSessionToken = !!getSessionToken();
+  const hasShopDomain = !!getShopDomain();
   // Check if we're in an iframe (embedded app)
   const isEmbedded = window.top !== window.self;
   // Check for Shopify-specific URL params
   const hasShopParam = new URLSearchParams(window.location.search).has('shop');
   
-  return hasSessionToken || (isEmbedded && hasShopParam);
+  return hasSessionToken || hasShopDomain || (isEmbedded && hasShopParam);
 }
 
 // Map tiers to icons
