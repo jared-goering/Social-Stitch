@@ -31,6 +31,7 @@ import { CalendarView } from './Calendar';
 import { GalleryView } from './GalleryView';
 import { ProductBrowser } from './ProductBrowser';
 import { StepIndicator } from './StepIndicator';
+import { SettingsPage } from './pages/SettingsPage';
 
 // Icons
 import {
@@ -590,9 +591,7 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
 
       case 'settings':
         return (
-          <div className="p-4 max-w-4xl mx-auto page-enter">
-            <SettingsView shop={shop} onNavigateToCreate={() => handleNavigationSelect('create')} />
-          </div>
+          <SettingsPage onNavigateToCreate={() => handleNavigationSelect('create')} />
         );
 
       default:
@@ -787,101 +786,6 @@ const GettingStartedCard: React.FC<GettingStartedCardProps> = ({ onAction }) => 
     </div>
   );
 };
-
-// Settings View Component - Enhanced
-interface SettingsViewProps {
-  shop: string | null;
-  onNavigateToCreate: () => void;
-}
-
-const SettingsView: React.FC<SettingsViewProps> = ({ shop, onNavigateToCreate }) => (
-  <div>
-    <div className="mb-8">
-      <h1 className="text-3xl font-display text-slate-warm-900 mb-2">Settings</h1>
-      <p className="text-slate-warm-500">Manage your SocialStitch preferences</p>
-    </div>
-
-    <div className="space-y-6">
-      {/* Shop Information Card */}
-      <div className="card-elevated p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="icon-container icon-container-coral w-10 h-10">
-            <Package size={18} className="text-white" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-slate-warm-800">Shop Information</h2>
-            <p className="text-xs text-slate-warm-400">Your connected Shopify store</p>
-          </div>
-        </div>
-        <div className="flex items-center justify-between p-4 bg-slate-warm-50 rounded-xl">
-          <div>
-            <p className="text-sm text-slate-warm-500">Shop Domain</p>
-            <p className="font-medium text-slate-warm-800">{shop || 'Not connected'}</p>
-          </div>
-          <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${
-            shop ? 'bg-sage-100 text-sage-600' : 'bg-red-100 text-red-600'
-          }`}>
-            {shop ? <Check size={14} /> : <AlertCircle size={14} />}
-            {shop ? 'Connected' : 'Not Connected'}
-          </div>
-        </div>
-      </div>
-
-      {/* Social Accounts Card */}
-      <div className="card-elevated p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="icon-container icon-container-sage w-10 h-10">
-            <Sparkles size={18} className="text-white" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-slate-warm-800">Social Media Accounts</h2>
-            <p className="text-xs text-slate-warm-400">Connect your social profiles</p>
-          </div>
-        </div>
-        <p className="text-sm text-slate-warm-500 mb-4">
-          Social media account connections are managed during the post creation workflow. 
-          Connect your Facebook and Instagram accounts when you create your first post.
-        </p>
-        <button
-          onClick={onNavigateToCreate}
-          className="btn-primary text-white px-5 py-2.5 rounded-xl font-medium text-sm inline-flex items-center gap-2"
-        >
-          Create a Post
-          <ArrowRight size={16} />
-        </button>
-      </div>
-
-      {/* Features Card */}
-      <div className="card-elevated p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="icon-container icon-container-amber w-10 h-10">
-            <Zap size={18} className="text-white" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-slate-warm-800">Available Features</h2>
-            <p className="text-xs text-slate-warm-400">What you can do with SocialStitch</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {[
-            { icon: Package, label: 'Product Import', desc: 'Select products from Shopify' },
-            { icon: ImageLucide, label: 'AI Mockups', desc: 'Generate lifestyle photos' },
-            { icon: Sparkles, label: 'AI Captions', desc: 'Auto-generate captions' },
-            { icon: Calendar, label: 'Social Scheduling', desc: 'Schedule to FB & IG' },
-          ].map((feature, index) => (
-            <div key={index} className="flex items-center gap-3 p-3 rounded-xl bg-slate-warm-50">
-              <feature.icon size={18} className="text-slate-warm-600" />
-              <div>
-                <p className="text-sm font-medium text-slate-warm-700">{feature.label}</p>
-                <p className="text-xs text-slate-warm-400">{feature.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  </div>
-);
 
 // Success View Component - Updated with new colors
 interface SuccessViewProps {
