@@ -551,6 +551,45 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     return styleGenders.get(style) || 'both';
   };
 
+  // Calculate total images that will be generated
+  const calculateTotalImages = (): { total: number; breakdown: string } => {
+    if (selectedStyles.size === 0) return { total: 0, breakdown: '' };
+    
+    let total = 0;
+    const styles = Array.from(selectedStyles);
+    
+    for (const style of styles) {
+      const genders = getSelectedGenders(style);
+      const genderCount = genders.size; // 1 or 2
+      total += variationCount * genderCount;
+    }
+    
+    // Create breakdown text
+    const styleCount = selectedStyles.size;
+    const avgGenderCount = total / (styleCount * variationCount);
+    
+    if (styleCount === 1) {
+      const genders = getSelectedGenders(styles[0]);
+      if (genders.size === 2) {
+        return { 
+          total, 
+          breakdown: `${variationCount} variation${variationCount > 1 ? 's' : ''} × 2 (male + female)` 
+        };
+      } else {
+        const genderName = genders.has('male') ? 'male' : 'female';
+        return { 
+          total, 
+          breakdown: `${variationCount} variation${variationCount > 1 ? 's' : ''} (${genderName} only)` 
+        };
+      }
+    } else {
+      return { 
+        total, 
+        breakdown: `${styleCount} styles × ${variationCount} variation${variationCount > 1 ? 's' : ''}` 
+      };
+    }
+  };
+
   // Toggle style selection
   const toggleStyleSelection = (style: string) => {
     setSelectedStyles(prev => {
@@ -1415,23 +1454,37 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             )}
 
             {/* Generate Selected Button - Always visible */}
-            <button
-              onClick={handleGenerateSelected}
-              disabled={isGenerating || selectedStyles.size === 0}
-              className={`
-                w-full mt-2 py-2 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all
-                ${selectedStyles.size > 0
-                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg'
-                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                }
-              `}
-            >
-              <Images size={14} />
-              {selectedStyles.size > 0 
-                ? `Generate ${selectedStyles.size} × ${variationCount}`
-                : 'Select styles'
-              }
-            </button>
+            {(() => {
+              const { total, breakdown } = calculateTotalImages();
+              return (
+                <button
+                  onClick={handleGenerateSelected}
+                  disabled={isGenerating || selectedStyles.size === 0}
+                  className={`
+                    w-full mt-2 py-2.5 px-3 rounded-lg font-semibold text-xs transition-all
+                    ${selectedStyles.size > 0
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg'
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    }
+                  `}
+                >
+                  {selectedStyles.size > 0 ? (
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <Images size={14} />
+                        <span>Generate {total} mockup{total > 1 ? 's' : ''}</span>
+                      </div>
+                      <span className="text-[10px] font-normal opacity-80">{breakdown}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Images size={14} />
+                      <span>Select styles to generate</span>
+                    </div>
+                  )}
+                </button>
+              );
+            })()}
           </div>
         ) : (
           <>
@@ -1561,23 +1614,37 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             )}
             
             {/* Generate Selected Button - Always visible */}
-            <button
-              onClick={handleGenerateSelected}
-              disabled={isGenerating || selectedStyles.size === 0}
-              className={`
-                w-full py-2 px-3 rounded-lg font-semibold text-xs flex items-center justify-center gap-1.5 transition-all
-                ${selectedStyles.size > 0
-                  ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg'
-                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                }
-              `}
-            >
-              <Images size={14} />
-              {selectedStyles.size > 0 
-                ? `Generate ${selectedStyles.size} × ${variationCount}`
-                : 'Select styles'
-              }
-            </button>
+            {(() => {
+              const { total, breakdown } = calculateTotalImages();
+              return (
+                <button
+                  onClick={handleGenerateSelected}
+                  disabled={isGenerating || selectedStyles.size === 0}
+                  className={`
+                    w-full py-2.5 px-3 rounded-lg font-semibold text-xs transition-all
+                    ${selectedStyles.size > 0
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25 hover:shadow-lg'
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    }
+                  `}
+                >
+                  {selectedStyles.size > 0 ? (
+                    <div className="flex flex-col items-center gap-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <Images size={14} />
+                        <span>Generate {total} mockup{total > 1 ? 's' : ''}</span>
+                      </div>
+                      <span className="text-[10px] font-normal opacity-80">{breakdown}</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-1.5">
+                      <Images size={14} />
+                      <span>Select styles to generate</span>
+                    </div>
+                  )}
+                </button>
+              );
+            })()}
           </>
         )}
 
