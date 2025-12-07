@@ -1,0 +1,25 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "7511594b1231e246fd529b87cf596cea"
+name = "SocialStitch"
+application_url = "https://app.socialstitch.io"
+embedded = true
+
+[webhooks]
+api_version = "2025-10"
+
+[webhooks.privacy_compliance]
+customer_deletion_url = "https://social-stitch.web.app/api/gdpr/customers/redact"
+customer_data_request_url = "https://social-stitch.web.app/api/gdpr/customers/data_request"
+shop_deletion_url = "https://social-stitch.web.app/api/gdpr/shop/redact"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_products,write_products,read_content"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://us-central1-social-stitch.cloudfunctions.net/shopifyAuthCallback"
+]

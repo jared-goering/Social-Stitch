@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SocialStitch</title>
+    <!-- Shopify App Bridge CDN (required for embedded app submission) -->
+    <meta name="shopify-api-key" content="__SHOPIFY_API_KEY__" />
+    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+    <script>
+      // Inject Shopify API key at runtime (replaced by Vite build or loaded from env)
+      (function() {
+        var key = window.__SHOPIFY_API_KEY__ || '';
+        var meta = document.querySelector('meta[name="shopify-api-key"]');
+        if (meta && key && key !== '__SHOPIFY_API_KEY__') {
+          meta.setAttribute('content', key);
+        }
+      })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
