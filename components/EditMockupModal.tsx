@@ -15,7 +15,8 @@ import {
   Palette,
   Camera,
   ArrowRight,
-  ChevronRight
+  ChevronRight,
+  ArrowLeftRight
 } from 'lucide-react';
 
 interface EditMockupModalProps {
@@ -181,32 +182,53 @@ export const EditMockupModal: React.FC<EditMockupModalProps> = ({
             
             {/* Left: Image Preview */}
             <div className="lg:w-1/2 p-6 flex items-center justify-center bg-black/20">
-              <div className="relative w-full max-w-md">
-                {/* Before/After Toggle Container */}
+              <div className="relative w-full max-w-lg">
+                {/* Side-by-side comparison when edit is complete */}
                 {editedImage ? (
-                  <div className="relative aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl">
-                    {/* Before Image (dimmed) */}
-                    <img 
-                      src={mockup.imageUrl} 
-                      alt="Original"
-                      className="absolute inset-0 w-full h-full object-cover opacity-30"
-                    />
-                    {/* After Image */}
-                    <img 
-                      src={editedImage} 
-                      alt="Edited"
-                      className="relative w-full h-full object-cover"
-                    />
-                    {/* Labels */}
-                    <div className="absolute top-4 left-4 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full">
-                      <span className="text-xs font-medium text-emerald-400 flex items-center gap-1.5">
-                        <Sparkles size={12} />
-                        Edited
-                      </span>
+                  <div className="space-y-3">
+                    {/* Comparison Header */}
+                    <div className="flex items-center justify-center gap-2 text-white/60 text-xs">
+                      <span>Before</span>
+                      <ArrowLeftRight size={14} />
+                      <span>After</span>
+                    </div>
+                    
+                    {/* Side by Side Images */}
+                    <div className="flex gap-3">
+                      {/* Before Image */}
+                      <div className="flex-1 relative">
+                        <div className="aspect-[3/4] rounded-xl overflow-hidden shadow-xl border-2 border-white/10">
+                          <img 
+                            src={mockup.imageUrl} 
+                            alt="Original"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="absolute top-2 left-2 px-2.5 py-1 bg-black/70 backdrop-blur-sm rounded-full">
+                          <span className="text-[10px] font-medium text-white/70">Before</span>
+                        </div>
+                      </div>
+                      
+                      {/* After Image */}
+                      <div className="flex-1 relative">
+                        <div className="aspect-[3/4] rounded-xl overflow-hidden shadow-xl border-2 border-emerald-500/50 ring-2 ring-emerald-500/20">
+                          <img 
+                            src={editedImage} 
+                            alt="Edited"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="absolute top-2 left-2 px-2.5 py-1 bg-emerald-500/90 backdrop-blur-sm rounded-full">
+                          <span className="text-[10px] font-medium text-white flex items-center gap-1">
+                            <Sparkles size={10} />
+                            After
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="relative aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl">
+                  <div className="relative aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl max-w-md mx-auto">
                     <img 
                       src={mockup.imageUrl} 
                       alt="Current mockup"
