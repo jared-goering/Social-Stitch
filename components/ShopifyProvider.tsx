@@ -72,7 +72,18 @@ function SessionTokenProvider({
   const fetchSessionToken = useCallback(async () => {
     try {
       console.log('[SessionTokenProvider] Fetching session token...');
-      const token = await getSessionToken(app);
+      console.log('[SessionTokenProvider] App Bridge state:', app ? 'initialized' : 'null');
+      
+      // Add timeout to prevent hanging forever
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Session token fetch timed out after 10s')), 10000);
+      });
+      
+      const token = await Promise.race([
+        getSessionToken(app),
+        timeoutPromise
+      ]);
+      
       console.log('[SessionTokenProvider] Session token obtained:', token ? 'yes' : 'no');
       setSessionToken(token);
       setIsAuthenticated(true);
@@ -92,8 +103,13 @@ function SessionTokenProvider({
     const initializeToken = async () => {
       try {
         await fetchSessionToken();
+        console.log('[SessionTokenProvider] Session token initialized successfully');
       } catch (error) {
         console.error('[SessionTokenProvider] Initial token fetch failed:', error);
+        // Even if session token fails, proceed with the app
+        // We can still make API calls using the access token stored on the backend
+        console.log('[SessionTokenProvider] Proceeding without session token - API calls will use backend access token');
+        setIsAuthenticated(true); // Allow app to load
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -109,6 +125,7 @@ function SessionTokenProvider({
         await fetchSessionToken();
       } catch (error) {
         console.error('[SessionTokenProvider] Token refresh failed:', error);
+        // Don't change authentication state on refresh failure
       }
     }, 50000);
 
