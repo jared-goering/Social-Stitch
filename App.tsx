@@ -9,9 +9,12 @@ import { AuthProvider, useAuth } from './components/AuthProvider';
 import { SignInPage } from './components/SignInPage';
 import { ShopifyApp } from './components/ShopifyApp';
 import { useIsShopifyEmbedded } from './components/ShopifyProvider';
-import { AppStep, UploadedDesign, MockupOption, AppView } from './types';
+import { UsageIndicator } from './components/UsageIndicator';
+import { UpgradeModal } from './components/UpgradeModal';
+import { AppStep, UploadedDesign, MockupOption, AppView, QuotaCheckResult } from './types';
 import { Shirt, Sparkles, CheckCheck, RotateCcw, Calendar, PlusCircle, CheckCircle, LogOut, Loader2, Images } from 'lucide-react';
 import { isPopupWindow } from './services/socialAuthService';
+import { canGenerateImage } from './services/subscriptionService';
 
 // Storage key for session persistence
 const STORAGE_KEY = 'socialstitch_session';
@@ -85,6 +88,29 @@ function AuthenticatedApp() {
   const [design, setDesign] = useState<UploadedDesign | null>(null);
   const [selectedMockups, setSelectedMockups] = useState<MockupOption[]>([]);
   const [hasPersistedSession, setHasPersistedSession] = useState(false);
+  
+  // Subscription state
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [quotaStatus, setQuotaStatus] = useState<QuotaCheckResult | null>(null);
+
+  // Fetch quota status on mount and periodically
+  useEffect(() => {
+    const fetchQuota = async () => {
+      try {
+        const status = await canGenerateImage();
+        setQuotaStatus(status);
+      } catch (error) {
+        console.error('Failed to fetch quota:', error);
+      }
+    };
+    
+    if (user) {
+      fetchQuota();
+      // Refresh quota every 30 seconds
+      const interval = setInterval(fetchQuota, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   // Persist state changes - defined before useEffect that uses it
   const persistState = useCallback((
@@ -265,10 +291,13 @@ function AuthenticatedApp() {
                 Start Fresh
               </button>
             )}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200/50">
-              <Sparkles size={14} className="text-amber-500" />
-              <span className="text-xs font-medium text-amber-700">AI-Powered Marketing</span>
-            </div>
+            
+            {/* Usage Indicator */}
+            <UsageIndicator 
+              compact 
+              showUpgrade={false}
+              onUpgradeClick={() => setShowUpgradeModal(true)}
+            />
 
             {/* User Menu */}
             <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
@@ -419,6 +448,17 @@ function AuthenticatedApp() {
             <p>&copy; {new Date().getFullYear()} SocialStitch. Built with React & Google Gemini.</p>
         </div>
       </footer>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        quotaStatus={quotaStatus || undefined}
+        onUpgradeSuccess={() => {
+          // Refresh quota after upgrade
+          canGenerateImage().then(setQuotaStatus);
+        }}
+      />
     </div>
   );
 }

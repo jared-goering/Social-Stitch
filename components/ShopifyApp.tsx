@@ -52,7 +52,12 @@ import {
 } from 'lucide-react';
 
 // Types
-import { AppStep, UploadedDesign, MockupOption, AppView, ScheduledPost, SourceProduct } from '../types';
+import { AppStep, UploadedDesign, MockupOption, AppView, ScheduledPost, SourceProduct, QuotaCheckResult } from '../types';
+
+// Subscription components
+import { UsageIndicator } from './UsageIndicator';
+import { UpgradeModal } from './UpgradeModal';
+import { canGenerateImage } from '../services/subscriptionService';
 import {
   ShopifyProduct,
   ShopifyProductImage,
@@ -93,6 +98,27 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
 
   // Recent posts for home page
   const [recentPosts, setRecentPosts] = useState<ScheduledPost[]>([]);
+
+  // Subscription state
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [quotaStatus, setQuotaStatus] = useState<QuotaCheckResult | null>(null);
+
+  // Fetch quota status on mount and periodically
+  useEffect(() => {
+    const fetchQuota = async () => {
+      try {
+        const status = await canGenerateImage();
+        setQuotaStatus(status);
+      } catch (error) {
+        console.error('Failed to fetch quota:', error);
+      }
+    };
+    
+    fetchQuota();
+    // Refresh quota every 30 seconds
+    const interval = setInterval(fetchQuota, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Subscribe to posts for recent activity
   useEffect(() => {
@@ -325,12 +351,21 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
         </div>
       </div>
 
-      {/* Right: View label (only show for non-create views) */}
-      {currentView !== 'create' && (
-        <div className="text-slate-warm-400 text-xs capitalize">
-          {currentView}
+      {/* Right: Usage indicator + View label */}
+      <div className="flex items-center gap-3">
+        <div 
+          className="cursor-pointer" 
+          onClick={() => setShowUpgradeModal(true)}
+          style={{ '--usage-text-secondary': '#94a3b8' } as React.CSSProperties}
+        >
+          <UsageIndicator compact showUpgrade={false} />
         </div>
-      )}
+        {currentView !== 'create' && (
+          <div className="text-slate-warm-400 text-xs capitalize">
+            {currentView}
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -611,6 +646,18 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
         {renderContent()}
         {toastMarkup}
       </Frame>
+      
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        quotaStatus={quotaStatus || undefined}
+        onUpgradeSuccess={() => {
+          // Refresh quota after upgrade
+          canGenerateImage().then(setQuotaStatus);
+          showToast('Subscription upgraded successfully!');
+        }}
+      />
     </AppProvider>
   );
 };

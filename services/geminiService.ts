@@ -300,33 +300,45 @@ export const generateMockupImage = async (
     const mimeTypeMatch = base64Design.match(/^data:(image\/[a-zA-Z]+);base64,/);
     const detectedMimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/png';
 
-    const prompt = `
-      You are a lifestyle and editorial photographer capturing authentic, candid moments.
-      Task: Create a photorealistic LIFESTYLE image featuring someone wearing the EXACT garment shown in the reference image.
+    // Detect if this is a product-only shot (no person) based on style prompt keywords
+    const isProductShot = /flat\s*lay|laid\s*flat|folded|hanging|hanger|display|surface|background|minimal|clean|isolated|overhead|top-down/i.test(stylePrompt);
+    
+    const prompt = isProductShot ? `
+      You are a professional product photographer creating stunning product imagery.
+      Task: Create a photorealistic PRODUCT image featuring the EXACT product shown in the reference image.
       ${brandContext}
-      CRITICAL STYLE DIRECTION - LIFESTYLE NOT PORTRAIT:
-      - This is NOT a model photoshoot or fashion portrait. Avoid posed, model-centric shots where the person stares at the camera.
-      - Create a CANDID MOMENT - the person should be engaged in an activity, interacting with their environment, or captured mid-action.
-      - The person should feel like a character in a story, not a model on display.
-      - Show more of the environment and scene - the setting is just as important as the person.
-      - Use wider framing or environmental portraits rather than tight headshots.
-      - The person can be looking away, walking, laughing, reaching for something, sitting casually, etc.
       
-      GARMENT INSTRUCTIONS:
-      1. The reference image contains a specific piece of apparel (t-shirt/hoodie/top).
-      2. PRINT VISIBILITY: First, analyze where the main graphic/print/design is located on the garment:
-         - If the design is on the FRONT of the garment: Position the person so the front print is visible (but they don't need to face the camera directly).
-         - If the design is on the BACK of the garment: Position the person with their back partially or fully visible.
-         - The print/design should be visible but naturally integrated into the scene.
-      3. Dress a realistic person in this EXACT garment. ${genderInstruction}
-      4. CRITICAL: Preserve the cut, style, fabric texture, color, and graphic design of the uploaded garment perfectly. Do not generate a generic t-shirt.
+      PRODUCT PHOTOGRAPHY DIRECTION:
+      ${stylePrompt}
       
-      SCENE & MOOD:
-      5. Setting description: ${stylePrompt}
-      6. Add lifestyle elements: other people in background, environmental details, props that fit the scene, movement.
-      7. Lighting should feel natural and authentic to the setting - golden hour, overcast, natural window light, etc.
-      8. Capture a genuine moment - someone living their life, not posing for a photo.
-      9. Do not add any text overlays, watermarks, or extra graphics.
+      CRITICAL REQUIREMENTS:
+      1. This is a PRODUCT-ONLY shot - no people, no models, no hands unless explicitly mentioned.
+      2. The reference image shows a product - reproduce this EXACT product with all its design details, colors, graphics, and features.
+      3. PRESERVE: Every detail of the product - colors, graphics, text, patterns, materials, texture.
+      4. Create a clean, professional product photography look.
+      5. Lighting should be soft and even, highlighting the product beautifully.
+      6. Do not add any text overlays, watermarks, or extra graphics.
+      7. Focus on making the product look premium and desirable.
+    ` : `
+      You are a lifestyle and editorial photographer capturing authentic, candid moments.
+      Task: Create a photorealistic image based on the following direction, featuring the EXACT product shown in the reference image.
+      ${brandContext}
+      
+      STYLE DIRECTION:
+      ${stylePrompt}
+      
+      ${genderInstruction ? `MODEL: ${genderInstruction}` : ''}
+      
+      PRODUCT REQUIREMENTS:
+      1. The reference image shows a product - it could be apparel, accessories, jewelry, or other items.
+      2. If this involves someone wearing/using the product, ensure the product is clearly visible.
+      3. CRITICAL: Preserve all design details, colors, graphics, and features of the product EXACTLY as shown.
+      4. The product should be the star - make sure it's well-lit and prominent.
+      
+      SCENE REQUIREMENTS:
+      5. Follow the style direction above for setting, mood, and composition.
+      6. Lighting should feel natural and authentic to the setting.
+      7. Do not add any text overlays, watermarks, or extra graphics.
     `;
 
     const response = await ai.models.generateContent({

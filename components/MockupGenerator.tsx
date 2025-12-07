@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup, SourceProduct, BrandProfile, ContentCategory, CONTENT_CATEGORIES, ProductAnalysisResult } from '../types';
+import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup, SourceProduct, BrandProfile, ContentCategory, CONTENT_CATEGORIES, ProductAnalysisResult, QuotaExceededError, QuotaCheckResult } from '../types';
 import { generateMockupImage, analyzeProductAndSuggestStyles } from '../services/geminiService';
 import { saveMockupToFirebase, fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
 import { getBrandProfile } from '../services/brandProfileService';
-import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, Clock, Plus, Trash2, Pencil, Heart, Camera, Smartphone, Calendar, Square } from 'lucide-react';
+import { canGenerateImage } from '../services/subscriptionService';
+import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, Clock, Plus, Trash2, Pencil, Heart, Camera, Smartphone, Calendar, Square, AlertTriangle, TrendingUp } from 'lucide-react';
 import { EditMockupModal } from './EditMockupModal';
+import { UsageIndicator } from './UsageIndicator';
+import { UpgradeModal } from './UpgradeModal';
 
 interface Props {
   design: UploadedDesign;
@@ -208,6 +211,23 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   
   // Brand profile for AI-enhanced generation
   const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
+
+  // Subscription and quota state
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [quotaStatus, setQuotaStatus] = useState<QuotaCheckResult | null>(null);
+
+  // Fetch quota status on mount
+  useEffect(() => {
+    const fetchQuota = async () => {
+      try {
+        const status = await canGenerateImage();
+        setQuotaStatus(status);
+      } catch (error) {
+        console.error('Failed to fetch quota:', error);
+      }
+    };
+    fetchQuota();
+  }, []);
 
   // Content category selection and product analysis
   // Default to 'lifestyle' for first generation - it's the most common use case
@@ -586,7 +606,18 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         setIsSavingToCloud(false);
       }
     } catch (err: any) {
-      if (err.message && err.message.includes("Requested entity was not found")) {
+      // Handle quota exceeded error
+      if (err instanceof QuotaExceededError || err.name === 'QuotaExceededError') {
+        setQuotaStatus({
+          allowed: false,
+          used: err.used || 0,
+          quota: err.quota || 0,
+          remaining: 0,
+          tier: err.tier || 'free',
+        });
+        setShowUpgradeModal(true);
+        setError("Monthly quota reached. Upgrade to continue generating.");
+      } else if (err.message && err.message.includes("Requested entity was not found")) {
         const aistudio = (window as any).aistudio;
         if (aistudio) {
           await aistudio.openSelectKey();
@@ -598,6 +629,8 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     } finally {
       setIsGenerating(false);
       setGenerationProgress(null);
+      // Refresh quota status after generation attempt
+      canGenerateImage().then(setQuotaStatus).catch(console.error);
     }
   };
 
@@ -710,7 +743,18 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       setSelectedStyles(new Set());
       
     } catch (err: any) {
-      if (err.message && err.message.includes("Requested entity was not found")) {
+      // Handle quota exceeded error
+      if (err instanceof QuotaExceededError || err.name === 'QuotaExceededError') {
+        setQuotaStatus({
+          allowed: false,
+          used: err.used || 0,
+          quota: err.quota || 0,
+          remaining: 0,
+          tier: err.tier || 'free',
+        });
+        setShowUpgradeModal(true);
+        setError("Monthly quota reached. Upgrade to continue generating.");
+      } else if (err.message && err.message.includes("Requested entity was not found")) {
         const aistudio = (window as any).aistudio;
         if (aistudio) {
           await aistudio.openSelectKey();
@@ -722,6 +766,8 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     } finally {
       setIsGenerating(false);
       setGenerationProgress(null);
+      // Refresh quota status after generation attempt
+      canGenerateImage().then(setQuotaStatus).catch(console.error);
     }
   };
 
@@ -893,10 +939,12 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
               Change upload
             </button>
           </div>
-          {/* Pro badge */}
-          <div className="flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-full">
-            <Zap size={10} className="text-amber-500" />
-            <span className="text-[10px] font-medium text-amber-700">Pro</span>
+          {/* Usage indicator */}
+          <div 
+            className="cursor-pointer"
+            onClick={() => setShowUpgradeModal(true)}
+          >
+            <UsageIndicator compact showUpgrade={false} />
           </div>
         </div>
 
@@ -1872,6 +1920,17 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
           onSave={handleEditSave}
         />
       )}
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        quotaStatus={quotaStatus || undefined}
+        onUpgradeSuccess={() => {
+          // Refresh quota after upgrade
+          canGenerateImage().then(setQuotaStatus).catch(console.error);
+        }}
+      />
     </div>
   );
 };
