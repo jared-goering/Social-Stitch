@@ -210,7 +210,8 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
 
   // Content category selection and product analysis
-  const [selectedCategory, setSelectedCategory] = useState<ContentCategory | null>(null);
+  // Default to 'lifestyle' for first generation - it's the most common use case
+  const [selectedCategory, setSelectedCategory] = useState<ContentCategory>('lifestyle');
   const [productAnalysis, setProductAnalysis] = useState<ProductAnalysisResult | null>(null);
   const [categorySuggestionsCache, setCategorySuggestionsCache] = useState<Map<ContentCategory, StyleSuggestion[]>>(new Map());
 
@@ -356,11 +357,8 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   // Fetch AI suggestions when component mounts, design changes, or category changes
   useEffect(() => {
     const fetchSuggestions = async () => {
-      // Check if we already have cached suggestions for this design and category
-      const cacheKey = selectedCategory || 'all';
-      
-      // First check in-memory cache
-      if (selectedCategory && categorySuggestionsCache.has(selectedCategory)) {
+      // First check in-memory cache for this category
+      if (categorySuggestionsCache.has(selectedCategory)) {
         const cached = categorySuggestionsCache.get(selectedCategory);
         if (cached && cached.length > 0) {
           setAiSuggestions(cached);
@@ -368,22 +366,24 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         }
       }
       
-      // Then check sessionStorage for the default/all category
-      if (!selectedCategory) {
-        try {
-          const saved = sessionStorage.getItem(SUGGESTIONS_STORAGE_KEY);
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (parsed.designId === design.id && parsed.suggestions?.length > 0) {
-              setAiSuggestions(parsed.suggestions);
-              if (parsed.productAnalysis) {
-                setProductAnalysis(parsed.productAnalysis);
-              }
+      // Check sessionStorage for cached data (includes product analysis)
+      try {
+        const saved = sessionStorage.getItem(SUGGESTIONS_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.designId === design.id) {
+            // Load product analysis if available
+            if (parsed.productAnalysis && !productAnalysis) {
+              setProductAnalysis(parsed.productAnalysis);
+            }
+            // Check if we have cached suggestions for this specific category
+            if (parsed.categoryCache && parsed.categoryCache[selectedCategory]) {
+              setAiSuggestions(parsed.categoryCache[selectedCategory]);
               return;
             }
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
 
       setIsLoadingSuggestions(true);
       try {
@@ -391,7 +391,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         const result = await analyzeProductAndSuggestStyles(
           design.base64, 
           brandProfile || undefined,
-          selectedCategory || undefined
+          selectedCategory
         );
         
         // Store product analysis
@@ -405,29 +405,31 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         // Store suggestions
         setAiSuggestions(result.suggestions);
         
-        // Update cache
-        if (selectedCategory) {
-          setCategorySuggestionsCache(prev => {
-            const newCache = new Map(prev);
-            newCache.set(selectedCategory, result.suggestions);
-            return newCache;
-          });
-        } else {
-          // Cache to sessionStorage for default/all category
-          try {
-            sessionStorage.setItem(SUGGESTIONS_STORAGE_KEY, JSON.stringify({
-              designId: design.id,
-              suggestions: result.suggestions,
-              productAnalysis: {
-                productType: result.productType,
-                productDescription: result.productDescription,
-                applicableCategories: result.applicableCategories,
-                suggestedDefaultCategory: result.suggestedDefaultCategory,
-              }
-            }));
-          } catch (e) {
-            console.error('Failed to cache suggestions:', e);
+        // Update in-memory cache
+        setCategorySuggestionsCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(selectedCategory, result.suggestions);
+          return newCache;
+        });
+        
+        // Also cache to sessionStorage
+        try {
+          const existing = sessionStorage.getItem(SUGGESTIONS_STORAGE_KEY);
+          const parsed = existing ? JSON.parse(existing) : { designId: design.id, categoryCache: {} };
+          if (parsed.designId !== design.id) {
+            parsed.designId = design.id;
+            parsed.categoryCache = {};
           }
+          parsed.categoryCache[selectedCategory] = result.suggestions;
+          parsed.productAnalysis = {
+            productType: result.productType,
+            productDescription: result.productDescription,
+            applicableCategories: result.applicableCategories,
+            suggestedDefaultCategory: result.suggestedDefaultCategory,
+          };
+          sessionStorage.setItem(SUGGESTIONS_STORAGE_KEY, JSON.stringify(parsed));
+        } catch (e) {
+          console.error('Failed to cache suggestions:', e);
         }
       } catch (err) {
         console.error('Failed to fetch AI suggestions:', err);
@@ -787,7 +789,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       const result = await analyzeProductAndSuggestStyles(
         design.base64, 
         brandProfile || undefined,
-        selectedCategory || undefined
+        selectedCategory
       );
       
       // Update product analysis
@@ -801,13 +803,11 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       setAiSuggestions(result.suggestions);
       
       // Cache the new suggestions
-      if (selectedCategory) {
-        setCategorySuggestionsCache(prev => {
-          const newCache = new Map(prev);
-          newCache.set(selectedCategory, result.suggestions);
-          return newCache;
-        });
-      }
+      setCategorySuggestionsCache(prev => {
+        const newCache = new Map(prev);
+        newCache.set(selectedCategory, result.suggestions);
+        return newCache;
+      });
     } catch (err) {
       console.error('Failed to fetch AI suggestions:', err);
     } finally {
@@ -897,50 +897,50 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         </div>
 
         {/* Content Category Pills */}
-        <div className="mb-4">
+        <div className="mb-4 pb-3 border-b border-slate-100">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Content Type</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">Content Style</span>
+              {selectedCategory === 'lifestyle' && !productAnalysis && (
+                <span className="text-[9px] text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded font-medium">Default</span>
+              )}
+            </div>
             {productAnalysis && (
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[10px] text-slate-400 truncate max-w-[120px]" title={productAnalysis.productDescription}>
                 {productAnalysis.productDescription}
               </span>
             )}
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
             {applicableCategories.map((category) => {
               const isActive = selectedCategory === category.id;
               return (
                 <button
                   key={category.id}
-                  onClick={() => setSelectedCategory(isActive ? null : category.id)}
+                  onClick={() => setSelectedCategory(category.id)}
                   disabled={isLoadingSuggestions}
                   className={`
-                    group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-medium
-                    transition-all duration-200 ease-out
+                    flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
+                    transition-all duration-150 border
                     ${isActive
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/25 scale-[1.02]'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
                     }
                     ${isLoadingSuggestions ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                   `}
                   title={category.description}
                 >
-                  <span className={`transition-transform duration-200 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
+                  <span className={`transition-colors ${isActive ? 'text-white' : 'text-slate-400'}`}>
                     {getCategoryIcon(category.icon, 12)}
                   </span>
                   <span>{category.shortLabel}</span>
-                  {isActive && (
-                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
-                  )}
                 </button>
               );
             })}
           </div>
-          {selectedCategory && (
-            <p className="mt-2 text-[10px] text-slate-500 leading-relaxed animate-in fade-in slide-in-from-top-1 duration-200">
-              {CONTENT_CATEGORIES.find(c => c.id === selectedCategory)?.description}
-            </p>
-          )}
+          <p className="mt-2 text-[10px] text-slate-500 leading-relaxed min-h-[2.5em]">
+            {CONTENT_CATEGORIES.find(c => c.id === selectedCategory)?.description || 'Select a content style for your mockups'}
+          </p>
         </div>
 
         <div className="flex items-center justify-between mb-2">

@@ -388,6 +388,15 @@
         background: var(--slate-warm-400);
       }
       
+      /* Hide scrollbar utility */
+      .scrollbar-none {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      .scrollbar-none::-webkit-scrollbar {
+        display: none;
+      }
+      
       /* View toggle animation */
       .view-toggle-btn {
         transition: all 0.2s ease;
