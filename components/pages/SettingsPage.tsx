@@ -49,11 +49,12 @@ import {
   X,
   Edit3,
   MessageSquare,
+  Trash2,
 } from 'lucide-react';
 import { useShopifyContext } from '../ShopifyProvider';
 import { subscribeToScheduledPosts } from '../../services/scheduledPostsService';
 import { fetchUserMockups } from '../../services/mockupStorageService';
-import { generateBrandProfile, getBrandProfile, regenerateSection, regenerateElevatorPitch, BrandProfileSection } from '../../services/brandProfileService';
+import { generateBrandProfile, getBrandProfile, regenerateSection, regenerateElevatorPitch, deleteBrandProfile, BrandProfileSection } from '../../services/brandProfileService';
 import { isOAuthRequired, redirectToOAuth } from '../../services/shopifyProductService';
 import { getSubscription, getCurrentUsage, getTierConfig, formatPrice, getUpgradeTier, subscribeToUsage, subscribeToSubscription } from '../../services/subscriptionService';
 import { ScheduledPost, SavedMockup, BrandProfile, ShopSubscription, UsageRecord, SUBSCRIPTION_TIERS, SocialPlatform } from '../../types';
@@ -100,6 +101,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
   const [selectedSection, setSelectedSection] = useState<BrandProfileSection | 'elevatorPitch' | null>(null);
   const [sectionContext, setSectionContext] = useState('');
+  const [isDeletingProfile, setIsDeletingProfile] = useState(false);
 
   // Social accounts state
   const [connectedAccounts, setConnectedAccounts] = useState<AccountsMap>({
@@ -270,6 +272,25 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
   const handleReconnectApp = () => {
     if (shop) {
       redirectToOAuth(shop);
+    }
+  };
+
+  // Handle brand profile deletion
+  const handleDeleteProfile = async () => {
+    if (!confirm('Are you sure you want to delete your brand profile? You can regenerate it anytime.')) {
+      return;
+    }
+
+    setIsDeletingProfile(true);
+    try {
+      await deleteBrandProfile();
+      setBrandProfile(null);
+      setIsProfileExpanded(false);
+    } catch (error: any) {
+      console.error('Error deleting brand profile:', error);
+      setProfileError(error.message || 'Failed to delete brand profile');
+    } finally {
+      setIsDeletingProfile(false);
     }
   };
 
@@ -510,6 +531,18 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
                   <CheckCircle size={12} />
                   Generated
                 </span>
+                <button
+                  onClick={handleDeleteProfile}
+                  disabled={isDeletingProfile}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                  title="Delete brand profile"
+                >
+                  {isDeletingProfile ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={12} />
+                  )}
+                </button>
               </div>
             )}
           </div>
@@ -905,24 +938,59 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
           
           <div className="space-y-4">
             <p className="text-sm text-slate-warm-600 leading-relaxed">
-              Social media account connections are managed during the post creation workflow. 
-              When you create a post, you'll be prompted to connect your Facebook and Instagram 
-              accounts through Meta's secure authentication.
+              Connect your Facebook and Instagram accounts to publish posts directly from SocialStitch.
+              You'll be redirected to Meta's secure authentication to grant access.
             </p>
+
+            {/* Error message */}
+            {socialAuthError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                <div className="flex items-center gap-2 text-red-600">
+                  <AlertCircle size={14} />
+                  <span className="text-sm">{socialAuthError}</span>
+                </div>
+              </div>
+            )}
             
-            <div className="flex flex-wrap gap-3">
-              <SocialBadge platform="Instagram" connected={false} />
-              <SocialBadge platform="Facebook" connected={false} />
-            </div>
+            {/* Loading state */}
+            {isLoadingAccounts ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 size={20} className="animate-spin text-slate-warm-400" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <SocialBadge 
+                  platform="Instagram" 
+                  connected={connectedAccounts.instagram.connected}
+                  username={connectedAccounts.instagram.username}
+                  isConnecting={connectingPlatform === 'instagram'}
+                  isDisconnecting={disconnectingPlatform === 'instagram'}
+                  onConnect={() => handleConnectSocial('instagram')}
+                  onDisconnect={() => handleDisconnectSocial('instagram')}
+                />
+                <SocialBadge 
+                  platform="Facebook" 
+                  connected={connectedAccounts.facebook.connected}
+                  username={connectedAccounts.facebook.username}
+                  pageName={connectedAccounts.facebook.pageName}
+                  isConnecting={connectingPlatform === 'facebook'}
+                  isDisconnecting={disconnectingPlatform === 'facebook'}
+                  onConnect={() => handleConnectSocial('facebook')}
+                  onDisconnect={() => handleDisconnectSocial('facebook')}
+                />
+              </div>
+            )}
             
             {onNavigateToCreate && (
-              <button
-                onClick={onNavigateToCreate}
-                className="btn-primary text-white px-5 py-2.5 rounded-xl font-medium text-sm inline-flex items-center gap-2 mt-2"
-              >
-                Create a Post to Connect
-                <ArrowRight size={16} />
-              </button>
+              <div className="pt-2 border-t border-slate-warm-100 mt-4">
+                <button
+                  onClick={onNavigateToCreate}
+                  className="inline-flex items-center gap-2 text-sm text-slate-warm-500 hover:text-coral-500 transition-colors"
+                >
+                  Or create a post first
+                  <ArrowRight size={14} />
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -1109,27 +1177,87 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, color }) 
 interface SocialBadgeProps {
   platform: 'Instagram' | 'Facebook';
   connected: boolean;
+  username?: string;
+  pageName?: string;
+  isConnecting?: boolean;
+  isDisconnecting?: boolean;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
 }
 
-const SocialBadge: React.FC<SocialBadgeProps> = ({ platform, connected }) => {
+const SocialBadge: React.FC<SocialBadgeProps> = ({ 
+  platform, 
+  connected, 
+  username,
+  pageName,
+  isConnecting,
+  isDisconnecting,
+  onConnect,
+  onDisconnect
+}) => {
   const platformColors = {
     Instagram: 'bg-gradient-to-r from-pink-500 to-purple-500',
     Facebook: 'bg-blue-600',
   };
 
+  const isLoading = isConnecting || isDisconnecting;
+
   return (
-    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${
-      connected ? 'bg-sage-50 border border-sage-200' : 'bg-slate-warm-100 border border-slate-warm-200'
+    <div className={`flex items-center justify-between p-4 rounded-xl ${
+      connected ? 'bg-sage-50 border border-sage-200' : 'bg-slate-warm-50 border border-slate-warm-200'
     }`}>
-      <div className={`w-6 h-6 rounded-lg ${platformColors[platform]} flex items-center justify-center`}>
-        <span className="text-white text-xs font-bold">{platform[0]}</span>
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-xl ${platformColors[platform]} flex items-center justify-center`}>
+          <span className="text-white text-sm font-bold">{platform[0]}</span>
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-slate-warm-800">{platform}</span>
+            {connected && <CheckCircle size={14} className="text-sage-500" />}
+          </div>
+          {connected ? (
+            <p className="text-xs text-slate-warm-500">
+              {platform === 'Facebook' && pageName ? pageName : username || 'Connected'}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-warm-400">Not connected</p>
+          )}
+        </div>
       </div>
-      <span className="text-sm font-medium text-slate-warm-700">{platform}</span>
-      {connected ? (
-        <CheckCircle size={14} className="text-sage-500" />
-      ) : (
-        <span className="text-xs text-slate-warm-400">Not connected</span>
-      )}
+      
+      <div>
+        {connected ? (
+          <button
+            onClick={onDisconnect}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-warm-500 hover:text-red-600 hover:bg-red-50 border border-slate-warm-200 hover:border-red-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isDisconnecting ? (
+              <>
+                <Loader2 size={12} className="animate-spin" />
+                Disconnecting...
+              </>
+            ) : (
+              'Disconnect'
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={onConnect}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-warm-700 hover:bg-slate-warm-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isConnecting ? (
+              <>
+                <Loader2 size={12} className="animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              'Connect'
+            )}
+          </button>
+        )}
+      </div>
     </div>
   );
 };
