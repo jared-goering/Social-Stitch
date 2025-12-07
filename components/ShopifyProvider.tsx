@@ -309,6 +309,7 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
 
       if (!installed) {
         console.log('[ShopifyProvider] Shop not installed, showing connect screen');
+        setIsLoading(false); // Stop loading to show connect screen
       } else {
         console.log('[ShopifyProvider] Shop is installed, proceeding with App Bridge');
         setIsLoading(false);
