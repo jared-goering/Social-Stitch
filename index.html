@@ -501,6 +501,28 @@
         animation: tooltip-enter 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
       }
       
+      /* Line clamp utilities (for older Tailwind CDN versions) */
+      .line-clamp-1 {
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      
+      .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      
+      .line-clamp-3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      
       /* Icon container styles */
       .icon-container {
         display: flex;
