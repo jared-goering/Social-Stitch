@@ -212,29 +212,42 @@ export function getSessionToken(): string | null {
 
 /**
  * Make an authenticated request to our Shopify API proxy
+ * Uses session token if available, otherwise falls back to shop domain
+ * The backend will use the stored access token for the shop
  */
 async function shopifyApiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  if (!currentSessionToken) {
-    throw new Error('No session token available. Please authenticate with Shopify.');
-  }
-
   const functionsUrl = getFunctionsUrl();
   if (!functionsUrl) {
     throw new Error('Firebase Functions URL not configured');
   }
 
-  const url = `${functionsUrl}/${endpoint}`;
+  // Build URL with shop parameter if we don't have a session token
+  let url = `${functionsUrl}/${endpoint}`;
+  
+  // If no session token, we need to pass the shop domain for backend auth
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers as Record<string, string>,
+  };
+
+  if (currentSessionToken) {
+    // Use session token if available
+    headers['Authorization'] = `Bearer ${currentSessionToken}`;
+  } else if (currentShopDomain) {
+    // Fall back to shop domain - backend will use stored access token
+    const separator = url.includes('?') ? '&' : '?';
+    url = `${url}${separator}shop=${encodeURIComponent(currentShopDomain)}`;
+    console.log('[shopifyApiRequest] Using shop domain auth:', currentShopDomain);
+  } else {
+    throw new Error('No session token or shop domain available. Please authenticate with Shopify.');
+  }
 
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Authorization': `Bearer ${currentSessionToken}`,
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {

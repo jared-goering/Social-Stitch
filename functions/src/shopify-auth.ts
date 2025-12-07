@@ -385,6 +385,9 @@ export async function getShopAccessToken(shop: string): Promise<string | null> {
 /**
  * Middleware to verify session token and extract shop
  * Returns the shop domain if valid, null if invalid
+ * 
+ * Falls back to shop query parameter if no session token is provided
+ * (for cases where App Bridge session tokens don't work)
  */
 export async function verifyRequestSession(req: functions.https.Request): Promise<{
   valid: boolean;
@@ -394,19 +397,42 @@ export async function verifyRequestSession(req: functions.https.Request): Promis
   const config = getShopifyConfig();
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { valid: false, error: 'Missing authorization header' };
+  // First, try session token authentication
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    const verification = verifySessionToken(token, config.apiKey, config.apiSecret);
+
+    if (verification.valid) {
+      const shop = getShopFromToken(verification.payload!.dest);
+      return { valid: true, shop };
+    }
+    // If token is invalid, fall through to shop parameter check
+    console.log('[verifyRequestSession] Session token invalid, checking shop parameter');
   }
 
-  const token = authHeader.substring(7);
-  const verification = verifySessionToken(token, config.apiKey, config.apiSecret);
-
-  if (!verification.valid) {
-    return { valid: false, error: verification.error };
+  // Fallback: Check for shop parameter in query string
+  // This is used when App Bridge session tokens don't work
+  const shopParam = req.query.shop as string;
+  if (shopParam) {
+    // Validate shop domain format
+    const shopRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
+    if (!shopRegex.test(shopParam)) {
+      return { valid: false, error: 'Invalid shop domain format' };
+    }
+    
+    // Verify the shop has installed the app (has an access token)
+    const db = admin.firestore();
+    const storeDoc = await db.collection('shopifyStores').doc(shopParam).get();
+    
+    if (!storeDoc.exists || !storeDoc.data()?.accessToken) {
+      return { valid: false, error: 'Shop has not installed the app' };
+    }
+    
+    console.log('[verifyRequestSession] Using shop parameter auth for:', shopParam);
+    return { valid: true, shop: shopParam };
   }
 
-  const shop = getShopFromToken(verification.payload!.dest);
-  return { valid: true, shop };
+  return { valid: false, error: 'Missing authorization header or shop parameter' };
 }
 
 /**
