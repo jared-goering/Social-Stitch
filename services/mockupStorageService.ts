@@ -200,11 +200,23 @@ export const updateMockupImage = async (
     originalImageUrl,
   };
   
-  const docRef = doc(getUserMockupsCollection(), mockup.id);
-  await setDoc(docRef, {
-    ...updatedMockup,
+  // Build Firestore document data, excluding undefined values
+  const firestoreData: Record<string, any> = {
+    id: updatedMockup.id,
+    imageUrl: updatedMockup.imageUrl,
+    styleDescription: updatedMockup.styleDescription,
+    designId: updatedMockup.designId,
     createdAt: Timestamp.fromDate(mockup.createdAt),
-  });
+    originalImageUrl: updatedMockup.originalImageUrl,
+  };
+  
+  // Only include sourceProduct if it exists
+  if (updatedMockup.sourceProduct) {
+    firestoreData.sourceProduct = updatedMockup.sourceProduct;
+  }
+  
+  const docRef = doc(getUserMockupsCollection(), mockup.id);
+  await setDoc(docRef, firestoreData);
   
   return updatedMockup;
 };
