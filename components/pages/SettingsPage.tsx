@@ -776,23 +776,36 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
         </div>
       </div>
 
-      {/* Section Regeneration Modal */}
+      {/* Section Regeneration Modal - Portal-style overlay */}
       {sectionModalOpen && selectedSection && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-[9999] overflow-y-auto"
-          style={{ 
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSectionModalOpen(false);
-          }}
-        >
-          <div className="min-h-full flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden relative">
+        <>
+          {/* Backdrop */}
+          <div 
+            onClick={() => setSectionModalOpen(false)}
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 99998,
+            }}
+          />
+          {/* Modal */}
+          <div
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 99999,
+              width: '100%',
+              maxWidth: '32rem',
+              padding: '1rem',
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl w-full overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-5 border-b border-slate-warm-200">
               <div className="flex items-center gap-3">
@@ -847,7 +860,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
             </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
