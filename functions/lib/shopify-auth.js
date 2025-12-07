@@ -386,6 +386,7 @@ async function verifyRequestSession(req) {
 }
 /**
  * Check if a shop has installed the app
+ * Also verifies the access token is still valid by making a test API call
  */
 exports.shopifyCheckInstall = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
@@ -396,10 +397,64 @@ exports.shopifyCheckInstall = functions.https.onRequest((req, res) => {
         }
         const db = admin.firestore();
         const storeDoc = await db.collection('shopifyStores').doc(shop).get();
-        res.json({
-            installed: storeDoc.exists,
-            shop,
-        });
+        if (!storeDoc.exists) {
+            res.json({
+                installed: false,
+                shop,
+            });
+            return;
+        }
+        const storeData = storeDoc.data();
+        const accessToken = storeData === null || storeData === void 0 ? void 0 : storeData.accessToken;
+        // If no access token, not properly installed
+        if (!accessToken) {
+            res.json({
+                installed: false,
+                shop,
+            });
+            return;
+        }
+        // Verify the token actually works by making a test API call
+        try {
+            const testResponse = await fetch(`https://${shop}/admin/api/2024-01/shop.json`, {
+                headers: {
+                    'X-Shopify-Access-Token': accessToken,
+                },
+            });
+            if (testResponse.ok) {
+                // Token is valid
+                res.json({
+                    installed: true,
+                    shop,
+                });
+            }
+            else if (testResponse.status === 401 || testResponse.status === 403) {
+                // Token is invalid - delete it so user will re-auth
+                console.log(`[shopifyCheckInstall] Invalid token for ${shop}, deleting and requiring re-auth`);
+                await db.collection('shopifyStores').doc(shop).delete();
+                res.json({
+                    installed: false,
+                    shop,
+                    reason: 'token_invalid',
+                });
+            }
+            else {
+                // Some other error, but token might still be valid
+                console.warn(`[shopifyCheckInstall] Unexpected response for ${shop}: ${testResponse.status}`);
+                res.json({
+                    installed: true,
+                    shop,
+                });
+            }
+        }
+        catch (error) {
+            // Network error - assume installed to avoid breaking working setups
+            console.error(`[shopifyCheckInstall] Error verifying token for ${shop}:`, error);
+            res.json({
+                installed: true,
+                shop,
+            });
+        }
     });
 });
 /**
