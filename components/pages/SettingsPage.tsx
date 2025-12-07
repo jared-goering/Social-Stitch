@@ -56,8 +56,9 @@ import { fetchUserMockups } from '../../services/mockupStorageService';
 import { generateBrandProfile, getBrandProfile, regenerateSection, regenerateElevatorPitch, BrandProfileSection } from '../../services/brandProfileService';
 import { isOAuthRequired, redirectToOAuth } from '../../services/shopifyProductService';
 import { getSubscription, getCurrentUsage, getTierConfig, formatPrice, getUpgradeTier, subscribeToUsage, subscribeToSubscription } from '../../services/subscriptionService';
-import { ScheduledPost, SavedMockup, BrandProfile, ShopSubscription, UsageRecord, SUBSCRIPTION_TIERS } from '../../types';
+import { ScheduledPost, SavedMockup, BrandProfile, ShopSubscription, UsageRecord, SUBSCRIPTION_TIERS, SocialPlatform } from '../../types';
 import { UpgradeModal } from '../UpgradeModal';
+import { getConnectedAccounts, startOAuthFlow, disconnectAccount, AccountsMap } from '../../services/socialAuthService';
 
 interface SettingsPageProps {
   onNavigateToCreate?: () => void;
@@ -99,6 +100,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
   const [sectionModalOpen, setSectionModalOpen] = useState(false);
   const [selectedSection, setSelectedSection] = useState<BrandProfileSection | 'elevatorPitch' | null>(null);
   const [sectionContext, setSectionContext] = useState('');
+
+  // Social accounts state
+  const [connectedAccounts, setConnectedAccounts] = useState<AccountsMap>({
+    facebook: { connected: false, username: '' },
+    instagram: { connected: false, username: '' }
+  });
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
+  const [connectingPlatform, setConnectingPlatform] = useState<SocialPlatform | null>(null);
+  const [disconnectingPlatform, setDisconnectingPlatform] = useState<SocialPlatform | null>(null);
+  const [socialAuthError, setSocialAuthError] = useState<string | null>(null);
 
   // Load usage statistics
   useEffect(() => {
@@ -164,6 +175,66 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
         });
     }
   }, [isAuthenticated]);
+
+  // Load connected social accounts
+  useEffect(() => {
+    const loadConnectedAccounts = async () => {
+      try {
+        setIsLoadingAccounts(true);
+        const accounts = await getConnectedAccounts();
+        setConnectedAccounts(accounts);
+      } catch (error) {
+        console.error('Error loading connected accounts:', error);
+      } finally {
+        setIsLoadingAccounts(false);
+      }
+    };
+
+    loadConnectedAccounts();
+  }, []);
+
+  // Handle connecting a social account
+  const handleConnectSocial = async (platform: SocialPlatform) => {
+    setConnectingPlatform(platform);
+    setSocialAuthError(null);
+
+    try {
+      const success = await startOAuthFlow(platform);
+      if (success) {
+        // Refresh accounts to get the newly connected account
+        const accounts = await getConnectedAccounts();
+        setConnectedAccounts(accounts);
+      }
+    } catch (error) {
+      console.error('OAuth error:', error);
+      setSocialAuthError('Failed to connect. Please try again.');
+    } finally {
+      setConnectingPlatform(null);
+    }
+  };
+
+  // Handle disconnecting a social account
+  const handleDisconnectSocial = async (platform: SocialPlatform) => {
+    setDisconnectingPlatform(platform);
+    setSocialAuthError(null);
+
+    try {
+      const success = await disconnectAccount(platform);
+      if (success) {
+        setConnectedAccounts(prev => ({
+          ...prev,
+          [platform]: { connected: false, username: '' }
+        }));
+      } else {
+        setSocialAuthError('Failed to disconnect. Please try again.');
+      }
+    } catch (error) {
+      console.error('Disconnect error:', error);
+      setSocialAuthError('Failed to disconnect. Please try again.');
+    } finally {
+      setDisconnectingPlatform(null);
+    }
+  };
 
   // Handle brand profile generation
   const handleGenerateProfile = async () => {

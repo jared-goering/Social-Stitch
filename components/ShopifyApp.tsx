@@ -49,10 +49,14 @@ import {
   Check,
   AlertCircle,
   Menu,
+  Store,
+  Loader2,
+  RefreshCw,
+  Wand2,
 } from 'lucide-react';
 
 // Types
-import { AppStep, UploadedDesign, MockupOption, AppView, ScheduledPost, SourceProduct, QuotaCheckResult } from '../types';
+import { AppStep, UploadedDesign, MockupOption, AppView, ScheduledPost, SourceProduct, QuotaCheckResult, BrandProfile } from '../types';
 
 // Subscription components
 import { UsageIndicator } from './UsageIndicator';
@@ -62,8 +66,11 @@ import {
   ShopifyProduct,
   ShopifyProductImage,
   imageUrlToBase64,
+  isOAuthRequired,
+  redirectToOAuth,
 } from '../services/shopifyProductService';
 import { subscribeToScheduledPosts } from '../services/scheduledPostsService';
+import { getBrandProfile, generateBrandProfile } from '../services/brandProfileService';
 
 // Shopify context
 import { useShopifyContext } from './ShopifyProvider';
@@ -102,6 +109,66 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
   // Subscription state
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [quotaStatus, setQuotaStatus] = useState<QuotaCheckResult | null>(null);
+
+  // Brand profile state
+  const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
+  const [brandProfileChecked, setBrandProfileChecked] = useState(false);
+  const [isGeneratingProfile, setIsGeneratingProfile] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState({ stage: '', progress: 0 });
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [isOAuthError, setIsOAuthError] = useState(false);
+
+  // Check for brand profile on mount
+  useEffect(() => {
+    const checkBrandProfile = async () => {
+      try {
+        const profile = await getBrandProfile();
+        setBrandProfile(profile);
+      } catch (error) {
+        console.error('Failed to check brand profile:', error);
+      } finally {
+        setBrandProfileChecked(true);
+      }
+    };
+    
+    checkBrandProfile();
+  }, []);
+
+  // Handle brand profile generation
+  const handleGenerateProfile = async () => {
+    if (!shop) return;
+
+    setIsGeneratingProfile(true);
+    setProfileError(null);
+    setIsOAuthError(false);
+    setGenerationProgress({ stage: 'Starting...', progress: 0 });
+
+    try {
+      const profile = await generateBrandProfile(shop, (stage, progress) => {
+        setGenerationProgress({ stage, progress });
+      });
+      setBrandProfile(profile);
+      showToast('Brand profile generated successfully!');
+    } catch (error: any) {
+      console.error('Error generating brand profile:', error);
+      
+      if (isOAuthRequired(error)) {
+        setIsOAuthError(true);
+        setProfileError('Your app connection has expired or is invalid.');
+      } else {
+        setProfileError(error.message || 'Failed to generate brand profile');
+      }
+    } finally {
+      setIsGeneratingProfile(false);
+    }
+  };
+
+  // Handle reconnecting the app (OAuth redirect)
+  const handleReconnectApp = () => {
+    if (shop) {
+      redirectToOAuth(shop);
+    }
+  };
 
   // Fetch quota status on mount and periodically
   useEffect(() => {
@@ -475,6 +542,105 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
                   <span className="text-2xl font-bold text-sage-500">{stats.published}</span>
                   <span className="text-sm text-slate-warm-500">Published</span>
                 </div>
+              </div>
+            )}
+
+            {/* Brand Profile Prompt - Show when no profile exists */}
+            {brandProfileChecked && !brandProfile && (
+              <div className="mb-6 card-elevated overflow-hidden border-2 border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50">
+                {/* Generating State */}
+                {isGeneratingProfile ? (
+                  <div className="p-6">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                        <Loader2 size={24} className="text-white animate-spin" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-warm-800">Generating Your Brand Profile</h3>
+                        <p className="text-sm text-slate-warm-500">{generationProgress.stage}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-warm-600">Progress</span>
+                        <span className="font-medium text-violet-600">{Math.round(generationProgress.progress)}%</span>
+                      </div>
+                      <div className="h-2 bg-slate-warm-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full transition-all duration-500 ease-out"
+                          style={{ width: `${generationProgress.progress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-slate-warm-400 text-center mt-3">
+                        Analyzing your products, collections, and store data...
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-6">
+                    <div className="flex flex-col md:flex-row md:items-center gap-6">
+                      {/* Icon */}
+                      <div className="flex-shrink-0">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-500/25 animate-float">
+                          <Wand2 size={26} className="text-white" />
+                        </div>
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-semibold text-slate-warm-800">
+                            Set Up Your Brand Profile
+                          </h3>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-100 rounded-full text-xs font-medium text-violet-600">
+                            <Sparkles size={10} />
+                            Recommended
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-warm-500 mb-1">
+                          Let our AI analyze your store to understand your brand's voice, style, and audience.
+                        </p>
+                        <p className="text-xs text-slate-warm-400">
+                          This helps generate more on-brand captions and content for your posts.
+                        </p>
+                      </div>
+                      
+                      {/* CTA */}
+                      <div className="flex-shrink-0">
+                        <button
+                          onClick={handleGenerateProfile}
+                          disabled={!isAuthenticated}
+                          className="w-full md:w-auto px-5 py-3 rounded-xl font-semibold text-sm inline-flex items-center justify-center gap-2 bg-gradient-to-r from-violet-500 to-indigo-500 text-white hover:from-violet-600 hover:to-indigo-600 shadow-lg shadow-violet-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Store size={16} />
+                          Generate Profile
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Error State */}
+                    {profileError && (
+                      <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm text-red-600">{profileError}</p>
+                            {isOAuthError && (
+                              <button
+                                onClick={handleReconnectApp}
+                                className="mt-2 text-sm font-medium text-red-600 hover:text-red-700 inline-flex items-center gap-1"
+                              >
+                                <RefreshCw size={14} />
+                                Reconnect App
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
