@@ -441,6 +441,17 @@ exports.shopifyGetShop = functions.https.onRequest((req, res) => {
         }
         catch (error) {
             console.error('Error fetching shop:', error);
+            // If the access token is invalid, delete it and tell the frontend to re-auth
+            if (error.message === 'INVALID_ACCESS_TOKEN') {
+                console.log('[shopifyGetShop] Deleting invalid token for shop:', session.shop);
+                const db = admin.firestore();
+                await db.collection('shopifyStores').doc(session.shop).delete();
+                res.status(401).json({
+                    error: 'Access token is invalid. Please reinstall the app.',
+                    code: 'INVALID_ACCESS_TOKEN'
+                });
+                return;
+            }
             res.status(500).json({ error: 'Failed to fetch shop info' });
         }
     });
