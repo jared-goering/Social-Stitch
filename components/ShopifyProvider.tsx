@@ -3,6 +3,9 @@
  *
  * Provides Shopify App Bridge context for the embedded app experience.
  * App Bridge handles authentication automatically for embedded apps.
+ * 
+ * IMPORTANT: When a user installs from App Store, they must complete OAuth first.
+ * This provider checks if OAuth is complete and redirects if needed.
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -11,6 +14,9 @@ import { getSessionToken } from '@shopify/app-bridge-utils';
 import { shopifyConfig } from '../shopify.config';
 import { setShopifyShop } from '../services/socialAuthService';
 import { setSessionToken, setShopDomain, setAppBridgeApp, redirectToOAuth, isOAuthRequired } from '../services/shopifyProductService';
+
+// Firebase Functions base URL
+const FUNCTIONS_URL = import.meta.env.VITE_FIREBASE_FUNCTIONS_URL || 'https://us-central1-social-stitch.cloudfunctions.net';
 
 // Shopify context types
 interface ShopifyContextValue {
@@ -240,11 +246,49 @@ function getShopifyParams() {
 }
 
 /**
+ * Check if the store has completed OAuth installation
+ */
+async function checkStoreInstallation(shop: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${FUNCTIONS_URL}/shopifyCheckInstall?shop=${encodeURIComponent(shop)}`);
+    if (!response.ok) {
+      console.error('[ShopifyProvider] Failed to check installation status');
+      return false;
+    }
+    const data = await response.json();
+    console.log('[ShopifyProvider] Installation check result:', data);
+    return data.installed === true;
+  } catch (error) {
+    console.error('[ShopifyProvider] Error checking installation:', error);
+    return false;
+  }
+}
+
+/**
+ * Redirect to OAuth flow to install the app
+ */
+function redirectToOAuthInstall(shop: string) {
+  console.log('[ShopifyProvider] Redirecting to OAuth for shop:', shop);
+  // Use top-level redirect for OAuth (breaks out of iframe)
+  const oauthUrl = `${FUNCTIONS_URL}/shopifyAuthStart?shop=${encodeURIComponent(shop)}`;
+  
+  // For embedded apps, we need to redirect the parent window
+  if (window.top !== window.self) {
+    // We're in an iframe, redirect the parent
+    window.top!.location.href = oauthUrl;
+  } else {
+    window.location.href = oauthUrl;
+  }
+}
+
+/**
  * Provides Shopify App Bridge context when running as embedded app
  * Falls through to children when not in Shopify mode
  */
 export function ShopifyProvider({ children }: ShopifyProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
+  const [installationChecked, setInstallationChecked] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
   const { shop, host } = getShopifyParams();
 
   useEffect(() => {
@@ -252,9 +296,46 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
     if (shop) {
       setShopifyShop(shop);
     }
-    // Small delay to ensure we have URL params
-    const timer = setTimeout(() => setIsLoading(false), 100);
-    return () => clearTimeout(timer);
+  }, [shop]);
+
+  // Check if the store has completed OAuth
+  useEffect(() => {
+    if (!shopifyConfig.isEmbedded || !shop) {
+      setIsLoading(false);
+      return;
+    }
+
+    let mounted = true;
+
+    const checkInstallation = async () => {
+      console.log('[ShopifyProvider] Checking if shop has completed OAuth:', shop);
+      
+      const installed = await checkStoreInstallation(shop);
+      
+      if (!mounted) return;
+
+      setIsInstalled(installed);
+      setInstallationChecked(true);
+
+      if (!installed) {
+        console.log('[ShopifyProvider] Shop not installed, redirecting to OAuth...');
+        // Give a small delay so the user can see what's happening
+        setTimeout(() => {
+          if (mounted) {
+            redirectToOAuthInstall(shop);
+          }
+        }, 500);
+      } else {
+        console.log('[ShopifyProvider] Shop is installed, proceeding with App Bridge');
+        setIsLoading(false);
+      }
+    };
+
+    checkInstallation();
+
+    return () => {
+      mounted = false;
+    };
   }, [shop]);
 
   // If not in Shopify mode, just render children directly
@@ -273,8 +354,8 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
     );
   }
 
-  // Show loading state briefly
-  if (isLoading) {
+  // Show loading/checking state
+  if (isLoading || !installationChecked) {
     return (
       <div
         style={{
@@ -298,7 +379,43 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
               margin: '0 auto 16px',
             }}
           />
-          <p style={{ color: '#637381' }}>Loading...</p>
+          <p style={{ color: '#637381' }}>
+            {!installationChecked ? 'Checking installation...' : 'Loading...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // If not installed, show redirecting message (this shows briefly before redirect)
+  if (!isInstalled) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          background: '#f6f6f7',
+        }}
+      >
+        <div style={{ textAlign: 'center' }}>
+          <div
+            style={{
+              width: '40px',
+              height: '40px',
+              border: '3px solid #e2e8f0',
+              borderTop: '3px solid #5c6ac4',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto 16px',
+            }}
+          />
+          <p style={{ color: '#637381' }}>Setting up your account...</p>
+          <p style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
+            Redirecting to complete installation...
+          </p>
         </div>
       </div>
     );
