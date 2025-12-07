@@ -265,20 +265,10 @@ async function checkStoreInstallation(shop: string): Promise<boolean> {
 }
 
 /**
- * Redirect to OAuth flow to install the app
+ * Get the OAuth URL for a shop
  */
-function redirectToOAuthInstall(shop: string) {
-  console.log('[ShopifyProvider] Redirecting to OAuth for shop:', shop);
-  // Use top-level redirect for OAuth (breaks out of iframe)
-  const oauthUrl = `${FUNCTIONS_URL}/shopifyAuthStart?shop=${encodeURIComponent(shop)}`;
-  
-  // For embedded apps, we need to redirect the parent window
-  if (window.top !== window.self) {
-    // We're in an iframe, redirect the parent
-    window.top!.location.href = oauthUrl;
-  } else {
-    window.location.href = oauthUrl;
-  }
+function getOAuthUrl(shop: string): string {
+  return `${FUNCTIONS_URL}/shopifyAuthStart?shop=${encodeURIComponent(shop)}`;
 }
 
 /**
@@ -318,13 +308,7 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
       setInstallationChecked(true);
 
       if (!installed) {
-        console.log('[ShopifyProvider] Shop not installed, redirecting to OAuth...');
-        // Give a small delay so the user can see what's happening
-        setTimeout(() => {
-          if (mounted) {
-            redirectToOAuthInstall(shop);
-          }
-        }, 500);
+        console.log('[ShopifyProvider] Shop not installed, showing connect screen');
       } else {
         console.log('[ShopifyProvider] Shop is installed, proceeding with App Bridge');
         setIsLoading(false);
@@ -387,8 +371,11 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
     );
   }
 
-  // If not installed, show redirecting message (this shows briefly before redirect)
-  if (!isInstalled) {
+  // If not installed, show connect button
+  // We can't auto-redirect from iframe due to security restrictions
+  if (!isInstalled && shop) {
+    const oauthUrl = getOAuthUrl(shop);
+    
     return (
       <div
         style={{
@@ -400,21 +387,66 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
           background: '#f6f6f7',
         }}
       >
-        <div style={{ textAlign: 'center' }}>
+        <div 
+          style={{ 
+            textAlign: 'center',
+            maxWidth: '400px',
+            padding: '32px',
+            background: '#fff',
+            borderRadius: '12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          }}
+        >
           <div
             style={{
-              width: '40px',
-              height: '40px',
-              border: '3px solid #e2e8f0',
-              borderTop: '3px solid #5c6ac4',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto 16px',
+              width: '64px',
+              height: '64px',
+              background: 'linear-gradient(135deg, #5c6ac4 0%, #202e78 100%)',
+              borderRadius: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 20px',
             }}
-          />
-          <p style={{ color: '#637381' }}>Setting up your account...</p>
-          <p style={{ color: '#9ca3af', fontSize: '12px', marginTop: '8px' }}>
-            Redirecting to complete installation...
+          >
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <h2 style={{ color: '#111827', marginBottom: '8px', fontSize: '20px', fontWeight: '600' }}>
+            Welcome to SocialStitch
+          </h2>
+          <p style={{ color: '#637381', fontSize: '14px', marginBottom: '24px', lineHeight: '1.5' }}>
+            To get started, we need to connect to your store. Click the button below to authorize the app.
+          </p>
+          <a
+            href={oauthUrl}
+            target="_top"
+            style={{
+              display: 'inline-block',
+              background: 'linear-gradient(135deg, #5c6ac4 0%, #202e78 100%)',
+              color: 'white',
+              padding: '12px 32px',
+              borderRadius: '8px',
+              textDecoration: 'none',
+              fontWeight: '600',
+              fontSize: '14px',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              boxShadow: '0 2px 8px rgba(92, 106, 196, 0.3)',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(92, 106, 196, 0.4)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(92, 106, 196, 0.3)';
+            }}
+          >
+            Connect Store
+          </a>
+          <p style={{ color: '#9ca3af', fontSize: '12px', marginTop: '16px' }}>
+            This will request permission to access your products
           </p>
         </div>
       </div>
