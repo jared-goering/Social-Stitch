@@ -869,14 +869,28 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
                     <p className="text-xs text-slate-warm-400">
                       Generated {brandProfile.generatedAt.toLocaleDateString()} at {brandProfile.generatedAt.toLocaleTimeString()}
                     </p>
-                    <button
-                      onClick={handleGenerateProfile}
-                      disabled={isGeneratingProfile}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-slate-warm-200 text-slate-warm-700 hover:border-violet-300 hover:bg-violet-50 transition-all text-sm font-medium disabled:opacity-50"
-                    >
-                      <RefreshCw size={14} />
-                      Regenerate
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleDeleteProfile}
+                        disabled={isDeletingProfile}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-red-200 text-red-500 hover:border-red-300 hover:bg-red-50 transition-all text-sm font-medium disabled:opacity-50"
+                      >
+                        {isDeletingProfile ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={14} />
+                        )}
+                        Delete
+                      </button>
+                      <button
+                        onClick={handleGenerateProfile}
+                        disabled={isGeneratingProfile}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-slate-warm-200 text-slate-warm-700 hover:border-violet-300 hover:bg-violet-50 transition-all text-sm font-medium disabled:opacity-50"
+                      >
+                        <RefreshCw size={14} />
+                        Regenerate
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

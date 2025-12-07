@@ -25,6 +25,7 @@ import {
 import {
   saveBrandProfile as saveToFirestore,
   getBrandProfile as getFromFirestore,
+  deleteBrandProfile as deleteFromFirestore,
 } from "./shopScopedStorageService";
 
 // Progress callback type
@@ -412,6 +413,13 @@ export async function getBrandProfile(): Promise<BrandProfile | null> {
 export async function hasBrandProfile(): Promise<boolean> {
   const profile = await getFromFirestore();
   return profile !== null && profile.status === 'complete';
+}
+
+/**
+ * Delete the brand profile
+ */
+export async function deleteBrandProfile(): Promise<void> {
+  await deleteFromFirestore();
 }
 
 // =============================================================================
