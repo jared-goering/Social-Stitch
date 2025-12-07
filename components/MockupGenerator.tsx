@@ -717,28 +717,19 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     const stylesToGenerate = Array.from(selectedStyles);
     
     // Build list of all generation tasks (style + variation + gender combinations)
-    type GenerationTask = { style: string; gender: ModelGender; variationIndex: number };
+    // With multi-select gender, we create separate tasks for each selected gender
+    type GenerationTask = { style: string; gender: 'male' | 'female'; variationIndex: number };
     const tasks: GenerationTask[] = [];
     
     for (const style of stylesToGenerate) {
-      const styleGender = getStyleGender(style);
+      const selectedGendersForStyle = getSelectedGenders(style);
+      const gendersArray = Array.from(selectedGendersForStyle) as ('male' | 'female')[];
       
+      // For each variation, create a task for each selected gender
       for (let i = 0; i < variationCount; i++) {
-        let gender: ModelGender;
-        
-        if (styleGender === 'both') {
-          // Alternate between male and female for 'both'
-          // First half male, second half female (or alternate if odd)
-          if (variationCount === 1) {
-            gender = Math.random() > 0.5 ? 'male' : 'female';
-          } else {
-            gender = i < Math.ceil(variationCount / 2) ? 'male' : 'female';
-          }
-        } else {
-          gender = styleGender;
+        for (const gender of gendersArray) {
+          tasks.push({ style, gender, variationIndex: i });
         }
-        
-        tasks.push({ style, gender, variationIndex: i });
       }
     }
     
