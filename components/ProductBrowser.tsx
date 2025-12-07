@@ -5,7 +5,7 @@
  * Allows selecting products to use for mockup generation.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   ShopifyProduct,
   ShopifyProductImage,
@@ -33,6 +33,14 @@ import {
   Tag,
   Sparkles,
   ArrowRight,
+  SlidersHorizontal,
+  ChevronDown,
+  Circle,
+  CheckCircle2,
+  Archive,
+  FileEdit,
+  Store,
+  Layers,
 } from 'lucide-react';
 
 interface ProductBrowserProps {
@@ -41,12 +49,21 @@ interface ProductBrowserProps {
 }
 
 type ViewMode = 'grid' | 'list';
+type ProductStatus = '' | 'active' | 'draft' | 'archived';
+
+interface FilterState {
+  status: ProductStatus;
+  vendor: string;
+  productType: string;
+  collection: string;
+}
 
 export const ProductBrowser: React.FC<ProductBrowserProps> = ({
   onSelectProduct,
   onSelectImage,
 }) => {
   const [products, setProducts] = useState<ShopifyProduct[]>([]);
+  const [allProducts, setAllProducts] = useState<ShopifyProduct[]>([]); // For extracting filter options
   const [collections, setCollections] = useState<ShopifyCollection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -56,18 +73,98 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
   const [loadedCount, setLoadedCount] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCollection, setSelectedCollection] = useState<string>('');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+
+  // Advanced filter state
+  const [filters, setFilters] = useState<FilterState>({
+    status: '',
+    vendor: '',
+    productType: '',
+    collection: '',
+  });
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const filterPanelRef = useRef<HTMLDivElement>(null);
 
   // Product detail modal
   const [selectedProduct, setSelectedProduct] = useState<ShopifyProduct | null>(null);
   const [showImageSelector, setShowImageSelector] = useState(false);
+
+  // Extract unique vendors and product types from all products
+  const { uniqueVendors, uniqueProductTypes } = useMemo(() => {
+    const vendors = new Set<string>();
+    const productTypes = new Set<string>();
+    
+    allProducts.forEach((product) => {
+      if (product.vendor) vendors.add(product.vendor);
+      if (product.productType) productTypes.add(product.productType);
+    });
+    
+    return {
+      uniqueVendors: Array.from(vendors).sort(),
+      uniqueProductTypes: Array.from(productTypes).sort(),
+    };
+  }, [allProducts]);
+
+  // Count active filters
+  const activeFilterCount = useMemo(() => {
+    return [filters.status, filters.vendor, filters.productType, filters.collection]
+      .filter(Boolean).length;
+  }, [filters]);
+
+  // Close filter panel when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterPanelRef.current && !filterPanelRef.current.contains(event.target as Node)) {
+        setShowFilterPanel(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowFilterPanel(false);
+      }
+    };
+
+    if (showFilterPanel) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showFilterPanel]);
 
   // Load products on mount
   useEffect(() => {
     loadProducts();
     loadCollections();
   }, []);
+
+  // Filter products client-side based on current filters
+  const filteredProducts = useMemo(() => {
+    return allProducts.filter((product) => {
+      // Status filter
+      if (filters.status && product.status !== filters.status) {
+        return false;
+      }
+      // Vendor filter
+      if (filters.vendor && product.vendor !== filters.vendor) {
+        return false;
+      }
+      // Product type filter
+      if (filters.productType && product.productType !== filters.productType) {
+        return false;
+      }
+      return true;
+    });
+  }, [allProducts, filters.status, filters.vendor, filters.productType]);
+
+  // Update displayed products when filters change
+  useEffect(() => {
+    setProducts(filteredProducts);
+  }, [filteredProducts]);
 
   const loadProducts = async (collectionId?: string, loadAll = false) => {
     if (loadAll) {
@@ -84,6 +181,7 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
         loadAll,
         onProgress: (count) => setLoadedCount(count),
       });
+      setAllProducts(data);
       setProducts(data);
       // If we got exactly 250 products and not loading all, there might be more
       setHasMoreProducts(!loadAll && data.length === 250);
@@ -109,7 +207,7 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
   };
 
   const loadAllProducts = () => {
-    loadProducts(selectedCollection || undefined, true);
+    loadProducts(filters.collection || undefined, true);
   };
 
   const loadCollections = async () => {
@@ -124,7 +222,7 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
 
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) {
-      loadProducts(selectedCollection || undefined);
+      loadProducts(filters.collection || undefined);
       return;
     }
 
@@ -133,23 +231,56 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
 
     try {
       const { products: results } = await searchProducts(searchQuery);
+      setAllProducts(results);
       setProducts(results);
     } catch (err: any) {
       setError(err.message || 'Search failed');
     } finally {
       setIsSearching(false);
     }
-  }, [searchQuery, selectedCollection]);
+  }, [searchQuery, filters.collection]);
 
   const handleCollectionChange = (collectionId: string) => {
-    setSelectedCollection(collectionId);
+    setFilters((prev) => ({ ...prev, collection: collectionId }));
     setSearchQuery('');
     loadProducts(collectionId || undefined);
   };
 
   const handleRefresh = () => {
     clearProductCache();
-    loadProducts(selectedCollection || undefined);
+    loadProducts(filters.collection || undefined);
+  };
+
+  const handleFilterChange = (key: keyof FilterState, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleClearFilter = (key: keyof FilterState) => {
+    setFilters((prev) => ({ ...prev, [key]: '' }));
+    if (key === 'collection') {
+      loadProducts();
+    }
+  };
+
+  const handleClearAllFilters = () => {
+    setFilters({
+      status: '',
+      vendor: '',
+      productType: '',
+      collection: '',
+    });
+    loadProducts();
+  };
+
+  const getFilterLabel = (key: keyof FilterState, value: string): string => {
+    switch (key) {
+      case 'status':
+        return value.charAt(0).toUpperCase() + value.slice(1);
+      case 'collection':
+        return collections.find((c) => c.id.toString() === value)?.title || value;
+      default:
+        return value;
+    }
   };
 
   const handleProductClick = (product: ShopifyProduct) => {
@@ -225,7 +356,7 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
               <button
                 onClick={() => {
                   setSearchQuery('');
-                  loadProducts(selectedCollection || undefined);
+                  loadProducts(filters.collection || undefined);
                 }}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-warm-400 hover:text-slate-warm-600 transition-colors"
               >
@@ -234,24 +365,155 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
             )}
           </div>
 
-          {/* Collection Filter */}
-          <div className="relative">
-            <Filter
-              size={16}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-warm-400 pointer-events-none"
-            />
-            <select
-              value={selectedCollection}
-              onChange={(e) => handleCollectionChange(e.target.value)}
-              className="pl-11 pr-10 py-3 rounded-xl border-2 border-slate-warm-200 text-sm focus:ring-2 focus:ring-coral-500/20 focus:border-coral-400 outline-none appearance-none bg-white cursor-pointer min-w-[180px]"
+          {/* Filter Button with Panel */}
+          <div className="relative" ref={filterPanelRef}>
+            <button
+              onClick={() => setShowFilterPanel(!showFilterPanel)}
+              className={`
+                flex items-center gap-2 px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all
+                ${showFilterPanel || activeFilterCount > 0
+                  ? 'border-coral-400 bg-coral-50 text-coral-700'
+                  : 'border-slate-warm-200 bg-white text-slate-warm-600 hover:border-slate-warm-300'
+                }
+              `}
             >
-              <option value="">All Products</option>
-              {collections.map((collection) => (
-                <option key={collection.id} value={collection.id}>
-                  {collection.title}
-                </option>
-              ))}
-            </select>
+              <SlidersHorizontal size={16} />
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-coral-500 text-white text-xs font-semibold">
+                  {activeFilterCount}
+                </span>
+              )}
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 ${showFilterPanel ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {/* Filter Panel Dropdown */}
+            {showFilterPanel && (
+              <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border-2 border-slate-warm-100 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="p-4 border-b border-slate-warm-100 bg-gradient-to-r from-slate-warm-50 to-white">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-slate-warm-800">Filter Products</h3>
+                    {activeFilterCount > 0 && (
+                      <button
+                        onClick={handleClearAllFilters}
+                        className="text-xs text-coral-600 hover:text-coral-700 font-medium"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-4 space-y-5">
+                  {/* Status Filter */}
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-warm-500 uppercase tracking-wide mb-2.5">
+                      <Circle size={12} />
+                      Status
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { value: '', label: 'All', icon: Layers },
+                        { value: 'active', label: 'Active', icon: CheckCircle2 },
+                        { value: 'draft', label: 'Draft', icon: FileEdit },
+                        { value: 'archived', label: 'Archived', icon: Archive },
+                      ].map(({ value, label, icon: Icon }) => (
+                        <button
+                          key={value}
+                          onClick={() => handleFilterChange('status', value as ProductStatus)}
+                          className={`
+                            flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all
+                            ${filters.status === value
+                              ? 'bg-coral-500 text-white shadow-sm'
+                              : 'bg-slate-warm-100 text-slate-warm-600 hover:bg-slate-warm-200'
+                            }
+                          `}
+                        >
+                          <Icon size={12} />
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Collection Filter */}
+                  <div>
+                    <label className="flex items-center gap-2 text-xs font-semibold text-slate-warm-500 uppercase tracking-wide mb-2.5">
+                      <Layers size={12} />
+                      Collection
+                    </label>
+                    <select
+                      value={filters.collection}
+                      onChange={(e) => handleCollectionChange(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-warm-200 text-sm focus:ring-2 focus:ring-coral-500/20 focus:border-coral-400 outline-none appearance-none bg-white cursor-pointer"
+                    >
+                      <option value="">All Collections</option>
+                      {collections.map((collection) => (
+                        <option key={collection.id} value={collection.id}>
+                          {collection.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Vendor Filter */}
+                  {uniqueVendors.length > 0 && (
+                    <div>
+                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-warm-500 uppercase tracking-wide mb-2.5">
+                        <Store size={12} />
+                        Vendor
+                      </label>
+                      <select
+                        value={filters.vendor}
+                        onChange={(e) => handleFilterChange('vendor', e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-warm-200 text-sm focus:ring-2 focus:ring-coral-500/20 focus:border-coral-400 outline-none appearance-none bg-white cursor-pointer"
+                      >
+                        <option value="">All Vendors</option>
+                        {uniqueVendors.map((vendor) => (
+                          <option key={vendor} value={vendor}>
+                            {vendor}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Product Type Filter */}
+                  {uniqueProductTypes.length > 0 && (
+                    <div>
+                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-warm-500 uppercase tracking-wide mb-2.5">
+                        <Tag size={12} />
+                        Product Type
+                      </label>
+                      <select
+                        value={filters.productType}
+                        onChange={(e) => handleFilterChange('productType', e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border-2 border-slate-warm-200 text-sm focus:ring-2 focus:ring-coral-500/20 focus:border-coral-400 outline-none appearance-none bg-white cursor-pointer"
+                      >
+                        <option value="">All Types</option>
+                        {uniqueProductTypes.map((type) => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 border-t border-slate-warm-100 bg-slate-warm-50/50">
+                  <button
+                    onClick={() => setShowFilterPanel(false)}
+                    className="w-full py-2.5 rounded-xl bg-coral-500 text-white text-sm font-medium hover:bg-coral-600 transition-colors"
+                  >
+                    Apply Filters
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <button
@@ -267,6 +529,45 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
             Search
           </button>
         </div>
+
+        {/* Active Filter Chips */}
+        {activeFilterCount > 0 && (
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            <span className="text-xs text-slate-warm-500 font-medium">Active filters:</span>
+            {filters.status && (
+              <FilterChip
+                label={`Status: ${getFilterLabel('status', filters.status)}`}
+                onRemove={() => handleClearFilter('status')}
+              />
+            )}
+            {filters.collection && (
+              <FilterChip
+                label={`Collection: ${getFilterLabel('collection', filters.collection)}`}
+                onRemove={() => handleClearFilter('collection')}
+              />
+            )}
+            {filters.vendor && (
+              <FilterChip
+                label={`Vendor: ${filters.vendor}`}
+                onRemove={() => handleClearFilter('vendor')}
+              />
+            )}
+            {filters.productType && (
+              <FilterChip
+                label={`Type: ${filters.productType}`}
+                onRemove={() => handleClearFilter('productType')}
+              />
+            )}
+            {activeFilterCount > 1 && (
+              <button
+                onClick={handleClearAllFilters}
+                className="text-xs text-coral-600 hover:text-coral-700 font-medium ml-1"
+              >
+                Clear all
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -302,14 +603,29 @@ export const ProductBrowser: React.FC<ProductBrowserProps> = ({
         {!isLoading && !error && products.length === 0 && (
           <div className="text-center py-16">
             <div className="w-20 h-20 rounded-2xl bg-slate-warm-100 flex items-center justify-center mx-auto mb-5">
-              <Package size={36} className="text-slate-warm-300" />
+              {activeFilterCount > 0 ? (
+                <Filter size={36} className="text-slate-warm-300" />
+              ) : (
+                <Package size={36} className="text-slate-warm-300" />
+              )}
             </div>
             <p className="font-semibold text-slate-warm-600 mb-2">No products found</p>
-            <p className="text-sm text-slate-warm-400 max-w-xs mx-auto">
+            <p className="text-sm text-slate-warm-400 max-w-xs mx-auto mb-4">
               {searchQuery
                 ? 'Try a different search term'
+                : activeFilterCount > 0
+                ? 'No products match your current filters'
                 : 'Add products to your Shopify store to get started'}
             </p>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={handleClearAllFilters}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-coral-100 text-coral-700 text-sm font-medium hover:bg-coral-200 transition-colors"
+              >
+                <X size={14} />
+                Clear all filters
+              </button>
+            )}
           </div>
         )}
 
@@ -623,5 +939,28 @@ const ImageSelectorModal: React.FC<ImageSelectorModalProps> = ({
         </div>
       </div>
     </div>
+  );
+};
+
+// Filter Chip Component
+interface FilterChipProps {
+  label: string;
+  onRemove: () => void;
+}
+
+const FilterChip: React.FC<FilterChipProps> = ({ label, onRemove }) => {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-coral-100 text-coral-700 text-xs font-medium animate-in fade-in zoom-in-95 duration-200">
+      {label}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        className="w-4 h-4 rounded-full bg-coral-200 hover:bg-coral-300 flex items-center justify-center transition-colors"
+      >
+        <X size={10} strokeWidth={3} />
+      </button>
+    </span>
   );
 };

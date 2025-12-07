@@ -191,6 +191,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     return true;
   });
   const [expandedReasoning, setExpandedReasoning] = useState<number | null>(null);
+  const [expandedDescriptions, setExpandedDescriptions] = useState<Set<number>>(new Set());
   
   // Variations and gender selection
   const [variationCount, setVariationCount] = useState<number>(2);
@@ -966,32 +967,40 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
               </span>
             )}
           </div>
-          <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
-            {applicableCategories.map((category) => {
-              const isActive = selectedCategory === category.id;
-              return (
-                <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category.id)}
-                  disabled={isLoadingSuggestions}
-                  className={`
-                    flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
-                    transition-all duration-150 border
-                    ${isActive
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
-                    }
-                    ${isLoadingSuggestions ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                  `}
-                  title={category.description}
-                >
-                  <span className={`transition-colors ${isActive ? 'text-white' : 'text-slate-400'}`}>
-                    {getCategoryIcon(category.icon, 12)}
-                  </span>
-                  <span>{category.shortLabel}</span>
-                </button>
-              );
-            })}
+          {/* Scrollable pills with fade indicators */}
+          <div className="relative">
+            {/* Left fade gradient */}
+            <div className="absolute left-0 top-0 bottom-1 w-6 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none opacity-0 transition-opacity" />
+            {/* Right fade gradient - visible when more items exist */}
+            <div className="absolute right-0 top-0 bottom-1 w-6 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
+            
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none scroll-smooth snap-x">
+              {applicableCategories.map((category) => {
+                const isActive = selectedCategory === category.id;
+                return (
+                  <button
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id)}
+                    disabled={isLoadingSuggestions}
+                    className={`
+                      flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
+                      transition-all duration-150 border snap-start
+                      ${isActive
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-500/20'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                      }
+                      ${isLoadingSuggestions ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    `}
+                    title={category.description}
+                  >
+                    <span className={`transition-colors ${isActive ? 'text-white' : 'text-slate-400'}`}>
+                      {getCategoryIcon(category.icon, 12)}
+                    </span>
+                    <span>{category.shortLabel}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <p className="mt-2 text-[10px] text-slate-500 leading-relaxed min-h-[2.5em]">
             {CONTENT_CATEGORIES.find(c => c.id === selectedCategory)?.description || 'Select a content style for your mockups'}
@@ -1023,26 +1032,35 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             )}
           </h4>
           {selectedStyles.size > 0 && (
-            <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">
+            <span 
+              key={selectedStyles.size}
+              className="text-[10px] font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full animate-counter-pulse"
+            >
               {selectedStyles.size} selected
             </span>
           )}
         </div>
 
         {isLoadingSuggestions ? (
-          <div className="space-y-1.5 mb-3">
+          <div className="space-y-1.5 mb-3 stagger-children">
             {[...Array(5)].map((_, idx) => (
               <div 
                 key={idx} 
-                className="w-full p-2 rounded-lg bg-slate-50 border border-slate-100"
-                style={{ animationDelay: `${idx * 100}ms` }}
+                className="w-full p-2.5 rounded-lg bg-white border border-slate-100 shadow-sm"
               >
-                <div className="flex items-start gap-2">
-                  <div className="w-4 h-4 rounded bg-slate-200 animate-pulse" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-3 w-20 bg-slate-200 rounded animate-pulse" />
-                    <div className="h-2.5 w-full bg-slate-100 rounded animate-pulse" />
+                <div className="flex items-start gap-2.5">
+                  {/* Checkbox skeleton */}
+                  <div className="w-4 h-4 rounded shimmer flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    {/* Title skeleton */}
+                    <div className="h-3.5 w-24 rounded shimmer" />
+                    {/* Description skeleton */}
+                    <div className="h-3 w-full rounded shimmer" />
+                    {/* Expand link skeleton */}
+                    <div className="h-2.5 w-20 rounded shimmer opacity-60" />
                   </div>
+                  {/* Quick generate button skeleton */}
+                  <div className="w-6 h-6 rounded-md shimmer flex-shrink-0" />
                 </div>
               </div>
             ))}
@@ -1056,7 +1074,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                   <div
                     onClick={() => !isGenerating && toggleStyleSelection(suggestion.description)}
                     className={`
-                      w-full text-left p-2 rounded-lg border transition-all text-xs cursor-pointer
+                      w-full text-left p-2 rounded-lg border transition-all text-xs cursor-pointer card-ripple
                       ${isSelected 
                         ? 'border-indigo-500 bg-indigo-50' 
                         : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
@@ -1064,12 +1082,12 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                     `}
                   >
                     <div className="flex items-start gap-2">
-                      {/* Checkbox */}
+                      {/* Checkbox with bounce animation */}
                       <div
                         className={`
                           mt-0.5 w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-all
                           ${isSelected
-                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                            ? 'bg-indigo-600 border-indigo-600 text-white animate-selection-bounce'
                             : 'border-slate-300 group-hover:border-indigo-400'
                           }
                         `}
@@ -1083,67 +1101,125 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                             <span className={`font-medium text-xs block transition-colors ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>
                               {suggestion.title}
                             </span>
-                            <span className="text-slate-500 text-[11px] line-clamp-1 leading-snug">
-                              {suggestion.description}
-                            </span>
+                            {/* Expandable description */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedDescriptions(prev => {
+                                    const newSet = new Set(prev);
+                                    if (newSet.has(idx)) {
+                                      newSet.delete(idx);
+                                    } else {
+                                      newSet.add(idx);
+                                    }
+                                    return newSet;
+                                  });
+                                }}
+                                className="w-full text-left group/desc"
+                              >
+                                <span className={`text-slate-500 text-[11px] leading-snug block transition-all duration-300 ${
+                                  expandedDescriptions.has(idx) ? '' : 'line-clamp-1'
+                                }`}>
+                                  {suggestion.description}
+                                </span>
+                                <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium mt-0.5 transition-colors ${
+                                  isSelected ? 'text-indigo-500 hover:text-indigo-600' : 'text-slate-400 hover:text-slate-600'
+                                }`}>
+                                  {expandedDescriptions.has(idx) ? (
+                                    <>
+                                      <ChevronUp size={10} />
+                                      <span>Show less</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDown size={10} />
+                                      <span>Show full prompt</span>
+                                    </>
+                                  )}
+                                </span>
+                              </button>
+                            </div>
                             {/* Gender Selector - only show for categories with people */}
                             {isSelected && currentCategoryIncludesPeople && (
-                              <div className="flex items-center gap-1 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
-                                <span className="text-[10px] font-medium text-slate-600 mr-0.5">Model:</span>
-                                <button
-                                  type="button"
-                                  onClick={() => setStyleGender(suggestion.description, 'male')}
-                                  className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                                    getStyleGender(suggestion.description) === 'male'
-                                      ? 'bg-indigo-600 text-white shadow-sm'
-                                      : 'bg-white border border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50'
-                                  }`}
-                                  title="Male model"
-                                >
-                                  <User size={12} />
-                                  <span>Male</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setStyleGender(suggestion.description, 'female')}
-                                  className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                                    getStyleGender(suggestion.description) === 'female'
-                                      ? 'bg-pink-500 text-white shadow-sm'
-                                      : 'bg-white border border-slate-200 text-slate-600 hover:border-pink-300 hover:bg-slate-50'
-                                  }`}
-                                  title="Female model"
-                                >
-                                  <User size={12} />
-                                  <span>Female</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setStyleGender(suggestion.description, 'both')}
-                                  className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                                    getStyleGender(suggestion.description) === 'both'
-                                      ? 'bg-purple-500 text-white shadow-sm'
-                                      : 'bg-white border border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-slate-50'
-                                  }`}
-                                  title="Both (one of each)"
-                                >
-                                  <Users size={12} />
-                                  <span>Both</span>
-                                </button>
+                              <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wide">Model</span>
+                                <div className="flex gap-0.5 p-0.5 bg-slate-100 rounded-lg">
+                                  <button
+                                    type="button"
+                                    onClick={() => setStyleGender(suggestion.description, 'male')}
+                                    className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
+                                      getStyleGender(suggestion.description) === 'male'
+                                        ? 'bg-sky-500 text-white shadow-sm scale-105'
+                                        : 'text-slate-500 hover:text-sky-600 hover:bg-sky-50'
+                                    }`}
+                                    title="Male model"
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <circle cx="12" cy="7" r="4"/>
+                                      <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
+                                    </svg>
+                                    <span>Male</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setStyleGender(suggestion.description, 'female')}
+                                    className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
+                                      getStyleGender(suggestion.description) === 'female'
+                                        ? 'bg-pink-500 text-white shadow-sm scale-105'
+                                        : 'text-slate-500 hover:text-pink-600 hover:bg-pink-50'
+                                    }`}
+                                    title="Female model"
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <circle cx="12" cy="7" r="4"/>
+                                      <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
+                                    </svg>
+                                    <span>Female</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setStyleGender(suggestion.description, 'both')}
+                                    className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
+                                      getStyleGender(suggestion.description) === 'both'
+                                        ? 'bg-gradient-to-r from-sky-500 to-pink-500 text-white shadow-sm scale-105'
+                                        : 'text-slate-500 hover:text-purple-600 hover:bg-purple-50'
+                                    }`}
+                                    title="Both (generates one of each)"
+                                  >
+                                    <Users size={12} />
+                                    <span>Both</span>
+                                  </button>
+                                </div>
                               </div>
                             )}
                           </div>
                           <div className="flex items-center gap-0.5 flex-shrink-0">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedReasoning(expandedReasoning === idx ? null : idx);
-                              }}
-                              className="p-1 hover:bg-slate-100 rounded transition-colors opacity-50 hover:opacity-100"
-                              title="Why this style?"
-                            >
-                              <Info size={12} className="text-slate-400" />
-                            </button>
+                            {/* Hover tooltip for reasoning */}
+                            <div className="relative group/tooltip">
+                              <button
+                                type="button"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1 hover:bg-amber-100 rounded transition-colors"
+                              >
+                                <Lightbulb size={12} className="text-amber-500" />
+                              </button>
+                              {/* Floating tooltip */}
+                              <div className="absolute right-0 top-full mt-1 w-56 p-2.5 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-lg shadow-lg z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 animate-tooltip-enter pointer-events-none">
+                                <div className="flex items-start gap-2">
+                                  <Sparkles size={12} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="text-[9px] font-semibold text-amber-800 uppercase tracking-wide mb-1">Why this style?</p>
+                                    <p className="text-[10px] text-amber-700 leading-relaxed">
+                                      {suggestion.reasoning}
+                                    </p>
+                                  </div>
+                                </div>
+                                {/* Arrow */}
+                                <div className="absolute -top-1 right-3 w-2 h-2 bg-amber-50 border-l border-t border-amber-200 transform rotate-45" />
+                              </div>
+                            </div>
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1151,22 +1227,23 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                                 handleQuickGenerate(suggestion.description);
                               }}
                               disabled={isGenerating}
-                              className="p-1 rounded transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
-                              title="Quick generate this style"
+                              className={`
+                                p-1.5 rounded-md transition-all flex items-center gap-1
+                                ${isSelected 
+                                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm' 
+                                  : 'bg-slate-100 text-slate-600 hover:bg-indigo-500 hover:text-white'
+                                }
+                                ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}
+                              `}
+                              title="Generate this style now"
                             >
-                              <ArrowRight size={12} />
+                              <Zap size={10} />
                             </button>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                  {expandedReasoning === idx && (
-                    <div className="mt-1 p-2 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/50 rounded-lg text-[10px] text-amber-700 animate-in slide-in-from-top-1">
-                      <span className="font-semibold text-amber-800">Why: </span>
-                      {suggestion.reasoning}
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -1210,47 +1287,55 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                           </span>
                           {/* Gender Selector for preset styles - only show for categories with people */}
                           {isSelected && currentCategoryIncludesPeople && (
-                            <div className="flex items-center gap-1 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
-                              <span className="text-[10px] font-medium text-slate-600 mr-0.5">Model:</span>
-                              <button
-                                type="button"
-                                onClick={() => setStyleGender(style, 'male')}
-                                className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                                  getStyleGender(style) === 'male'
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'bg-white border border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50'
-                                }`}
-                                title="Male model"
-                              >
-                                <User size={12} />
-                                <span>Male</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setStyleGender(style, 'female')}
-                                className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                                  getStyleGender(style) === 'female'
-                                    ? 'bg-pink-500 text-white shadow-sm'
-                                    : 'bg-white border border-slate-200 text-slate-600 hover:border-pink-300 hover:bg-slate-50'
-                                }`}
-                                title="Female model"
-                              >
-                                <User size={12} />
-                                <span>Female</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setStyleGender(style, 'both')}
-                                className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                                  getStyleGender(style) === 'both'
-                                    ? 'bg-purple-500 text-white shadow-sm'
-                                    : 'bg-white border border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-slate-50'
-                                }`}
-                                title="Both (one of each)"
-                              >
-                                <Users size={12} />
-                                <span>Both</span>
-                              </button>
+                            <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
+                              <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wide">Model</span>
+                              <div className="flex gap-0.5 p-0.5 bg-slate-100 rounded-lg">
+                                <button
+                                  type="button"
+                                  onClick={() => setStyleGender(style, 'male')}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
+                                    getStyleGender(style) === 'male'
+                                      ? 'bg-sky-500 text-white shadow-sm scale-105'
+                                      : 'text-slate-500 hover:text-sky-600 hover:bg-sky-50'
+                                  }`}
+                                  title="Male model"
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="7" r="4"/>
+                                    <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
+                                  </svg>
+                                  <span>Male</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setStyleGender(style, 'female')}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
+                                    getStyleGender(style) === 'female'
+                                      ? 'bg-pink-500 text-white shadow-sm scale-105'
+                                      : 'text-slate-500 hover:text-pink-600 hover:bg-pink-50'
+                                  }`}
+                                  title="Female model"
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="7" r="4"/>
+                                    <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
+                                  </svg>
+                                  <span>Female</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setStyleGender(style, 'both')}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
+                                    getStyleGender(style) === 'both'
+                                      ? 'bg-gradient-to-r from-sky-500 to-pink-500 text-white shadow-sm scale-105'
+                                      : 'text-slate-500 hover:text-purple-600 hover:bg-purple-50'
+                                  }`}
+                                  title="Both (generates one of each)"
+                                >
+                                  <Users size={12} />
+                                  <span>Both</span>
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1261,10 +1346,17 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                             handleQuickGenerate(style);
                           }}
                           disabled={isGenerating}
-                          className="p-1 rounded transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
-                          title="Quick generate this style"
+                          className={`
+                            p-1.5 rounded-md transition-all flex-shrink-0
+                            ${isSelected 
+                              ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm' 
+                              : 'bg-slate-100 text-slate-600 hover:bg-indigo-500 hover:text-white'
+                            }
+                            ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}
+                          `}
+                          title="Generate this style now"
                         >
-                          <ArrowRight size={12} />
+                          <Zap size={10} />
                         </button>
                       </div>
                     </div>
@@ -1352,47 +1444,55 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                         </span>
                         {/* Gender Selector for preset styles - only show for categories with people */}
                         {isSelected && currentCategoryIncludesPeople && (
-                          <div className="flex items-center gap-1 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
-                            <span className="text-[10px] font-medium text-slate-600 mr-0.5">Model:</span>
-                            <button
-                              type="button"
-                              onClick={() => setStyleGender(style, 'male')}
-                              className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                                getStyleGender(style) === 'male'
-                                  ? 'bg-indigo-600 text-white shadow-sm'
-                                  : 'bg-white border border-slate-200 text-slate-600 hover:border-indigo-300 hover:bg-slate-50'
-                              }`}
-                              title="Male model"
-                            >
-                              <User size={12} />
-                              <span>Male</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setStyleGender(style, 'female')}
-                              className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                                getStyleGender(style) === 'female'
-                                  ? 'bg-pink-500 text-white shadow-sm'
-                                  : 'bg-white border border-slate-200 text-slate-600 hover:border-pink-300 hover:bg-slate-50'
-                              }`}
-                              title="Female model"
-                            >
-                              <User size={12} />
-                              <span>Female</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setStyleGender(style, 'both')}
-                              className={`px-1.5 py-1 rounded text-[10px] font-medium transition-all flex items-center gap-1 ${
-                                getStyleGender(style) === 'both'
-                                  ? 'bg-purple-500 text-white shadow-sm'
-                                  : 'bg-white border border-slate-200 text-slate-600 hover:border-purple-300 hover:bg-slate-50'
-                              }`}
-                              title="Both (one of each)"
-                            >
-                              <Users size={12} />
-                              <span>Both</span>
-                            </button>
+                          <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-indigo-100" onClick={(e) => e.stopPropagation()}>
+                            <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wide">Model</span>
+                            <div className="flex gap-0.5 p-0.5 bg-slate-100 rounded-lg">
+                              <button
+                                type="button"
+                                onClick={() => setStyleGender(style, 'male')}
+                                className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
+                                  getStyleGender(style) === 'male'
+                                    ? 'bg-sky-500 text-white shadow-sm scale-105'
+                                    : 'text-slate-500 hover:text-sky-600 hover:bg-sky-50'
+                                }`}
+                                title="Male model"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="7" r="4"/>
+                                  <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
+                                </svg>
+                                <span>Male</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setStyleGender(style, 'female')}
+                                className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
+                                  getStyleGender(style) === 'female'
+                                    ? 'bg-pink-500 text-white shadow-sm scale-105'
+                                    : 'text-slate-500 hover:text-pink-600 hover:bg-pink-50'
+                                }`}
+                                title="Female model"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="7" r="4"/>
+                                  <path d="M5 21v-2a7 7 0 0 1 14 0v2"/>
+                                </svg>
+                                <span>Female</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setStyleGender(style, 'both')}
+                                className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-200 flex items-center gap-1 ${
+                                  getStyleGender(style) === 'both'
+                                    ? 'bg-gradient-to-r from-sky-500 to-pink-500 text-white shadow-sm scale-105'
+                                    : 'text-slate-500 hover:text-purple-600 hover:bg-purple-50'
+                                }`}
+                                title="Both (generates one of each)"
+                              >
+                                <Users size={12} />
+                                <span>Both</span>
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1403,10 +1503,17 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                           handleQuickGenerate(style);
                         }}
                         disabled={isGenerating}
-                        className="p-1 rounded transition-all text-indigo-500 opacity-0 group-hover:opacity-100 hover:bg-indigo-100"
-                        title="Quick generate this style"
+                        className={`
+                          p-1.5 rounded-md transition-all flex-shrink-0
+                          ${isSelected 
+                            ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm' 
+                            : 'bg-slate-100 text-slate-600 hover:bg-indigo-500 hover:text-white'
+                          }
+                          ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}
+                        `}
+                        title="Generate this style now"
                       >
-                        <ArrowRight size={12} />
+                        <Zap size={10} />
                       </button>
                     </div>
                   </div>
@@ -1502,29 +1609,54 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         
         {/* Generation Progress Overlay */}
         {isGenerating && (
-            <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
-                <div className="text-center">
-                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-indigo-500/30">
-                    <Loader2 className="animate-spin text-white" size={24} />
+            <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-6">
+                <div className="text-center max-w-xs">
+                  {/* Animated icon */}
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-indigo-500/30 animate-breathe">
+                    <Loader2 className="animate-spin text-white" size={28} />
                   </div>
-                  <p className="font-semibold text-slate-800 text-sm mb-1">
-                    Generating {generationProgress && generationProgress.total > 1 ? 'Mockups' : 'Mockup'}...
+                  
+                  {/* Status text with animated dots */}
+                  <p className="font-semibold text-slate-800 text-base mb-1">
+                    Generating {generationProgress && generationProgress.total > 1 ? 'Mockups' : 'Mockup'}
+                    <span className="inline-flex ml-0.5">
+                      <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
+                      <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
+                      <span className="animate-bounce" style={{ animationDelay: '300ms' }}>.</span>
+                    </span>
                   </p>
+                  
                   {generationProgress && (
-                    <div className="mt-2 w-40 mx-auto">
-                      <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                    <div className="mt-3 w-48 mx-auto">
+                      <div className="flex justify-between text-[10px] text-slate-500 mb-1.5">
                         <span>Progress</span>
                         <span className="font-semibold text-indigo-600">{generationProgress.current} / {generationProgress.total}</span>
                       </div>
-                      <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      {/* Animated gradient progress bar */}
+                      <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
-                          style={{ width: `${(generationProgress.current / generationProgress.total) * 100}%` }}
+                          className="h-full animate-progress-gradient rounded-full transition-all duration-500 ease-out"
+                          style={{ width: `${Math.max(5, (generationProgress.current / generationProgress.total) * 100)}%` }}
                         />
                       </div>
+                      {/* Estimated time */}
+                      <p className="text-[10px] text-slate-400 mt-1.5">
+                        ~{Math.max(1, (generationProgress.total - generationProgress.current) * 8)}s remaining
+                      </p>
                     </div>
                   )}
-                  <p className="text-[10px] text-slate-400 mt-2">Using Gemini 3 Pro</p>
+                  
+                  <p className="text-[10px] text-slate-400 mt-3">Using Gemini 3 Pro</p>
+                  
+                  {/* Pro tip */}
+                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200/50 rounded-lg">
+                    <div className="flex items-start gap-2 text-left">
+                      <Lightbulb size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-[10px] text-amber-700 leading-relaxed">
+                        <span className="font-semibold">Pro tip:</span> Select multiple styles and generate them all at once to save time!
+                      </p>
+                    </div>
+                  </div>
                 </div>
             </div>
         )}
@@ -1543,15 +1675,29 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
         {/* Empty State */}
         {!isLoadingMockups && generatedMockups.length === 0 && !isGenerating && !error && (
-             <div className={`flex items-center justify-center text-center p-6 ${(savedMockups.length === 0 && !isLoadingHistory) ? 'flex-1' : 'py-8'}`}>
-                <div>
-                  <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                    <Wand2 size={20} className="text-slate-300" />
+             <div className={`flex items-center justify-center text-center p-8 ${(savedMockups.length === 0 && !isLoadingHistory) ? 'flex-1' : 'py-10'}`}>
+                <div className="relative">
+                  {/* Animated floating elements */}
+                  <div className="absolute -top-4 -left-8 w-8 h-8 rounded-lg bg-indigo-100 opacity-60 animate-float-gentle" />
+                  <div className="absolute -top-2 -right-6 w-6 h-6 rounded-full bg-purple-100 opacity-50 animate-float-gentle-delayed" />
+                  <div className="absolute -bottom-2 -left-4 w-5 h-5 rounded bg-amber-100 opacity-40 animate-float-gentle" style={{ animationDelay: '1s' }} />
+                  
+                  {/* Main icon with glow */}
+                  <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/10">
+                    <Wand2 size={28} className="text-indigo-400" />
+                    <div className="absolute inset-0 rounded-2xl bg-indigo-400/20 animate-pulse" />
                   </div>
-                  <p className="font-medium text-slate-500 text-sm mb-0.5">Select styles to generate</p>
-                  <p className="text-[10px] text-slate-400 max-w-[180px] mx-auto">
-                    Choose styles on the left, then generate
+                  
+                  <p className="font-semibold text-slate-700 text-sm mb-1">Ready to create magic</p>
+                  <p className="text-[11px] text-slate-500 max-w-[200px] mx-auto leading-relaxed">
+                    Select styles from the left panel and watch AI bring your product to life
                   </p>
+                  
+                  {/* Pulsing arrow pointing left */}
+                  <div className="mt-4 flex items-center justify-center gap-1 text-indigo-500">
+                    <ChevronLeft size={16} className="animate-pulse" />
+                    <span className="text-[10px] font-medium">Choose styles to begin</span>
+                  </div>
                 </div>
              </div>
         )}
@@ -1674,15 +1820,15 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
         {/* Previously Generated Section - Always visible */}
         <div className="border-t border-slate-200 mt-auto">
-            {/* Section Header */}
+            {/* Section Header with inline preview */}
             <button
               onClick={() => setHistoryExpanded(!historyExpanded)}
               className="w-full px-3 py-2 flex items-center justify-between hover:bg-slate-50 transition-colors"
             >
-              <div className="flex items-center gap-1.5 text-xs text-slate-600">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
                 <Clock size={12} className="text-slate-400" />
                 <span className="font-medium">History</span>
-                {!isLoadingHistory && (
+                {!isLoadingHistory && savedMockups.length > 0 && (
                   <span className="text-[10px] text-slate-400">({savedMockups.length})</span>
                 )}
                 {isSavingToCloud && (
@@ -1691,10 +1837,32 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                     Saving
                   </span>
                 )}
+                
+                {/* Teaser preview when collapsed */}
+                {!historyExpanded && !isLoadingHistory && savedMockups.length > 0 && (
+                  <div className="flex items-center gap-1 ml-1">
+                    {savedMockups.slice(0, 3).map((mockup, idx) => (
+                      <div 
+                        key={mockup.id}
+                        className="w-6 h-6 rounded overflow-hidden border border-slate-200 shadow-sm"
+                        style={{ marginLeft: idx > 0 ? '-4px' : '0', zIndex: 3 - idx }}
+                      >
+                        <img 
+                          src={mockup.imageUrl} 
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
+                    {savedMockups.length > 3 && (
+                      <span className="text-[9px] text-slate-400 ml-1">+{savedMockups.length - 3}</span>
+                    )}
+                  </div>
+                )}
               </div>
               <ChevronRight 
                 size={14} 
-                className={`text-slate-400 transition-transform ${historyExpanded ? 'rotate-90' : ''}`} 
+                className={`text-slate-400 transition-transform duration-200 ${historyExpanded ? 'rotate-90' : ''}`} 
               />
             </button>
             
@@ -1704,7 +1872,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                 {isLoadingHistory ? (
                   <div className="grid grid-cols-4 gap-1.5">
                     {[...Array(4)].map((_, idx) => (
-                      <div key={idx} className="aspect-square rounded bg-slate-100 animate-pulse" />
+                      <div key={idx} className="aspect-square rounded shimmer" />
                     ))}
                   </div>
                 ) : savedMockups.length === 0 ? (
@@ -1712,56 +1880,88 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                     No history yet
                   </div>
                 ) : (
-                  <div className="grid grid-cols-4 gap-1.5 max-h-32 overflow-y-auto">
-                    {savedMockups.map((mockup) => {
-                      const isInCarousel = generatedMockups.some(m => m.id === mockup.id);
-                      return (
-                        <div 
-                          key={mockup.id}
-                          className="relative group aspect-square rounded overflow-hidden bg-white border border-slate-200 hover:border-indigo-300 transition-all"
-                        >
-                          <img 
-                            src={mockup.imageUrl} 
-                            alt={mockup.styleDescription}
-                            className="w-full h-full object-cover"
-                          />
-                          
-                          {/* Overlay with actions */}
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100">
-                            {/* Add to Carousel Button */}
-                            <button
-                              onClick={() => addFromHistory(mockup)}
-                              className={`
-                                p-1 rounded transition-all
-                                ${isInCarousel 
-                                  ? 'bg-emerald-500 text-white' 
-                                  : 'bg-white text-slate-700 hover:bg-indigo-500 hover:text-white'
-                                }
-                              `}
-                              title={isInCarousel ? 'Already added' : 'Add'}
-                            >
-                              {isInCarousel ? <Check size={12} /> : <Plus size={12} />}
-                            </button>
-                            {/* Delete Button */}
-                            <button
-                              onClick={() => deleteFromHistory(mockup.id)}
-                              className="p-1 rounded bg-white text-slate-700 hover:bg-red-500 hover:text-white transition-all"
-                              title="Delete"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                          
-                          {/* Already Added Indicator */}
-                          {isInCarousel && (
-                            <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
-                              <Check size={8} className="text-white" strokeWidth={3} />
+                  <>
+                    {/* Quick add all button */}
+                    {savedMockups.filter(m => !generatedMockups.some(g => g.id === m.id)).length > 1 && (
+                      <button
+                        onClick={() => {
+                          savedMockups.forEach(mockup => {
+                            if (!generatedMockups.some(m => m.id === mockup.id)) {
+                              addFromHistory(mockup);
+                            }
+                          });
+                        }}
+                        className="w-full mb-2 py-1.5 px-2 text-[10px] font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Plus size={10} />
+                        Add all ({savedMockups.filter(m => !generatedMockups.some(g => g.id === m.id)).length}) to selection
+                      </button>
+                    )}
+                    <div className="grid grid-cols-4 gap-1.5 max-h-32 overflow-y-auto">
+                      {savedMockups.map((mockup) => {
+                        const isInCarousel = generatedMockups.some(m => m.id === mockup.id);
+                        return (
+                          <div 
+                            key={mockup.id}
+                            className="relative group aspect-square rounded-lg overflow-hidden bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer"
+                            onClick={() => addFromHistory(mockup)}
+                          >
+                            <img 
+                              src={mockup.imageUrl} 
+                              alt={mockup.styleDescription}
+                              className="w-full h-full object-cover"
+                            />
+                            
+                            {/* Relative time badge */}
+                            <div className="absolute bottom-0 left-0 right-0 p-1 bg-gradient-to-t from-black/70 to-transparent">
+                              <span className="text-[8px] text-white/80 font-medium">
+                                {formatRelativeTime(mockup.createdAt)}
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                            
+                            {/* Overlay with actions */}
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
+                              {/* Add to Carousel Button */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addFromHistory(mockup);
+                                }}
+                                className={`
+                                  p-1.5 rounded-md transition-all shadow-sm
+                                  ${isInCarousel 
+                                    ? 'bg-emerald-500 text-white' 
+                                    : 'bg-white text-slate-700 hover:bg-indigo-500 hover:text-white'
+                                  }
+                                `}
+                                title={isInCarousel ? 'Already added' : 'Add to selection'}
+                              >
+                                {isInCarousel ? <Check size={12} /> : <Plus size={12} />}
+                              </button>
+                              {/* Delete Button */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteFromHistory(mockup.id);
+                                }}
+                                className="p-1.5 rounded-md bg-white text-slate-700 hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                                title="Delete from history"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                            
+                            {/* Already Added Indicator */}
+                            {isInCarousel && (
+                              <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
+                                <Check size={8} className="text-white" strokeWidth={3} />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
             )}

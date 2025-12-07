@@ -137,3 +137,4 @@ Web App:              Shopify App:
 - [App Bridge Documentation](https://shopify.dev/docs/api/app-bridge)
 - [Full Setup Guide](./SHOPIFY_SETUP.md)
 
+

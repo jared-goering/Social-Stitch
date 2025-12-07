@@ -418,6 +418,89 @@
         animation: shimmer 1.5s infinite;
       }
       
+      /* Selection bounce animation */
+      @keyframes selection-bounce {
+        0% { transform: scale(1); }
+        30% { transform: scale(1.25); }
+        50% { transform: scale(0.9); }
+        70% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+      }
+      
+      .animate-selection-bounce {
+        animation: selection-bounce 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      /* Counter pulse animation */
+      @keyframes counter-pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.15); }
+        100% { transform: scale(1); }
+      }
+      
+      .animate-counter-pulse {
+        animation: counter-pulse 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      
+      /* Card ripple effect */
+      .card-ripple {
+        position: relative;
+        overflow: hidden;
+      }
+      
+      .card-ripple::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+      }
+      
+      .card-ripple:active::after {
+        opacity: 1;
+      }
+      
+      /* Progress bar gradient animation */
+      @keyframes progress-gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      
+      .animate-progress-gradient {
+        background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 25%, #a855f7 50%, #8b5cf6 75%, #6366f1 100%);
+        background-size: 200% 100%;
+        animation: progress-gradient 2s ease infinite;
+      }
+      
+      /* Floating elements animation */
+      @keyframes float-gentle {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        25% { transform: translateY(-6px) rotate(2deg); }
+        50% { transform: translateY(-12px) rotate(0deg); }
+        75% { transform: translateY(-6px) rotate(-2deg); }
+      }
+      
+      .animate-float-gentle {
+        animation: float-gentle 6s ease-in-out infinite;
+      }
+      
+      .animate-float-gentle-delayed {
+        animation: float-gentle 6s ease-in-out infinite 2s;
+      }
+      
+      /* Tooltip fade in */
+      @keyframes tooltip-enter {
+        from { opacity: 0; transform: translateY(4px) scale(0.96); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      
+      .animate-tooltip-enter {
+        animation: tooltip-enter 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      }
+      
       /* Icon container styles */
       .icon-container {
         display: flex;

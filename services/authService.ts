@@ -45,3 +45,4 @@ export function getCurrentUser(): User | null {
   return auth.currentUser;
 }
 
+

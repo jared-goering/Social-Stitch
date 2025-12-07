@@ -27,3 +27,4 @@ VITE_GEMINI_API_KEY=your-gemini-api-key
 VITE_USE_EMULATORS=false
 ```
 
+

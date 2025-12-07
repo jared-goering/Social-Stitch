@@ -43,3 +43,4 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onCreatePost }) => {
 
 export default GalleryPage;
 
+
