@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { MockupOption, GeneratedCaptions, SocialPlatform, CaptionTone, CaptionGenerationOptions } from '../types';
-import { generateSocialCaptions } from '../services/geminiService';
+import { MockupOption, GeneratedCaptions, SocialPlatform, CaptionTone, CaptionGenerationOptions, BrandProfile } from '../types';
+import { generateSocialCaptions, CaptionGenerationOptionsWithBrand } from '../services/geminiService';
+import { getBrandProfile } from '../services/brandProfileService';
 import { 
   startOAuthFlow, 
   getConnectedAccounts, 
@@ -171,6 +172,9 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
   });
   const [isRegenerating, setIsRegenerating] = useState(false);
   
+  // Brand profile for AI-enhanced caption generation
+  const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
+  
   // Reordering state - tracks the user's custom order
   const [reorderedMockups, setReorderedMockups] = useState<MockupOption[] | null>(null);
   
@@ -239,6 +243,23 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
     refreshAccounts();
   }, []);
 
+  // Load brand profile for AI-enhanced caption generation
+  useEffect(() => {
+    const loadBrandProfile = async () => {
+      try {
+        const profile = await getBrandProfile();
+        if (profile && profile.status === 'complete') {
+          setBrandProfile(profile);
+        }
+      } catch (error) {
+        // Silently fail - brand profile is optional enhancement
+        console.warn('Could not load brand profile:', error);
+      }
+    };
+    
+    loadBrandProfile();
+  }, []);
+
   // Persist caption presets to localStorage
   useEffect(() => {
     localStorage.setItem('captionPresets', JSON.stringify({
@@ -256,8 +277,8 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
         // Use the first mockup for caption generation
         const primaryMockup = mockups[0];
         
-        // Build options from saved preferences
-        const options: CaptionGenerationOptions = {};
+        // Build options from saved preferences, including brand profile
+        const options: CaptionGenerationOptionsWithBrand = {};
         if (customTone) {
           options.customTone = customTone;
         } else if (selectedTone !== 'default') {
@@ -265,6 +286,10 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
         }
         if (captionContext) {
           options.context = captionContext;
+        }
+        // Pass brand profile for brand-aware caption generation
+        if (brandProfile) {
+          options.brandProfile = brandProfile;
         }
         
         const result = await generateSocialCaptions(
@@ -289,10 +314,10 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
     };
     fetchCaptions();
     return () => { mounted = false; };
-  // Note: We intentionally only run this on mockups change, not on preference changes
-  // (regeneration is handled by the Regenerate button)
+  // Note: We intentionally only run this on mockups change (and brandProfile initial load)
+  // Regeneration for preference changes is handled by the Regenerate button
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mockups]);
+  }, [mockups, brandProfile]);
 
   // Carousel navigation
   const goToPrevImage = () => {
@@ -531,8 +556,8 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
     try {
       const primaryMockup = mockups[0];
       
-      // Build options from current customization state
-      const options: CaptionGenerationOptions = {};
+      // Build options from current customization state, including brand profile
+      const options: CaptionGenerationOptionsWithBrand = {};
       
       if (customTone) {
         options.customTone = customTone;
@@ -542,6 +567,11 @@ export const CaptionReview: React.FC<Props> = ({ mockups, onSuccess, onBack, onS
       
       if (captionContext) {
         options.context = captionContext;
+      }
+      
+      // Pass brand profile for brand-aware caption generation
+      if (brandProfile) {
+        options.brandProfile = brandProfile;
       }
       
       const result = await generateSocialCaptions(

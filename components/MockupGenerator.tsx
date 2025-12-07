@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup, SourceProduct } from '../types';
+import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup, SourceProduct, BrandProfile } from '../types';
 import { generateMockupImage, analyzeGarmentAndSuggestStyles } from '../services/geminiService';
 import { saveMockupToFirebase, fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
+import { getBrandProfile } from '../services/brandProfileService';
 import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, Clock, Plus, Trash2, Pencil } from 'lucide-react';
 import { EditMockupModal } from './EditMockupModal';
 
@@ -204,6 +205,9 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isSavingToCloud, setIsSavingToCloud] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(true);
+  
+  // Brand profile for AI-enhanced generation
+  const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
 
   // Persist generated mockups to IndexedDB (and sessionStorage as fallback)
   useEffect(() => {
@@ -307,6 +311,23 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     loadHistory();
   }, []);
 
+  // Load brand profile for AI-enhanced generation
+  useEffect(() => {
+    const loadBrandProfile = async () => {
+      try {
+        const profile = await getBrandProfile();
+        if (profile && profile.status === 'complete') {
+          setBrandProfile(profile);
+        }
+      } catch (error) {
+        // Silently fail - brand profile is optional enhancement
+        console.warn('Could not load brand profile:', error);
+      }
+    };
+    
+    loadBrandProfile();
+  }, []);
+
   // Fetch AI suggestions when component mounts or design changes (only if not cached)
   useEffect(() => {
     const fetchSuggestions = async () => {
@@ -324,7 +345,8 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
       setIsLoadingSuggestions(true);
       try {
-        const suggestions = await analyzeGarmentAndSuggestStyles(design.base64);
+        // Pass brand profile for brand-aware style suggestions
+        const suggestions = await analyzeGarmentAndSuggestStyles(design.base64, brandProfile || undefined);
         setAiSuggestions(suggestions);
       } catch (err) {
         console.error('Failed to fetch AI suggestions:', err);
@@ -335,7 +357,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     };
 
     fetchSuggestions();
-  }, [design.base64, design.id]);
+  }, [design.base64, design.id, brandProfile]);
 
   // Keyboard navigation for modal
   useEffect(() => {
@@ -447,7 +469,11 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
         ? (Math.random() > 0.5 ? 'male' : 'female')
         : styleGender;
       
-      const base64Image = await generateMockupImage(design.base64, style, gender);
+      // Pass brand profile for brand-aware mockup generation
+      const base64Image = await generateMockupImage(design.base64, style, {
+        gender,
+        brandProfile: brandProfile || undefined
+      });
       const genderLabel = gender === 'male' ? '♂' : '♀';
       const mockupId = crypto.randomUUID();
       const styleDescription = `${style} ${genderLabel}`;
@@ -534,7 +560,11 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
           const variationSuffix = VARIATION_SUFFIXES[task.variationIndex % VARIATION_SUFFIXES.length];
           const enhancedStyle = task.style + variationSuffix;
           
-          const base64Image = await generateMockupImage(design.base64, enhancedStyle, task.gender);
+          // Pass brand profile for brand-aware mockup generation
+          const base64Image = await generateMockupImage(design.base64, enhancedStyle, {
+            gender: task.gender,
+            brandProfile: brandProfile || undefined
+          });
           setGenerationProgress(prev => prev ? { ...prev, current: prev.current + 1 } : null);
           
           const genderLabel = task.gender === 'male' ? '♂' : '♀';
@@ -671,7 +701,8 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     setIsLoadingSuggestions(true);
     
     try {
-      const suggestions = await analyzeGarmentAndSuggestStyles(design.base64);
+      // Pass brand profile for brand-aware suggestions
+      const suggestions = await analyzeGarmentAndSuggestStyles(design.base64, brandProfile || undefined);
       setAiSuggestions(suggestions);
     } catch (err) {
       console.error('Failed to fetch AI suggestions:', err);

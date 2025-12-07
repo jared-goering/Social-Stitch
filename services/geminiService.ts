@@ -1,5 +1,230 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { GeneratedCaptions, StyleSuggestion, ModelGender, CaptionGenerationOptions, CaptionTone, EditMockupOptions } from "../types";
+import { GeneratedCaptions, StyleSuggestion, ModelGender, CaptionGenerationOptions, CaptionTone, EditMockupOptions, BrandProfile } from "../types";
+
+// =============================================================================
+// BRAND CONTEXT BUILDER
+// =============================================================================
+
+/**
+ * Context objects for different AI generation functions
+ */
+interface ImageGenerationBrandContext {
+  photographyDirection: string;
+  visualAesthetic: string;
+  colorGuidance: string;
+  moodAtmosphere: string;
+  audienceLifestyle: string;
+}
+
+interface StyleSuggestionBrandContext {
+  lifestyleActivities: string;
+  useCases: string;
+  toneAndMood: string;
+  colorHarmony: string;
+  targetAudience: string;
+}
+
+interface CaptionBrandContext {
+  voiceDirection: string;
+  brandPositioning: string;
+  communicationStyle: string;
+  moodKeywords: string;
+  audienceProfile: string;
+}
+
+/**
+ * Builds brand-specific context for image generation prompts.
+ * Extracts and formats the most relevant brand profile data for visual content.
+ */
+export function buildImageGenerationContext(profile: BrandProfile): ImageGenerationBrandContext {
+  const { voiceAndAesthetic, marketPositioning, productIntelligence } = profile;
+  
+  return {
+    photographyDirection: voiceAndAesthetic.photographyStyle || '',
+    visualAesthetic: voiceAndAesthetic.visualAesthetic || '',
+    colorGuidance: voiceAndAesthetic.colorPaletteTendencies.length > 0
+      ? `Color palette: ${voiceAndAesthetic.colorPaletteTendencies.join(', ')}`
+      : '',
+    moodAtmosphere: voiceAndAesthetic.moodKeywords.length > 0
+      ? `Mood: ${voiceAndAesthetic.moodKeywords.join(', ')}`
+      : '',
+    audienceLifestyle: marketPositioning.targetAudience.lifestyle.length > 0
+      ? `Target audience lifestyle: ${marketPositioning.targetAudience.lifestyle.join(', ')}`
+      : '',
+  };
+}
+
+/**
+ * Builds brand-specific context for style suggestion prompts.
+ * Focuses on lifestyle, use cases, and audience preferences.
+ */
+export function buildStyleSuggestionContext(profile: BrandProfile): StyleSuggestionBrandContext {
+  const { voiceAndAesthetic, marketPositioning, productIntelligence } = profile;
+  
+  return {
+    lifestyleActivities: marketPositioning.targetAudience.lifestyle.length > 0
+      ? marketPositioning.targetAudience.lifestyle.join(', ')
+      : '',
+    useCases: productIntelligence.useCases.length > 0
+      ? productIntelligence.useCases.join(', ')
+      : '',
+    toneAndMood: voiceAndAesthetic.toneCharacteristics.length > 0
+      ? voiceAndAesthetic.toneCharacteristics.join(', ')
+      : '',
+    colorHarmony: voiceAndAesthetic.colorPaletteTendencies.length > 0
+      ? voiceAndAesthetic.colorPaletteTendencies.join(', ')
+      : '',
+    targetAudience: [
+      ...marketPositioning.targetAudience.demographics,
+      ...marketPositioning.targetAudience.psychographics.slice(0, 3)
+    ].join(', ') || '',
+  };
+}
+
+/**
+ * Builds brand-specific context for caption generation prompts.
+ * Focuses on voice, tone, and communication style.
+ */
+export function buildCaptionContext(profile: BrandProfile): CaptionBrandContext {
+  const { voiceAndAesthetic, marketPositioning, identity } = profile;
+  
+  // Map communication style to descriptive guidance
+  const communicationGuidance: Record<string, string> = {
+    formal: 'Use formal, professional language. Maintain a polished and sophisticated tone.',
+    casual: 'Use casual, conversational language. Be friendly and approachable.',
+    technical: 'Include technical details and specifications. Appeal to informed buyers.',
+    emotional: 'Create emotional connections. Use storytelling and evocative language.',
+    mixed: 'Balance professional credibility with approachable warmth.',
+  };
+  
+  return {
+    voiceDirection: voiceAndAesthetic.toneCharacteristics.length > 0
+      ? `Brand voice: ${voiceAndAesthetic.toneCharacteristics.join(', ')}`
+      : '',
+    brandPositioning: identity.positioningStatement || '',
+    communicationStyle: communicationGuidance[voiceAndAesthetic.communicationStyle] || '',
+    moodKeywords: voiceAndAesthetic.moodKeywords.length > 0
+      ? voiceAndAesthetic.moodKeywords.join(', ')
+      : '',
+    audienceProfile: [
+      ...marketPositioning.targetAudience.demographics.slice(0, 2),
+      ...marketPositioning.targetAudience.psychographics.slice(0, 2)
+    ].join(', ') || '',
+  };
+}
+
+/**
+ * Generates a complete brand context block for image generation prompts.
+ * Returns an empty string if no brand profile is provided.
+ */
+export function formatImageBrandContext(profile?: BrandProfile): string {
+  if (!profile) return '';
+  
+  const ctx = buildImageGenerationContext(profile);
+  const parts: string[] = [];
+  
+  if (ctx.photographyDirection) {
+    parts.push(`BRAND PHOTOGRAPHY STYLE: ${ctx.photographyDirection}`);
+  }
+  if (ctx.visualAesthetic) {
+    parts.push(`VISUAL AESTHETIC: ${ctx.visualAesthetic}`);
+  }
+  if (ctx.colorGuidance) {
+    parts.push(ctx.colorGuidance);
+  }
+  if (ctx.moodAtmosphere) {
+    parts.push(ctx.moodAtmosphere);
+  }
+  if (ctx.audienceLifestyle) {
+    parts.push(ctx.audienceLifestyle);
+  }
+  
+  if (parts.length === 0) return '';
+  
+  return `
+      BRAND CONTEXT (use this to inform the visual style):
+      ${parts.join('\n      ')}
+  `;
+}
+
+/**
+ * Generates a complete brand context block for style suggestion prompts.
+ * Returns an empty string if no brand profile is provided.
+ */
+export function formatStyleBrandContext(profile?: BrandProfile): string {
+  if (!profile) return '';
+  
+  const ctx = buildStyleSuggestionContext(profile);
+  const parts: string[] = [];
+  
+  if (ctx.targetAudience) {
+    parts.push(`TARGET AUDIENCE: ${ctx.targetAudience}`);
+  }
+  if (ctx.lifestyleActivities) {
+    parts.push(`AUDIENCE LIFESTYLE: ${ctx.lifestyleActivities}`);
+  }
+  if (ctx.useCases) {
+    parts.push(`PRODUCT USE CASES: ${ctx.useCases}`);
+  }
+  if (ctx.toneAndMood) {
+    parts.push(`BRAND TONE: ${ctx.toneAndMood}`);
+  }
+  if (ctx.colorHarmony) {
+    parts.push(`BRAND COLORS: ${ctx.colorHarmony}`);
+  }
+  
+  if (parts.length === 0) return '';
+  
+  return `
+      BRAND CONTEXT (tailor suggestions to match this brand):
+      ${parts.join('\n      ')}
+      
+      IMPORTANT: Suggest scenes that resonate with this specific brand's audience and aesthetic.
+      The lifestyle scenarios should feel authentic to how this brand's customers actually live.
+  `;
+}
+
+/**
+ * Generates a complete brand context block for caption generation prompts.
+ * Returns an empty string if no brand profile is provided.
+ */
+export function formatCaptionBrandContext(profile?: BrandProfile): string {
+  if (!profile) return '';
+  
+  const ctx = buildCaptionContext(profile);
+  const parts: string[] = [];
+  
+  if (ctx.voiceDirection) {
+    parts.push(ctx.voiceDirection);
+  }
+  if (ctx.brandPositioning) {
+    parts.push(`Brand positioning: ${ctx.brandPositioning}`);
+  }
+  if (ctx.communicationStyle) {
+    parts.push(`Communication style: ${ctx.communicationStyle}`);
+  }
+  if (ctx.audienceProfile) {
+    parts.push(`Target audience: ${ctx.audienceProfile}`);
+  }
+  if (ctx.moodKeywords) {
+    parts.push(`Brand mood: ${ctx.moodKeywords}`);
+  }
+  
+  if (parts.length === 0) return '';
+  
+  return `
+      BRAND VOICE CONTEXT (write captions that embody this brand):
+      ${parts.join('\n      ')}
+      
+      CRITICAL: Every caption must feel authentically on-brand. The voice should be consistent
+      with how this brand communicates - not generic social media copy. Make the audience feel
+      like the brand truly understands them.
+  `;
+}
+
+// =============================================================================
+// TONE PRESETS
+// =============================================================================
 
 // Map tone presets to descriptive instructions
 const toneInstructions: Record<CaptionTone, string> = {
@@ -13,14 +238,36 @@ const toneInstructions: Record<CaptionTone, string> = {
 };
 
 /**
+ * Options for mockup image generation
+ */
+export interface MockupGenerationOptions {
+  gender?: ModelGender;
+  brandProfile?: BrandProfile;
+}
+
+/**
  * Generates a lifestyle mockup based on the uploaded design.
  * Uses Gemini 3 Pro Image Preview (Nano Banana Pro) for high-fidelity composition.
+ * 
+ * When a brandProfile is provided, the prompt is enhanced with brand-specific
+ * photography style, visual aesthetic, color guidance, and target audience lifestyle.
  */
 export const generateMockupImage = async (
   base64Design: string,
   stylePrompt: string,
-  gender?: ModelGender
+  genderOrOptions?: ModelGender | MockupGenerationOptions
 ): Promise<string> => {
+  // Handle both old signature (gender only) and new signature (options object)
+  let gender: ModelGender | undefined;
+  let brandProfile: BrandProfile | undefined;
+  
+  if (typeof genderOrOptions === 'object') {
+    gender = genderOrOptions.gender;
+    brandProfile = genderOrOptions.brandProfile;
+  } else {
+    gender = genderOrOptions;
+  }
+  
   // Always create a new instance to ensure the latest API key is used
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -34,6 +281,9 @@ export const generateMockupImage = async (
     : gender === 'female' 
     ? 'The model should be female.'
     : '';
+  
+  // Build brand context if profile is provided
+  const brandContext = formatImageBrandContext(brandProfile);
 
   try {
     // Strip data URL prefix if present (e.g., "data:image/jpeg;base64,")
@@ -45,7 +295,7 @@ export const generateMockupImage = async (
     const prompt = `
       You are a lifestyle and editorial photographer capturing authentic, candid moments.
       Task: Create a photorealistic LIFESTYLE image featuring someone wearing the EXACT garment shown in the reference image.
-      
+      ${brandContext}
       CRITICAL STYLE DIRECTION - LIFESTYLE NOT PORTRAIT:
       - This is NOT a model photoshoot or fashion portrait. Avoid posed, model-centric shots where the person stares at the camera.
       - Create a CANDID MOMENT - the person should be engaged in an activity, interacting with their environment, or captured mid-action.
@@ -205,20 +455,24 @@ export const editMockupImage = async (
 };
 
 /**
- * Generates social media captions based on the generated mockup and style.
- */
-/**
  * Analyzes the uploaded garment and suggests relevant mockup styles.
  * Uses Gemini to understand the garment's characteristics and recommend fitting scenes.
+ * 
+ * When a brandProfile is provided, suggestions are tailored to the brand's target audience,
+ * use cases, tone, and color palette for on-brand lifestyle scenarios.
  */
 export const analyzeGarmentAndSuggestStyles = async (
-  base64Design: string
+  base64Design: string,
+  brandProfile?: BrandProfile
 ): Promise<StyleSuggestion[]> => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY environment variable is not set');
   }
   const ai = new GoogleGenAI({ apiKey });
+  
+  // Build brand context if profile is provided
+  const brandContext = formatStyleBrandContext(brandProfile);
 
   try {
     const responseSchema: Schema = {
@@ -236,7 +490,7 @@ export const analyzeGarmentAndSuggestStyles = async (
           },
           reasoning: {
             type: Type.STRING,
-            description: "Brief explanation of why this style matches the garment",
+            description: "Brief explanation of why this style matches the garment and brand",
           },
         },
         required: ["title", "description", "reasoning"],
@@ -249,7 +503,7 @@ export const analyzeGarmentAndSuggestStyles = async (
       - Color palette and any graphics/designs
       - Overall aesthetic (streetwear, casual, athletic, vintage, etc.)
       - Target demographic and use cases
-      
+      ${brandContext}
       Based on your analysis, suggest 5 unique LIFESTYLE photography scenes that would 
       best showcase this specific garment for social media marketing.
       
@@ -258,6 +512,7 @@ export const analyzeGarmentAndSuggestStyles = async (
       - Include activities, environments, and candid moments
       - Think editorial/documentary style, not model photoshoots
       - The person should feel like they're living their life, captured in a moment
+      ${brandProfile ? '- Scenes should reflect the brand\'s target audience and their actual lifestyle' : ''}
       
       Each suggestion should include:
       1. A catchy title (e.g., "Morning Coffee Run", "Weekend Market Stroll")
@@ -266,7 +521,7 @@ export const analyzeGarmentAndSuggestStyles = async (
          - The environmental setting with specific details
          - Lighting and time of day
          - Mood and energy (relaxed, adventurous, cozy, etc.)
-      3. Brief reasoning on why this lifestyle context complements the garment
+      3. Brief reasoning on why this lifestyle context complements the garment${brandProfile ? ' and brand' : ''}
       
       Be creative and specific to THIS garment - don't give generic suggestions.
       Consider color harmony, target audience, and lifestyle scenarios that fit the vibe.
@@ -307,10 +562,24 @@ export const analyzeGarmentAndSuggestStyles = async (
   }
 };
 
+/**
+ * Extended caption generation options that include brand profile
+ */
+export interface CaptionGenerationOptionsWithBrand extends CaptionGenerationOptions {
+  brandProfile?: BrandProfile;
+}
+
+/**
+ * Generates social media captions based on the generated mockup and style.
+ * 
+ * When a brandProfile is provided, captions are written in the brand's authentic voice,
+ * using appropriate tone characteristics, communication style, and resonating with
+ * the target audience.
+ */
 export const generateSocialCaptions = async (
   styleDescription: string,
   base64Mockup: string,
-  options?: CaptionGenerationOptions
+  options?: CaptionGenerationOptionsWithBrand
 ): Promise<GeneratedCaptions> => {
   // Always create a new instance to ensure the latest API key is used
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
@@ -318,6 +587,9 @@ export const generateSocialCaptions = async (
     throw new Error('GEMINI_API_KEY environment variable is not set');
   }
   const ai = new GoogleGenAI({ apiKey });
+  
+  // Build brand context if profile is provided
+  const brandContext = formatCaptionBrandContext(options?.brandProfile);
 
   try {
     const responseSchema: Schema = {
@@ -343,7 +615,7 @@ export const generateSocialCaptions = async (
       required: ["facebook", "instagram"],
     };
 
-    // Build tone instruction
+    // Build tone instruction - brand profile voice takes precedence over preset tones
     let toneInstruction = '';
     if (options?.customTone) {
       toneInstruction = `TONE INSTRUCTION: ${options.customTone}`;
@@ -360,6 +632,7 @@ export const generateSocialCaptions = async (
       Look at this fashion lifestyle image.
       Write 5 different social media caption options for EACH platform for this new apparel launch.
       The vibe is: ${styleDescription}.
+      ${brandContext}
       ${toneInstruction ? `\n      ${toneInstruction}` : ''}
       ${contextInstruction ? `\n      ${contextInstruction}` : ''}
       
@@ -374,6 +647,7 @@ export const generateSocialCaptions = async (
       Instagram captions: Aesthetic, use emojis, include 5-10 relevant hashtags each.
       
       Make each caption feel distinct and give the user real variety to choose from.
+      ${options?.brandProfile ? 'IMPORTANT: Every caption must sound authentically on-brand. Avoid generic social media copy.' : ''}
     `;
 
     // Strip data URL prefix if present (e.g., "data:image/jpeg;base64,")
