@@ -145,7 +145,7 @@ export const PostCard: React.FC<Props> = ({
       <div className={`
         post-card group relative flex items-center gap-3 p-3 rounded-xl border cursor-pointer
         ${post.status === 'failed' ? 'border-rose-200 bg-rose-50/50' : 'border-slate-200 bg-white hover:border-slate-300'}
-        ${showMenu ? 'z-40' : ''}
+        ${showMenu ? 'z-40 overflow-visible' : ''}
       `}>
         {/* Image preview */}
         {post.imageUrls[0] && (
@@ -281,7 +281,7 @@ export const PostCard: React.FC<Props> = ({
             </button>
             
             {showMenu && (
-              <div className="absolute right-2 top-full mt-1 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50 min-w-[140px]">
+              <div className="absolute right-0 bottom-full mb-1 bg-white rounded-lg shadow-xl border border-slate-200 py-1 z-50 min-w-[140px]">
                 {post.status === 'scheduled' && onEdit && (
                   <button
                     onClick={(e) => {
