@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
 import { ref, getBlob } from 'firebase/storage';
 import { SavedMockup } from '../types';
-import { fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
+import { fetchUserMockups, deleteMockupFromFirebase, updateMockupImage, revertMockupToOriginal } from '../services/mockupStorageService';
 import { addProductImage, getSessionToken } from '../services/shopifyProductService';
 import { storage, auth } from '../services/firebaseConfig';
 import { 
@@ -24,6 +26,13 @@ import {
   Plus,
   Package,
   Upload,
+  Crop as CropIcon,
+  Square,
+  RectangleVertical,
+  RectangleHorizontal,
+  Smartphone,
+  RotateCcw,
+  Check,
 } from 'lucide-react';
 
 interface Props {
@@ -33,6 +42,86 @@ interface Props {
 type SortOption = 'newest' | 'oldest';
 type FilterOption = 'all' | 'today' | 'week' | 'month';
 
+// Aspect ratio options for cropping
+interface AspectRatioOption {
+  id: string;
+  label: string;
+  ratio: number;
+  icon: React.ReactNode;
+  description: string;
+}
+
+const ASPECT_RATIOS: AspectRatioOption[] = [
+  { id: 'square', label: '1:1', ratio: 1, icon: <Square size={16} />, description: 'Square' },
+  { id: 'portrait', label: '4:5', ratio: 4/5, icon: <RectangleVertical size={16} />, description: 'Portrait' },
+  { id: 'landscape', label: '1.91:1', ratio: 1.91, icon: <RectangleHorizontal size={16} />, description: 'Landscape' },
+  { id: 'stories', label: '9:16', ratio: 9/16, icon: <Smartphone size={16} />, description: 'Stories' },
+];
+
+function centerAspectCrop(
+  mediaWidth: number,
+  mediaHeight: number,
+  aspect: number,
+): Crop {
+  return centerCrop(
+    makeAspectCrop(
+      {
+        unit: '%',
+        width: 90,
+      },
+      aspect,
+      mediaWidth,
+      mediaHeight,
+    ),
+    mediaWidth,
+    mediaHeight,
+  );
+}
+
+async function getCroppedImg(
+  imageSrc: string,
+  crop: PixelCrop,
+  displayWidth: number,
+  displayHeight: number,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        reject(new Error('No 2d context'));
+        return;
+      }
+
+      // Calculate scale between displayed size and natural size
+      const scaleX = image.naturalWidth / displayWidth;
+      const scaleY = image.naturalHeight / displayHeight;
+
+      canvas.width = crop.width * scaleX;
+      canvas.height = crop.height * scaleY;
+
+      ctx.drawImage(
+        image,
+        crop.x * scaleX,
+        crop.y * scaleY,
+        crop.width * scaleX,
+        crop.height * scaleY,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+
+      resolve(canvas.toDataURL('image/png', 1.0));
+    };
+    image.onerror = () => reject(new Error('Failed to load image'));
+    image.src = imageSrc;
+  });
+}
+
 export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   const [mockups, setMockups] = useState<SavedMockup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +130,17 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   const [addingToProductIds, setAddingToProductIds] = useState<Set<string>>(new Set());
   const [selectedMockup, setSelectedMockup] = useState<SavedMockup | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Crop modal state
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropMockup, setCropMockup] = useState<SavedMockup | null>(null);
+  const [selectedRatio, setSelectedRatio] = useState<AspectRatioOption>(ASPECT_RATIOS[0]);
+  const [crop, setCrop] = useState<Crop>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+  const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [isCropping, setIsCropping] = useState(false);
+  const [isReverting, setIsReverting] = useState(false);
+  const cropImgRef = useRef<HTMLImageElement>(null);
 
   // Filtering and sorting state
   const [sortBy, setSortBy] = useState<SortOption>('newest');
@@ -222,6 +322,122 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
         next.delete(mockup.id);
         return next;
       });
+    }
+  };
+
+  // Crop modal handlers
+  const openCropModal = (mockup: SavedMockup) => {
+    setCropMockup(mockup);
+    setShowCropModal(true);
+    setSelectedRatio(ASPECT_RATIOS[0]);
+    setCrop(undefined);
+    setCompletedCrop(undefined);
+    setImageDimensions(null);
+  };
+
+  const closeCropModal = () => {
+    setShowCropModal(false);
+    setCropMockup(null);
+    setCrop(undefined);
+    setCompletedCrop(undefined);
+    setImageDimensions(null);
+  };
+
+  const handleCropImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    const dims = { width: img.width, height: img.height };
+    setImageDimensions(dims);
+    
+    // Set initial crop
+    const initialCrop = centerAspectCrop(img.width, img.height, selectedRatio.ratio);
+    setCrop(initialCrop);
+    
+    // Convert to pixel crop
+    const pixelCrop: PixelCrop = {
+      unit: 'px',
+      x: (initialCrop.x / 100) * img.width,
+      y: (initialCrop.y / 100) * img.height,
+      width: (initialCrop.width / 100) * img.width,
+      height: (initialCrop.height / 100) * img.height,
+    };
+    setCompletedCrop(pixelCrop);
+  };
+
+  const handleRatioChange = (ratio: AspectRatioOption) => {
+    setSelectedRatio(ratio);
+    if (imageDimensions) {
+      const newCrop = centerAspectCrop(imageDimensions.width, imageDimensions.height, ratio.ratio);
+      setCrop(newCrop);
+      
+      const pixelCrop: PixelCrop = {
+        unit: 'px',
+        x: (newCrop.x / 100) * imageDimensions.width,
+        y: (newCrop.y / 100) * imageDimensions.height,
+        width: (newCrop.width / 100) * imageDimensions.width,
+        height: (newCrop.height / 100) * imageDimensions.height,
+      };
+      setCompletedCrop(pixelCrop);
+    }
+  };
+
+  const handleApplyCrop = async () => {
+    if (!cropMockup || !completedCrop || !imageDimensions) return;
+    
+    setIsCropping(true);
+    try {
+      const croppedBase64 = await getCroppedImg(
+        cropMockup.imageUrl,
+        completedCrop,
+        imageDimensions.width,
+        imageDimensions.height
+      );
+      
+      const updatedMockup = await updateMockupImage(cropMockup, croppedBase64);
+      
+      // Update local state
+      setMockups(prev => prev.map(m => m.id === updatedMockup.id ? updatedMockup : m));
+      
+      // Update selected mockup if it's the one being cropped
+      if (selectedMockup?.id === updatedMockup.id) {
+        setSelectedMockup(updatedMockup);
+      }
+      
+      setToast({ message: 'Image cropped successfully', type: 'success' });
+      closeCropModal();
+    } catch (error) {
+      console.error('Crop failed:', error);
+      setToast({ message: 'Failed to crop image', type: 'error' });
+    } finally {
+      setIsCropping(false);
+    }
+  };
+
+  const handleRevertToOriginal = async (mockup: SavedMockup, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    
+    if (!mockup.originalImageUrl) {
+      setToast({ message: 'No original image to revert to', type: 'error' });
+      return;
+    }
+
+    setIsReverting(true);
+    try {
+      const revertedMockup = await revertMockupToOriginal(mockup);
+      
+      // Update local state
+      setMockups(prev => prev.map(m => m.id === revertedMockup.id ? revertedMockup : m));
+      
+      // Update selected mockup if it's the one being reverted
+      if (selectedMockup?.id === revertedMockup.id) {
+        setSelectedMockup(revertedMockup);
+      }
+      
+      setToast({ message: 'Reverted to original image', type: 'success' });
+    } catch (error) {
+      console.error('Revert failed:', error);
+      setToast({ message: 'Failed to revert image', type: 'error' });
+    } finally {
+      setIsReverting(false);
     }
   };
 
@@ -420,6 +636,14 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
                   </div>
                 )}
                 
+                {/* Cropped Badge */}
+                {mockup.originalImageUrl && (
+                  <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-indigo-500/95 backdrop-blur-sm rounded-lg shadow-md text-xs font-medium text-white">
+                    <CropIcon size={10} />
+                    <span>Cropped</span>
+                  </div>
+                )}
+                
                 {/* Overlay with actions */}
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-warm-900/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <div className="absolute bottom-4 left-4 right-4 flex items-center justify-end gap-2">
@@ -540,7 +764,7 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
                     <span>{formatDate(selectedMockup.createdAt)}</span>
                   </div>
                   
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     {/* Add to Product Button */}
                     {selectedMockup.sourceProduct && isShopifyContext && (
                       <button
@@ -557,6 +781,34 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
                           <>
                             <Upload size={14} />
                             <span>Add to Product</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {/* Crop Button */}
+                    <button
+                      onClick={() => openCropModal(selectedMockup)}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-500/90 hover:bg-indigo-500 text-white text-xs font-medium transition-all"
+                    >
+                      <CropIcon size={14} />
+                      <span>Crop</span>
+                    </button>
+                    {/* Revert to Original Button */}
+                    {selectedMockup.originalImageUrl && (
+                      <button
+                        onClick={() => handleRevertToOriginal(selectedMockup)}
+                        disabled={isReverting}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/90 hover:bg-amber-500 text-white text-xs font-medium transition-all disabled:opacity-70"
+                      >
+                        {isReverting ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            <span>Reverting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RotateCcw size={14} />
+                            <span>Revert</span>
                           </>
                         )}
                       </button>
@@ -597,6 +849,118 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Crop Modal */}
+      {showCropModal && cropMockup && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[10000] flex items-center justify-center p-4"
+          onClick={closeCropModal}
+        >
+          <div 
+            className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <CropIcon size={20} className="text-white" />
+                </div>
+                <div>
+                  <h2 className="font-display font-semibold text-slate-800">Crop Image</h2>
+                  <p className="text-xs text-slate-500">Choose an aspect ratio and adjust the crop area</p>
+                </div>
+              </div>
+              <button
+                onClick={closeCropModal}
+                className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors"
+              >
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+
+            {/* Aspect Ratio Selector */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200">
+              <div className="flex items-center gap-2 justify-center flex-wrap">
+                {ASPECT_RATIOS.map((ratio) => (
+                  <button
+                    key={ratio.id}
+                    onClick={() => handleRatioChange(ratio)}
+                    className={`
+                      flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all
+                      ${selectedRatio.id === ratio.id
+                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/25'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                      }
+                    `}
+                  >
+                    {ratio.icon}
+                    <span>{ratio.label}</span>
+                    <span className={`text-xs ${selectedRatio.id === ratio.id ? 'text-indigo-200' : 'text-slate-400'}`}>
+                      {ratio.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Crop Area */}
+            <div className="flex-1 overflow-hidden flex flex-col items-center justify-center p-6 bg-slate-100 min-h-[400px]">
+              <div className="max-w-full max-h-[50vh] overflow-hidden rounded-xl shadow-lg">
+                <ReactCrop
+                  crop={crop}
+                  onChange={(c) => setCrop(c)}
+                  onComplete={(c) => setCompletedCrop(c)}
+                  aspect={selectedRatio.ratio}
+                  className="max-h-[50vh]"
+                >
+                  <img
+                    ref={cropImgRef}
+                    src={cropMockup.imageUrl}
+                    alt="Crop preview"
+                    onLoad={handleCropImageLoad}
+                    className="max-h-[50vh] max-w-full"
+                    crossOrigin="anonymous"
+                  />
+                </ReactCrop>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 flex items-center justify-between bg-white">
+              <p className="text-sm text-slate-500">
+                <span className="font-medium text-slate-700">{selectedRatio.label}</span> {selectedRatio.description}
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={closeCropModal}
+                  className="px-5 py-2.5 rounded-xl font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleApplyCrop}
+                  disabled={isCropping || !completedCrop}
+                  className="px-5 py-2.5 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 flex items-center gap-2"
+                >
+                  {isCropping ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Check size={18} />
+                      Apply Crop
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>

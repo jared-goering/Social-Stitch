@@ -158,8 +158,82 @@ export const fetchUserMockups = async (): Promise<SavedMockup[]> => {
       designId: data.designId,
       createdAt: data.createdAt?.toDate() || new Date(),
       sourceProduct: data.sourceProduct,
+      originalImageUrl: data.originalImageUrl || undefined,
     } as SavedMockup;
   });
+};
+
+/**
+ * Update a mockup's image (for cropping)
+ * Uploads the new cropped image and preserves the original URL for revert functionality
+ */
+export const updateMockupImage = async (
+  mockup: SavedMockup,
+  croppedBase64Image: string
+): Promise<SavedMockup> => {
+  const userId = getCurrentUserId();
+  
+  // Upload cropped image to Firebase Storage (overwrites existing)
+  const storageRef = ref(storage, getMockupStoragePath(mockup.id));
+  const imageBlob = base64ToBlob(croppedBase64Image);
+  
+  await uploadBytes(storageRef, imageBlob, {
+    contentType: 'image/png',
+    customMetadata: {
+      styleDescription: mockup.styleDescription,
+      designId: mockup.designId,
+      userId,
+      cropped: 'true',
+    },
+  });
+  
+  // Get the new download URL (with updated token)
+  const newImageUrl = await getDownloadURL(storageRef);
+  
+  // Preserve the original image URL if this is the first crop
+  const originalImageUrl = mockup.originalImageUrl || mockup.imageUrl;
+  
+  // Update Firestore document
+  const updatedMockup: SavedMockup = {
+    ...mockup,
+    imageUrl: newImageUrl,
+    originalImageUrl,
+  };
+  
+  const docRef = doc(getUserMockupsCollection(), mockup.id);
+  await setDoc(docRef, {
+    ...updatedMockup,
+    createdAt: Timestamp.fromDate(mockup.createdAt),
+  });
+  
+  return updatedMockup;
+};
+
+/**
+ * Revert a mockup to its original uncropped image
+ */
+export const revertMockupToOriginal = async (
+  mockup: SavedMockup
+): Promise<SavedMockup> => {
+  if (!mockup.originalImageUrl) {
+    throw new Error('No original image to revert to');
+  }
+  
+  // Update Firestore to use original URL and clear originalImageUrl
+  const updatedMockup: SavedMockup = {
+    ...mockup,
+    imageUrl: mockup.originalImageUrl,
+    originalImageUrl: undefined,
+  };
+  
+  const docRef = doc(getUserMockupsCollection(), mockup.id);
+  await setDoc(docRef, {
+    ...updatedMockup,
+    createdAt: Timestamp.fromDate(mockup.createdAt),
+    originalImageUrl: null, // Firestore needs explicit null to remove field
+  });
+  
+  return updatedMockup;
 };
 
 /**

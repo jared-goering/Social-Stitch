@@ -29,6 +29,7 @@ export interface SavedMockup extends MockupOption {
   createdAt: Date;
   designId: string;
   sourceProduct?: SourceProduct;
+  originalImageUrl?: string; // Preserved original before cropping, for revert functionality
 }
 
 export interface GeneratedCaptions {
