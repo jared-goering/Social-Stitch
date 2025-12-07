@@ -44,11 +44,14 @@ import {
   ChevronUp,
   Loader2,
   Link2Off,
+  X,
+  Edit3,
+  MessageSquare,
 } from 'lucide-react';
 import { useShopifyContext } from '../ShopifyProvider';
 import { subscribeToScheduledPosts } from '../../services/scheduledPostsService';
 import { fetchUserMockups } from '../../services/mockupStorageService';
-import { generateBrandProfile, getBrandProfile } from '../../services/brandProfileService';
+import { generateBrandProfile, getBrandProfile, regenerateSection, regenerateElevatorPitch, BrandProfileSection } from '../../services/brandProfileService';
 import { isOAuthRequired, redirectToOAuth } from '../../services/shopifyProductService';
 import { ScheduledPost, SavedMockup, BrandProfile } from '../../types';
 
@@ -81,6 +84,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isOAuthError, setIsOAuthError] = useState(false);
   const [isProfileExpanded, setIsProfileExpanded] = useState(false);
+  
+  // Section regeneration state
+  const [regeneratingSection, setRegeneratingSection] = useState<BrandProfileSection | 'elevatorPitch' | null>(null);
+  const [sectionModalOpen, setSectionModalOpen] = useState(false);
+  const [selectedSection, setSelectedSection] = useState<BrandProfileSection | 'elevatorPitch' | null>(null);
+  const [sectionContext, setSectionContext] = useState('');
 
   // Load usage statistics
   useEffect(() => {
@@ -152,6 +161,50 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
   const handleReconnectApp = () => {
     if (shop) {
       redirectToOAuth(shop);
+    }
+  };
+
+  // Open section regeneration modal
+  const openSectionModal = (section: BrandProfileSection | 'elevatorPitch') => {
+    setSelectedSection(section);
+    setSectionContext('');
+    setSectionModalOpen(true);
+  };
+
+  // Handle section regeneration
+  const handleRegenerateSection = async () => {
+    if (!brandProfile || !selectedSection) return;
+
+    setSectionModalOpen(false);
+    setRegeneratingSection(selectedSection);
+
+    try {
+      let updatedProfile: BrandProfile;
+      
+      if (selectedSection === 'elevatorPitch') {
+        updatedProfile = await regenerateElevatorPitch(brandProfile, sectionContext);
+      } else {
+        updatedProfile = await regenerateSection(selectedSection, brandProfile, sectionContext);
+      }
+      
+      setBrandProfile(updatedProfile);
+    } catch (error: any) {
+      console.error('Error regenerating section:', error);
+      setProfileError(`Failed to regenerate section: ${error.message}`);
+    } finally {
+      setRegeneratingSection(null);
+      setSectionContext('');
+    }
+  };
+
+  // Get section display name
+  const getSectionName = (section: BrandProfileSection | 'elevatorPitch'): string => {
+    switch (section) {
+      case 'identity': return 'Brand Identity';
+      case 'productIntelligence': return 'Product Intelligence';
+      case 'marketPositioning': return 'Target Audience';
+      case 'voiceAndAesthetic': return 'Voice & Aesthetic';
+      case 'elevatorPitch': return 'Elevator Pitch';
     }
   };
 
@@ -296,9 +349,24 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
             <div className="space-y-6">
               {/* Elevator Pitch */}
               <div className="p-4 bg-gradient-to-r from-violet-50 to-indigo-50 rounded-xl border border-violet-100">
-                <p className="text-sm text-slate-warm-700 leading-relaxed italic">
-                  "{brandProfile.elevatorPitch}"
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm text-slate-warm-700 leading-relaxed italic flex-1">
+                    "{brandProfile.elevatorPitch}"
+                  </p>
+                  <button
+                    onClick={() => openSectionModal('elevatorPitch')}
+                    disabled={regeneratingSection === 'elevatorPitch'}
+                    className="flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-violet-500 hover:text-violet-700 hover:bg-violet-100 transition-all disabled:opacity-50"
+                    title="Refine elevator pitch"
+                  >
+                    {regeneratingSection === 'elevatorPitch' ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Edit3 size={12} />
+                    )}
+                    {regeneratingSection === 'elevatorPitch' ? 'Updating...' : 'Refine'}
+                  </button>
+                </div>
               </div>
 
               {/* Quick Stats */}
@@ -343,6 +411,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
                     icon={Target}
                     title="Brand Identity"
                     color="violet"
+                    onRegenerate={() => openSectionModal('identity')}
+                    isRegenerating={regeneratingSection === 'identity'}
                   >
                     <div className="space-y-3">
                       <div>
@@ -371,6 +441,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
                     icon={Package}
                     title="Product Intelligence"
                     color="amber"
+                    onRegenerate={() => openSectionModal('productIntelligence')}
+                    isRegenerating={regeneratingSection === 'productIntelligence'}
                   >
                     <div className="space-y-3">
                       <div>
@@ -422,6 +494,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
                     icon={Users}
                     title="Target Audience"
                     color="indigo"
+                    onRegenerate={() => openSectionModal('marketPositioning')}
+                    isRegenerating={regeneratingSection === 'marketPositioning'}
                   >
                     <div className="space-y-3">
                       <div>
@@ -466,6 +540,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
                     icon={Palette}
                     title="Voice & Aesthetic"
                     color="rose"
+                    onRegenerate={() => openSectionModal('voiceAndAesthetic')}
+                    isRegenerating={regeneratingSection === 'voiceAndAesthetic'}
                   >
                     <div className="space-y-3">
                       <div>
@@ -699,6 +775,80 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
           </div>
         </div>
       </div>
+
+      {/* Section Regeneration Modal */}
+      {sectionModalOpen && selectedSection && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-[9999] overflow-y-auto"
+          style={{ 
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSectionModalOpen(false);
+          }}
+        >
+          <div className="min-h-full flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden relative">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-warm-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                  <MessageSquare size={20} className="text-violet-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-slate-warm-800">Refine {getSectionName(selectedSection)}</h3>
+                  <p className="text-xs text-slate-warm-500">Add context to guide the AI</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSectionModalOpen(false)}
+                className="p-2 rounded-lg hover:bg-slate-warm-100 transition-colors"
+              >
+                <X size={20} className="text-slate-warm-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-5">
+              <label className="block text-sm font-medium text-slate-warm-700 mb-2">
+                What would you like to change or emphasize?
+              </label>
+              <textarea
+                value={sectionContext}
+                onChange={(e) => setSectionContext(e.target.value)}
+                placeholder={`E.g., "Focus more on the outdoor adventure aspect" or "Our target audience is primarily millennials who love hiking" or "We want a more playful and fun tone"`}
+                className="w-full h-32 px-4 py-3 rounded-xl border-2 border-slate-warm-200 focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none transition-all resize-none text-sm"
+              />
+              <p className="text-xs text-slate-warm-400 mt-2">
+                Be specific about what you want to adjust. The AI will use your current profile data along with this context.
+              </p>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 p-5 bg-slate-warm-50 border-t border-slate-warm-200">
+              <button
+                onClick={() => setSectionModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-warm-600 hover:bg-slate-warm-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRegenerateSection}
+                disabled={!sectionContext.trim()}
+                className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                <Sparkles size={16} />
+                Regenerate Section
+              </button>
+            </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -784,9 +934,18 @@ interface ProfileSectionProps {
   title: string;
   color: 'violet' | 'amber' | 'indigo' | 'rose' | 'emerald';
   children: React.ReactNode;
+  onRegenerate?: () => void;
+  isRegenerating?: boolean;
 }
 
-const ProfileSection: React.FC<ProfileSectionProps> = ({ icon: Icon, title, color, children }) => {
+const ProfileSection: React.FC<ProfileSectionProps> = ({ 
+  icon: Icon, 
+  title, 
+  color, 
+  children,
+  onRegenerate,
+  isRegenerating 
+}) => {
   const colorClasses = {
     violet: 'bg-violet-50 text-violet-600',
     amber: 'bg-amber-50 text-amber-600',
@@ -797,11 +956,28 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ icon: Icon, title, colo
 
   return (
     <div className="p-4 bg-slate-warm-50/50 rounded-xl border border-slate-warm-100">
-      <div className="flex items-center gap-3 mb-4">
-        <div className={`w-8 h-8 rounded-lg ${colorClasses[color]} flex items-center justify-center`}>
-          <Icon size={16} />
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-lg ${colorClasses[color]} flex items-center justify-center`}>
+            <Icon size={16} />
+          </div>
+          <h3 className="font-semibold text-slate-warm-800">{title}</h3>
         </div>
-        <h3 className="font-semibold text-slate-warm-800">{title}</h3>
+        {onRegenerate && (
+          <button
+            onClick={onRegenerate}
+            disabled={isRegenerating}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-warm-500 hover:text-violet-600 hover:bg-violet-50 transition-all disabled:opacity-50"
+            title="Regenerate with custom context"
+          >
+            {isRegenerating ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Edit3 size={12} />
+            )}
+            {isRegenerating ? 'Updating...' : 'Refine'}
+          </button>
+        )}
       </div>
       {children}
     </div>

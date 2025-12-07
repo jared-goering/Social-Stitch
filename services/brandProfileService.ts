@@ -414,3 +414,285 @@ export async function hasBrandProfile(): Promise<boolean> {
   return profile !== null && profile.status === 'complete';
 }
 
+// =============================================================================
+// SECTION REGENERATION
+// =============================================================================
+
+export type BrandProfileSection = 'identity' | 'productIntelligence' | 'marketPositioning' | 'voiceAndAesthetic';
+
+/**
+ * Get section-specific schema for regeneration
+ */
+function getSectionSchema(section: BrandProfileSection): Schema {
+  switch (section) {
+    case 'identity':
+      return {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING, description: "The brand name" },
+          positioningStatement: { type: Type.STRING, description: "A clear statement of what the brand stands for" },
+          storySummary: { type: Type.STRING, description: "A brief narrative about the brand's story" },
+          coreValues: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-5 core values" },
+          missionThemes: { type: Type.ARRAY, items: { type: Type.STRING }, description: "2-4 mission themes" },
+        },
+        required: ["name", "positioningStatement", "storySummary", "coreValues", "missionThemes"],
+      };
+    case 'productIntelligence':
+      return {
+        type: Type.OBJECT,
+        properties: {
+          primaryCategories: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Main product categories" },
+          productCharacteristics: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Key characteristics" },
+          useCases: { type: Type.ARRAY, items: { type: Type.STRING }, description: "How customers use products" },
+          uniqueSellingPoints: { type: Type.ARRAY, items: { type: Type.STRING }, description: "What makes products unique" },
+          signatureItems: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Key product types" },
+        },
+        required: ["primaryCategories", "productCharacteristics", "useCases", "uniqueSellingPoints", "signatureItems"],
+      };
+    case 'marketPositioning':
+      return {
+        type: Type.OBJECT,
+        properties: {
+          targetAudience: {
+            type: Type.OBJECT,
+            properties: {
+              demographics: { type: Type.ARRAY, items: { type: Type.STRING } },
+              psychographics: { type: Type.ARRAY, items: { type: Type.STRING } },
+              lifestyle: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: ["demographics", "psychographics", "lifestyle"],
+          },
+          pricePositioning: { type: Type.STRING, description: "One of: budget, mid-range, premium, luxury" },
+          geographicFocus: { type: Type.ARRAY, items: { type: Type.STRING } },
+          competitivePositioning: { type: Type.STRING },
+        },
+        required: ["targetAudience", "pricePositioning", "geographicFocus", "competitivePositioning"],
+      };
+    case 'voiceAndAesthetic':
+      return {
+        type: Type.OBJECT,
+        properties: {
+          toneCharacteristics: { type: Type.ARRAY, items: { type: Type.STRING } },
+          visualAesthetic: { type: Type.STRING },
+          colorPaletteTendencies: { type: Type.ARRAY, items: { type: Type.STRING } },
+          photographyStyle: { type: Type.STRING },
+          communicationStyle: { type: Type.STRING, description: "One of: formal, casual, technical, emotional, mixed" },
+          moodKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+        },
+        required: ["toneCharacteristics", "visualAesthetic", "colorPaletteTendencies", "photographyStyle", "communicationStyle", "moodKeywords"],
+      };
+  }
+}
+
+/**
+ * Get section-specific prompt for regeneration
+ */
+function getSectionPrompt(
+  section: BrandProfileSection,
+  currentProfile: BrandProfile,
+  userContext: string
+): string {
+  const baseContext = `
+You are refining a specific section of an existing brand profile.
+
+CURRENT BRAND OVERVIEW:
+- Brand: ${currentProfile.identity.name}
+- Elevator Pitch: ${currentProfile.elevatorPitch}
+- Price Range: ${currentProfile.productIntelligence.priceRange.currency} ${currentProfile.productIntelligence.priceRange.min} - ${currentProfile.productIntelligence.priceRange.max}
+- Products Analyzed: ${currentProfile.dataSourceSummary.productsAnalyzed}
+
+USER'S ADDITIONAL CONTEXT/GUIDANCE:
+${userContext}
+
+Based on the user's guidance, regenerate ONLY the specified section while keeping it consistent with the overall brand.
+`;
+
+  switch (section) {
+    case 'identity':
+      return `${baseContext}
+      
+CURRENT IDENTITY SECTION:
+- Positioning: ${currentProfile.identity.positioningStatement}
+- Story: ${currentProfile.identity.storySummary}
+- Values: ${currentProfile.identity.coreValues.join(', ')}
+
+Regenerate the Brand Identity section with the user's guidance in mind. 
+Focus on: name, positioning statement, brand story, core values, and mission themes.`;
+
+    case 'productIntelligence':
+      return `${baseContext}
+      
+CURRENT PRODUCT INTELLIGENCE:
+- Categories: ${currentProfile.productIntelligence.primaryCategories.join(', ')}
+- Use Cases: ${currentProfile.productIntelligence.useCases.join(', ')}
+- USPs: ${currentProfile.productIntelligence.uniqueSellingPoints.join(', ')}
+
+Regenerate the Product Intelligence section with the user's guidance in mind.
+Focus on: product categories, characteristics, use cases, unique selling points, and signature items.`;
+
+    case 'marketPositioning':
+      return `${baseContext}
+      
+CURRENT MARKET POSITIONING:
+- Demographics: ${currentProfile.marketPositioning.targetAudience.demographics.join(', ')}
+- Price Position: ${currentProfile.marketPositioning.pricePositioning}
+- Geographic Focus: ${currentProfile.marketPositioning.geographicFocus.join(', ')}
+
+Regenerate the Target Audience/Market Positioning section with the user's guidance in mind.
+Focus on: demographics, psychographics, lifestyle, price positioning, geographic focus, and competitive positioning.`;
+
+    case 'voiceAndAesthetic':
+      return `${baseContext}
+      
+CURRENT VOICE & AESTHETIC:
+- Tone: ${currentProfile.voiceAndAesthetic.toneCharacteristics.join(', ')}
+- Visual: ${currentProfile.voiceAndAesthetic.visualAesthetic}
+- Colors: ${currentProfile.voiceAndAesthetic.colorPaletteTendencies.join(', ')}
+
+Regenerate the Voice & Aesthetic section with the user's guidance in mind.
+Focus on: tone characteristics, visual aesthetic, color palette, photography style, communication style, and mood keywords.`;
+  }
+}
+
+/**
+ * Regenerate a specific section of the brand profile with user context
+ */
+export async function regenerateSection(
+  section: BrandProfileSection,
+  currentProfile: BrandProfile,
+  userContext: string
+): Promise<BrandProfile> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY environment variable is not set');
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = getSectionPrompt(section, currentProfile, userContext);
+  const schema = getSectionSchema(section);
+  
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: { parts: [{ text: prompt }] },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: schema,
+    },
+  });
+
+  const jsonText = response.text || "{}";
+  const parsed = JSON.parse(jsonText);
+  
+  // Update the specific section in the profile
+  const updatedProfile: BrandProfile = {
+    ...currentProfile,
+    lastUpdatedAt: new Date(),
+  };
+  
+  switch (section) {
+    case 'identity':
+      updatedProfile.identity = {
+        name: parsed.name || currentProfile.identity.name,
+        positioningStatement: parsed.positioningStatement || currentProfile.identity.positioningStatement,
+        storySummary: parsed.storySummary || currentProfile.identity.storySummary,
+        coreValues: parsed.coreValues || currentProfile.identity.coreValues,
+        missionThemes: parsed.missionThemes || currentProfile.identity.missionThemes,
+      };
+      break;
+    case 'productIntelligence':
+      updatedProfile.productIntelligence = {
+        ...currentProfile.productIntelligence, // Keep priceRange
+        primaryCategories: parsed.primaryCategories || currentProfile.productIntelligence.primaryCategories,
+        productCharacteristics: parsed.productCharacteristics || currentProfile.productIntelligence.productCharacteristics,
+        useCases: parsed.useCases || currentProfile.productIntelligence.useCases,
+        uniqueSellingPoints: parsed.uniqueSellingPoints || currentProfile.productIntelligence.uniqueSellingPoints,
+        signatureItems: parsed.signatureItems || currentProfile.productIntelligence.signatureItems,
+      };
+      break;
+    case 'marketPositioning':
+      updatedProfile.marketPositioning = {
+        targetAudience: {
+          demographics: parsed.targetAudience?.demographics || currentProfile.marketPositioning.targetAudience.demographics,
+          psychographics: parsed.targetAudience?.psychographics || currentProfile.marketPositioning.targetAudience.psychographics,
+          lifestyle: parsed.targetAudience?.lifestyle || currentProfile.marketPositioning.targetAudience.lifestyle,
+        },
+        pricePositioning: validatePricePositioning(parsed.pricePositioning) || currentProfile.marketPositioning.pricePositioning,
+        geographicFocus: parsed.geographicFocus || currentProfile.marketPositioning.geographicFocus,
+        competitivePositioning: parsed.competitivePositioning || currentProfile.marketPositioning.competitivePositioning,
+      };
+      break;
+    case 'voiceAndAesthetic':
+      updatedProfile.voiceAndAesthetic = {
+        toneCharacteristics: parsed.toneCharacteristics || currentProfile.voiceAndAesthetic.toneCharacteristics,
+        visualAesthetic: parsed.visualAesthetic || currentProfile.voiceAndAesthetic.visualAesthetic,
+        colorPaletteTendencies: parsed.colorPaletteTendencies || currentProfile.voiceAndAesthetic.colorPaletteTendencies,
+        photographyStyle: parsed.photographyStyle || currentProfile.voiceAndAesthetic.photographyStyle,
+        communicationStyle: validateCommunicationStyle(parsed.communicationStyle) || currentProfile.voiceAndAesthetic.communicationStyle,
+        moodKeywords: parsed.moodKeywords || currentProfile.voiceAndAesthetic.moodKeywords,
+      };
+      break;
+  }
+  
+  // Save updated profile
+  await saveToFirestore(updatedProfile);
+  
+  return updatedProfile;
+}
+
+/**
+ * Regenerate the elevator pitch based on current profile sections
+ */
+export async function regenerateElevatorPitch(
+  currentProfile: BrandProfile,
+  userContext?: string
+): Promise<BrandProfile> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY environment variable is not set');
+  }
+  
+  const ai = new GoogleGenAI({ apiKey });
+  
+  const prompt = `
+Based on this brand profile, write a compelling one-paragraph elevator pitch (2-4 sentences).
+
+BRAND: ${currentProfile.identity.name}
+POSITIONING: ${currentProfile.identity.positioningStatement}
+PRODUCTS: ${currentProfile.productIntelligence.primaryCategories.join(', ')}
+TARGET: ${currentProfile.marketPositioning.targetAudience.demographics.join(', ')}
+TONE: ${currentProfile.voiceAndAesthetic.toneCharacteristics.join(', ')}
+${userContext ? `\nUSER GUIDANCE: ${userContext}` : ''}
+
+Write the elevator pitch in the brand's voice. Make it memorable and compelling.
+`;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: { parts: [{ text: prompt }] },
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          elevatorPitch: { type: Type.STRING, description: "A compelling one-paragraph brand summary" },
+        },
+        required: ["elevatorPitch"],
+      },
+    },
+  });
+
+  const jsonText = response.text || "{}";
+  const parsed = JSON.parse(jsonText);
+  
+  const updatedProfile: BrandProfile = {
+    ...currentProfile,
+    elevatorPitch: parsed.elevatorPitch || currentProfile.elevatorPitch,
+    lastUpdatedAt: new Date(),
+  };
+  
+  await saveToFirestore(updatedProfile);
+  
+  return updatedProfile;
+}
+
