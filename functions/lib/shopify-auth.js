@@ -291,6 +291,7 @@ exports.shopifyAuthCallback = functions.https.onRequest(async (req, res) => {
             console.warn('[shopifyAuthCallback] Failed to fetch shop info:', shopResponse.status);
         }
         // Store access token securely in Firestore (overwrite old token completely)
+        // IMPORTANT: Also store the apiKey so we can verify the token belongs to this app
         console.log('[shopifyAuthCallback] Storing token for shop:', shop);
         await db.collection('shopifyStores').doc(shop).set({
             accessToken: tokenData.access_token,
@@ -299,6 +300,7 @@ exports.shopifyAuthCallback = functions.https.onRequest(async (req, res) => {
             shopName: shopInfo.name || shop,
             shopEmail: shopInfo.email || '',
             shopOwner: shopInfo.shop_owner || '',
+            apiKey: config.apiKey, // Store which app's API key this token belongs to
             installedAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }); // Removed merge:true to ensure complete overwrite
@@ -386,10 +388,12 @@ async function verifyRequestSession(req) {
 }
 /**
  * Check if a shop has installed the app
- * Also verifies the access token is still valid by making a test API call
+ * Verifies both that the token exists AND was created with the current app's API key
  */
 exports.shopifyCheckInstall = functions.https.onRequest((req, res) => {
     corsHandler(req, res, async () => {
+        var _a;
+        const config = getShopifyConfig();
         const shop = req.query.shop;
         if (!shop) {
             res.status(400).json({ error: 'Missing shop parameter' });
@@ -398,6 +402,7 @@ exports.shopifyCheckInstall = functions.https.onRequest((req, res) => {
         const db = admin.firestore();
         const storeDoc = await db.collection('shopifyStores').doc(shop).get();
         if (!storeDoc.exists) {
+            console.log(`[shopifyCheckInstall] No store doc for ${shop}`);
             res.json({
                 installed: false,
                 shop,
@@ -406,55 +411,82 @@ exports.shopifyCheckInstall = functions.https.onRequest((req, res) => {
         }
         const storeData = storeDoc.data();
         const accessToken = storeData === null || storeData === void 0 ? void 0 : storeData.accessToken;
+        const storedApiKey = storeData === null || storeData === void 0 ? void 0 : storeData.apiKey;
         // If no access token, not properly installed
         if (!accessToken) {
+            console.log(`[shopifyCheckInstall] No access token for ${shop}`);
             res.json({
                 installed: false,
                 shop,
             });
             return;
         }
-        // Verify the token actually works by making a test API call
-        try {
-            const testResponse = await fetch(`https://${shop}/admin/api/2024-01/shop.json`, {
-                headers: {
-                    'X-Shopify-Access-Token': accessToken,
-                },
+        // CRITICAL: Check if the token was created with the CURRENT app's API key
+        // If not, the token is from a different/old app and won't work with App Bridge
+        if (storedApiKey && storedApiKey !== config.apiKey) {
+            console.log(`[shopifyCheckInstall] Token for ${shop} was created with different API key (old app), requiring re-auth`);
+            console.log(`[shopifyCheckInstall] Stored key: ${storedApiKey === null || storedApiKey === void 0 ? void 0 : storedApiKey.substring(0, 8)}..., Current key: ${(_a = config.apiKey) === null || _a === void 0 ? void 0 : _a.substring(0, 8)}...`);
+            // Delete the old token
+            await db.collection('shopifyStores').doc(shop).delete();
+            res.json({
+                installed: false,
+                shop,
+                reason: 'different_app',
             });
-            if (testResponse.ok) {
-                // Token is valid
-                res.json({
-                    installed: true,
-                    shop,
+            return;
+        }
+        // If no apiKey stored (legacy install), verify and update
+        if (!storedApiKey) {
+            console.log(`[shopifyCheckInstall] Legacy install for ${shop}, verifying token and updating with current API key`);
+            // Verify the token works
+            try {
+                const testResponse = await fetch(`https://${shop}/admin/api/2024-01/shop.json`, {
+                    headers: {
+                        'X-Shopify-Access-Token': accessToken,
+                    },
                 });
+                if (testResponse.ok) {
+                    // Token works - but we can't verify which app it came from
+                    // For safety, require re-auth to ensure App Bridge works
+                    console.log(`[shopifyCheckInstall] Legacy token works but API key unknown, requiring re-auth for ${shop}`);
+                    await db.collection('shopifyStores').doc(shop).delete();
+                    res.json({
+                        installed: false,
+                        shop,
+                        reason: 'legacy_token',
+                    });
+                    return;
+                }
+                else {
+                    // Token doesn't work
+                    console.log(`[shopifyCheckInstall] Legacy token invalid for ${shop}, requiring re-auth`);
+                    await db.collection('shopifyStores').doc(shop).delete();
+                    res.json({
+                        installed: false,
+                        shop,
+                        reason: 'token_invalid',
+                    });
+                    return;
+                }
             }
-            else if (testResponse.status === 401 || testResponse.status === 403) {
-                // Token is invalid - delete it so user will re-auth
-                console.log(`[shopifyCheckInstall] Invalid token for ${shop}, deleting and requiring re-auth`);
+            catch (error) {
+                console.error(`[shopifyCheckInstall] Error verifying legacy token for ${shop}:`, error);
+                // On error, require re-auth to be safe
                 await db.collection('shopifyStores').doc(shop).delete();
                 res.json({
                     installed: false,
                     shop,
-                    reason: 'token_invalid',
+                    reason: 'verification_error',
                 });
-            }
-            else {
-                // Some other error, but token might still be valid
-                console.warn(`[shopifyCheckInstall] Unexpected response for ${shop}: ${testResponse.status}`);
-                res.json({
-                    installed: true,
-                    shop,
-                });
+                return;
             }
         }
-        catch (error) {
-            // Network error - assume installed to avoid breaking working setups
-            console.error(`[shopifyCheckInstall] Error verifying token for ${shop}:`, error);
-            res.json({
-                installed: true,
-                shop,
-            });
-        }
+        // Token exists and was created with current API key - all good!
+        console.log(`[shopifyCheckInstall] Valid install for ${shop}`);
+        res.json({
+            installed: true,
+            shop,
+        });
     });
 });
 /**
