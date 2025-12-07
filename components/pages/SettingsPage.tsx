@@ -18,6 +18,8 @@ import {
   BlockStack,
   InlineStack,
   Box,
+  Modal,
+  TextField,
 } from '@shopify/polaris';
 import {
   Package,
@@ -776,92 +778,40 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
         </div>
       </div>
 
-      {/* Section Regeneration Modal - Portal-style overlay */}
-      {sectionModalOpen && selectedSection && (
-        <>
-          {/* Backdrop */}
-          <div 
-            onClick={() => setSectionModalOpen(false)}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100vw',
-              height: '100vh',
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              zIndex: 99998,
-            }}
-          />
-          {/* Modal */}
-          <div
-            style={{
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 99999,
-              width: '100%',
-              maxWidth: '32rem',
-              padding: '1rem',
-            }}
-          >
-            <div className="bg-white rounded-2xl shadow-2xl w-full overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-slate-warm-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
-                  <MessageSquare size={20} className="text-violet-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-warm-800">Refine {getSectionName(selectedSection)}</h3>
-                  <p className="text-xs text-slate-warm-500">Add context to guide the AI</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSectionModalOpen(false)}
-                className="p-2 rounded-lg hover:bg-slate-warm-100 transition-colors"
-              >
-                <X size={20} className="text-slate-warm-500" />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-5">
-              <label className="block text-sm font-medium text-slate-warm-700 mb-2">
-                What would you like to change or emphasize?
-              </label>
-              <textarea
-                value={sectionContext}
-                onChange={(e) => setSectionContext(e.target.value)}
-                placeholder={`E.g., "Focus more on the outdoor adventure aspect" or "Our target audience is primarily millennials who love hiking" or "We want a more playful and fun tone"`}
-                className="w-full h-32 px-4 py-3 rounded-xl border-2 border-slate-warm-200 focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none transition-all resize-none text-sm"
-              />
-              <p className="text-xs text-slate-warm-400 mt-2">
-                Be specific about what you want to adjust. The AI will use your current profile data along with this context.
-              </p>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-5 bg-slate-warm-50 border-t border-slate-warm-200">
-              <button
-                onClick={() => setSectionModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-warm-600 hover:bg-slate-warm-100 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRegenerateSection}
-                disabled={!sectionContext.trim()}
-                className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-              >
-                <Sparkles size={16} />
-                Regenerate Section
-              </button>
-            </div>
-            </div>
-          </div>
-        </>
-      )}
+      {/* Section Regeneration Modal - Using Polaris Modal */}
+      <Modal
+        open={sectionModalOpen && selectedSection !== null}
+        onClose={() => setSectionModalOpen(false)}
+        title={`Refine ${selectedSection ? getSectionName(selectedSection) : ''}`}
+        primaryAction={{
+          content: 'Regenerate Section',
+          onAction: handleRegenerateSection,
+          disabled: !sectionContext.trim(),
+          icon: Sparkles,
+        }}
+        secondaryActions={[
+          {
+            content: 'Cancel',
+            onAction: () => setSectionModalOpen(false),
+          },
+        ]}
+      >
+        <Modal.Section>
+          <BlockStack gap="400">
+            <Text as="p" variant="bodyMd">
+              What would you like to change or emphasize? Be specific about what you want to adjust.
+            </Text>
+            <TextField
+              label="Your guidance"
+              value={sectionContext}
+              onChange={(value) => setSectionContext(value)}
+              multiline={4}
+              autoComplete="off"
+              placeholder='E.g., "Focus more on the outdoor adventure aspect" or "Our target audience is primarily millennials who love hiking"'
+            />
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
     </div>
   );
 };
