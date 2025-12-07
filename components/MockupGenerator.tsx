@@ -961,50 +961,58 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                 <span className="text-[9px] text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded font-medium">Default</span>
               )}
             </div>
+            {/* Product description with hover tooltip */}
             {productAnalysis && (
-              <span className="text-[10px] text-slate-400 truncate max-w-[120px]" title={productAnalysis.productDescription}>
-                {productAnalysis.productDescription}
-              </span>
+              <div className="relative group/product">
+                <span className="text-[10px] text-slate-400 truncate max-w-[120px] block cursor-help">
+                  {productAnalysis.productDescription}
+                </span>
+                {/* Hover tooltip for full description */}
+                <div className="absolute right-0 top-full mt-1 w-48 p-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg z-50 opacity-0 invisible group-hover/product:opacity-100 group-hover/product:visible transition-all duration-200">
+                  {productAnalysis.productDescription}
+                  <div className="absolute -top-1 right-4 w-2 h-2 bg-slate-800 transform rotate-45" />
+                </div>
+              </div>
             )}
           </div>
-          {/* Scrollable pills with fade indicators */}
-          <div className="relative">
-            {/* Left fade gradient */}
-            <div className="absolute left-0 top-0 bottom-1 w-6 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none opacity-0 transition-opacity" />
-            {/* Right fade gradient - visible when more items exist */}
-            <div className="absolute right-0 top-0 bottom-1 w-6 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none" />
-            
-            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none scroll-smooth snap-x">
-              {applicableCategories.map((category) => {
-                const isActive = selectedCategory === category.id;
-                return (
-                  <button
-                    key={category.id}
-                    onClick={() => setSelectedCategory(category.id)}
-                    disabled={isLoadingSuggestions}
-                    className={`
-                      flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
-                      transition-all duration-150 border snap-start
-                      ${isActive
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-500/20'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
-                      }
-                      ${isLoadingSuggestions ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                    `}
-                    title={category.description}
-                  >
-                    <span className={`transition-colors ${isActive ? 'text-white' : 'text-slate-400'}`}>
-                      {getCategoryIcon(category.icon, 12)}
-                    </span>
-                    <span>{category.shortLabel}</span>
-                  </button>
-                );
-              })}
+          {/* Scrollable pills - removed fade gradients to prevent cutoff */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none scroll-smooth snap-x pr-2">
+            {applicableCategories.map((category) => {
+              const isActive = selectedCategory === category.id;
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  disabled={isLoadingSuggestions}
+                  className={`
+                    flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
+                    transition-all duration-150 border snap-start
+                    ${isActive
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-500/20'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                    }
+                    ${isLoadingSuggestions ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                  `}
+                  title={category.description}
+                >
+                  <span className={`transition-colors ${isActive ? 'text-white' : 'text-slate-400'}`}>
+                    {getCategoryIcon(category.icon, 12)}
+                  </span>
+                  <span>{category.shortLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+          {/* Category description with hover for full text */}
+          <div className="relative group/catdesc mt-2">
+            <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2 cursor-help">
+              {CONTENT_CATEGORIES.find(c => c.id === selectedCategory)?.description || 'Select a content style for your mockups'}
+            </p>
+            {/* Hover tooltip for full category description */}
+            <div className="absolute left-0 top-full mt-1 w-full p-2 bg-slate-800 text-white text-[10px] rounded-lg shadow-lg z-50 opacity-0 invisible group-hover/catdesc:opacity-100 group-hover/catdesc:visible transition-all duration-200 leading-relaxed">
+              {CONTENT_CATEGORIES.find(c => c.id === selectedCategory)?.description || 'Select a content style for your mockups'}
             </div>
           </div>
-          <p className="mt-2 text-[10px] text-slate-500 leading-relaxed min-h-[2.5em]">
-            {CONTENT_CATEGORIES.find(c => c.id === selectedCategory)?.description || 'Select a content style for your mockups'}
-          </p>
         </div>
 
         <div className="flex items-center justify-between mb-2">
@@ -1066,15 +1074,15 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             ))}
           </div>
         ) : aiSuggestions.length > 0 ? (
-          <div className="space-y-1.5 mb-3 stagger-children">
+          <div className="space-y-1.5 mb-3 stagger-children" style={{ overflow: 'visible' }}>
             {aiSuggestions.map((suggestion, idx) => {
               const isSelected = selectedStyles.has(suggestion.description);
               return (
-                <div key={idx} className="group relative">
+                <div key={idx} className="group relative" style={{ overflow: 'visible' }}>
                   <div
                     onClick={() => !isGenerating && toggleStyleSelection(suggestion.description)}
                     className={`
-                      w-full text-left p-2 rounded-lg border transition-all text-xs cursor-pointer card-ripple
+                      w-full text-left p-2 rounded-lg border transition-all text-xs cursor-pointer
                       ${isSelected 
                         ? 'border-indigo-500 bg-indigo-50' 
                         : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
@@ -1196,7 +1204,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                             )}
                           </div>
                           <div className="flex items-center gap-0.5 flex-shrink-0">
-                            {/* Hover tooltip for reasoning */}
+                            {/* Hover tooltip for reasoning - positioned above to avoid clipping */}
                             <div className="relative group/tooltip">
                               <button
                                 type="button"
@@ -1205,19 +1213,19 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                               >
                                 <Lightbulb size={12} className="text-amber-500" />
                               </button>
-                              {/* Floating tooltip */}
-                              <div className="absolute right-0 top-full mt-1 w-56 p-2.5 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-lg shadow-lg z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 animate-tooltip-enter pointer-events-none">
+                              {/* Floating tooltip - appears above the button */}
+                              <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl shadow-xl z-[100] opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 pointer-events-none">
                                 <div className="flex items-start gap-2">
-                                  <Sparkles size={12} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                                  <Sparkles size={14} className="text-amber-600 flex-shrink-0 mt-0.5" />
                                   <div>
-                                    <p className="text-[9px] font-semibold text-amber-800 uppercase tracking-wide mb-1">Why this style?</p>
-                                    <p className="text-[10px] text-amber-700 leading-relaxed">
+                                    <p className="text-[9px] font-semibold text-amber-800 uppercase tracking-wide mb-1.5">Why this style?</p>
+                                    <p className="text-[11px] text-amber-700 leading-relaxed">
                                       {suggestion.reasoning}
                                     </p>
                                   </div>
                                 </div>
-                                {/* Arrow */}
-                                <div className="absolute -top-1 right-3 w-2 h-2 bg-amber-50 border-l border-t border-amber-200 transform rotate-45" />
+                                {/* Arrow pointing down */}
+                                <div className="absolute -bottom-1.5 right-3 w-3 h-3 bg-orange-50 border-r border-b border-amber-200 transform rotate-45" />
                               </div>
                             </div>
                             <button
