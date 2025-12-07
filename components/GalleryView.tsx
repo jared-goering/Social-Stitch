@@ -5,8 +5,9 @@ import 'react-image-crop/dist/ReactCrop.css';
 import { ref, getBlob } from 'firebase/storage';
 import { SavedMockup } from '../types';
 import { fetchUserMockups, deleteMockupFromFirebase, updateMockupImage, revertMockupToOriginal } from '../services/mockupStorageService';
+import { getSessionId } from '../services/socialAuthService';
 import { addProductImage, getSessionToken } from '../services/shopifyProductService';
-import { storage, auth } from '../services/firebaseConfig';
+import { storage } from '../services/firebaseConfig';
 import { 
   Download, 
   Trash2, 
@@ -219,10 +220,8 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
     
     try {
       // Get the current user's ID to construct the storage path
-      const userId = auth.currentUser?.uid;
-      if (!userId) {
-        throw new Error('Not authenticated');
-      }
+      // Use getSessionId() which works in both Firebase Auth and Shopify contexts
+      const userId = getSessionId();
       
       // Use Firebase's getBlob to download (bypasses CORS issues)
       const storageRef = ref(storage, `mockups/${userId}/${mockup.id}.png`);
@@ -340,10 +339,8 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
     
     try {
       // Fetch image as blob using Firebase's getBlob to bypass CORS
-      const userId = auth.currentUser?.uid;
-      if (!userId) {
-        throw new Error('Not authenticated');
-      }
+      // Use getSessionId() which works in both Firebase Auth and Shopify contexts
+      const userId = getSessionId();
       
       const storageRef = ref(storage, `mockups/${userId}/${mockup.id}.png`);
       const blob = await getBlob(storageRef);
