@@ -4,7 +4,7 @@ import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-im
 import 'react-image-crop/dist/ReactCrop.css';
 import { ref, getBlob } from 'firebase/storage';
 import { SavedMockup } from '../types';
-import { fetchUserMockups, deleteMockupFromFirebase, updateMockupImage, revertMockupToOriginal } from '../services/mockupStorageService';
+import { fetchUserMockups, deleteMockupFromFirebase, updateMockupImage } from '../services/mockupStorageService';
 import { getSessionId } from '../services/socialAuthService';
 import { addProductImage, getSessionToken } from '../services/shopifyProductService';
 import { storage } from '../services/firebaseConfig';
@@ -32,7 +32,6 @@ import {
   RectangleVertical,
   RectangleHorizontal,
   Smartphone,
-  RotateCcw,
   Check,
 } from 'lucide-react';
 
@@ -141,7 +140,6 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [isCropping, setIsCropping] = useState(false);
-  const [isReverting, setIsReverting] = useState(false);
   const cropImgRef = useRef<HTMLImageElement>(null);
 
   // Filtering and sorting state
@@ -333,8 +331,8 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
     setCrop(undefined);
     setCompletedCrop(undefined);
     setImageDimensions(null);
-    // Use the image URL directly - it displays fine in img tags
-    setCropImageDataUrl(mockup.imageUrl);
+    // Always use the original image if available, so user can re-crop from scratch
+    setCropImageDataUrl(mockup.originalImageUrl || mockup.imageUrl);
     setIsLoadingCropImage(false);
   };
 
@@ -385,14 +383,13 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   };
 
   const handleApplyCrop = async () => {
-    if (!cropMockup || !completedCrop || !imageDimensions) return;
+    if (!cropMockup || !completedCrop || !imageDimensions || !cropImageDataUrl) return;
     
     setIsCropping(true);
     try {
-      // Use Firebase getBlob to fetch the image (bypasses browser CORS for authenticated users)
-      const userId = getSessionId();
-      const storageRef = ref(storage, `mockups/${userId}/${cropMockup.id}.png`);
-      const blob = await getBlob(storageRef);
+      // Fetch the image we're cropping (could be original or current)
+      const response = await fetch(cropImageDataUrl);
+      const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       
       const croppedBase64 = await getCroppedImg(
@@ -421,35 +418,6 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
       setToast({ message: 'Failed to crop image. Please try again.', type: 'error' });
     } finally {
       setIsCropping(false);
-    }
-  };
-
-  const handleRevertToOriginal = async (mockup: SavedMockup, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    
-    if (!mockup.originalImageUrl) {
-      setToast({ message: 'No original image to revert to', type: 'error' });
-      return;
-    }
-
-    setIsReverting(true);
-    try {
-      const revertedMockup = await revertMockupToOriginal(mockup);
-      
-      // Update local state
-      setMockups(prev => prev.map(m => m.id === revertedMockup.id ? revertedMockup : m));
-      
-      // Update selected mockup if it's the one being reverted
-      if (selectedMockup?.id === revertedMockup.id) {
-        setSelectedMockup(revertedMockup);
-      }
-      
-      setToast({ message: 'Reverted to original image', type: 'success' });
-    } catch (error) {
-      console.error('Revert failed:', error);
-      setToast({ message: 'Failed to revert image', type: 'error' });
-    } finally {
-      setIsReverting(false);
     }
   };
 
@@ -805,26 +773,6 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
                       <CropIcon size={14} />
                       <span>Crop</span>
                     </button>
-                    {/* Revert to Original Button */}
-                    {selectedMockup.originalImageUrl && (
-                      <button
-                        onClick={() => handleRevertToOriginal(selectedMockup)}
-                        disabled={isReverting}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/90 hover:bg-amber-500 text-white text-xs font-medium transition-all disabled:opacity-70"
-                      >
-                        {isReverting ? (
-                          <>
-                            <Loader2 size={14} className="animate-spin" />
-                            <span>Reverting...</span>
-                          </>
-                        ) : (
-                          <>
-                            <RotateCcw size={14} />
-                            <span>Revert</span>
-                          </>
-                        )}
-                      </button>
-                    )}
                     <button
                       onClick={() => handleDownload(selectedMockup)}
                       disabled={downloadingIds.has(selectedMockup.id)}
