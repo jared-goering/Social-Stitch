@@ -20,6 +20,9 @@
     "public": "hosting-placeholder",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
+      { "source": "/privacy", "destination": "/privacy.html" },
+      { "source": "/terms", "destination": "/terms.html" },
+      { "source": "/data-deletion", "destination": "/data-deletion.html" },
       { "source": "/api/auth/start", "function": "authStart" },
       { "source": "/api/auth/callback", "function": "authCallback" },
       { "source": "/api/accounts", "function": "getConnectedAccounts" },
@@ -33,6 +36,7 @@
       { "source": "/api/shopify/products", "function": "shopifyGetProducts" },
       { "source": "/api/shopify/products/:id", "function": "shopifyGetProduct" },
       { "source": "/api/shopify/products/:id/images", "function": "shopifyGetProductImages" },
+      { "source": "/api/meta/data-deletion", "function": "metaDataDeletion" },
       { "source": "/api/gdpr/**", "function": "gdprCustomersDataRequest" }
     ]
   },

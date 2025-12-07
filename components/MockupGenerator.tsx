@@ -5,7 +5,7 @@ import { generateMockupImage, analyzeProductAndSuggestStyles } from '../services
 import { saveMockupToFirebase, fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
 import { getBrandProfile } from '../services/brandProfileService';
 import { canGenerateImage } from '../services/subscriptionService';
-import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, Clock, Plus, Trash2, Pencil, Heart, Camera, Smartphone, Calendar, Square, AlertTriangle, TrendingUp } from 'lucide-react';
+import { Wand2, Loader2, ArrowRight, RefreshCcw, Zap, Sparkles, Info, Check, X, CheckCircle, Images, Play, User, Users, Maximize2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, Plus, Trash2, Pencil, Heart, Camera, Smartphone, Calendar, Square, AlertTriangle, TrendingUp, Lightbulb } from 'lucide-react';
 import { EditMockupModal } from './EditMockupModal';
 import { UsageIndicator } from './UsageIndicator';
 import { UpgradeModal } from './UpgradeModal';

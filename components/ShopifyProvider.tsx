@@ -99,17 +99,27 @@ function SessionTokenProvider({
 
   useEffect(() => {
     let mounted = true;
-    let refreshInterval: NodeJS.Timeout;
+    let refreshInterval: NodeJS.Timeout | null = null;
+    let sessionTokenAvailable = false;
 
     const initializeToken = async () => {
       try {
         await fetchSessionToken();
         console.log('[SessionTokenProvider] Session token initialized successfully');
+        sessionTokenAvailable = true;
+        
+        // Only set up refresh if initial token succeeded
+        refreshInterval = setInterval(async () => {
+          try {
+            await fetchSessionToken();
+          } catch (error) {
+            // Silently fail on refresh - we'll use backend auth
+          }
+        }, 50000);
+        
       } catch (error) {
-        console.error('[SessionTokenProvider] Initial token fetch failed:', error);
-        // Even if session token fails, proceed with the app
-        // We can still make API calls using the access token stored on the backend
-        console.log('[SessionTokenProvider] Proceeding without session token - API calls will use backend access token');
+        // Session token failed - this is okay, we use backend auth
+        console.log('[SessionTokenProvider] Session token unavailable - using backend access token for API calls');
         setIsAuthenticated(true); // Allow app to load
       } finally {
         if (mounted) {
@@ -120,19 +130,11 @@ function SessionTokenProvider({
 
     initializeToken();
 
-    // Refresh token every 50 seconds (tokens expire after ~60 seconds)
-    refreshInterval = setInterval(async () => {
-      try {
-        await fetchSessionToken();
-      } catch (error) {
-        console.error('[SessionTokenProvider] Token refresh failed:', error);
-        // Don't change authentication state on refresh failure
-      }
-    }, 50000);
-
     return () => {
       mounted = false;
-      clearInterval(refreshInterval);
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
     };
   }, [fetchSessionToken]);
 

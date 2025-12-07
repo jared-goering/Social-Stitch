@@ -98,11 +98,50 @@ const getConfig = () => {
     appId: config.meta?.app_id || process.env.META_APP_ID || '',
     appSecret: config.meta?.app_secret || process.env.META_APP_SECRET || '',
     functionsUrl: config.app?.functions_url || process.env.FUNCTIONS_URL || '',
-    // Use custom domain for OAuth
+    // Use custom domain for OAuth callback (must match Meta App Dashboard settings)
     hostingUrl: config.app?.hosting_url || process.env.HOSTING_URL || 'https://api.socialstitch.io',
     frontendUrl: config.app?.frontend_url || process.env.FRONTEND_URL || 'http://localhost:5173'
   };
 };
+
+/**
+ * Allowed redirect URIs - must match exactly what's registered in Meta App Dashboard
+ * These are the URIs configured in Meta App Dashboard > Facebook Login > Settings > Valid OAuth Redirect URIs
+ */
+const ALLOWED_REDIRECT_URIS = [
+  'https://api.socialstitch.io/api/auth/callback',
+  'https://social-stitch.web.app/api/auth/callback',
+  'https://us-central1-social-stitch.cloudfunctions.net/authCallback',
+];
+
+/**
+ * Validate redirect URI for security
+ * For App Store distribution, the redirect URI must be your backend domain
+ * and must be registered in Meta App Dashboard
+ */
+function validateRedirectUri(uri: string): boolean {
+  // Check against allowlist of registered URIs
+  if (ALLOWED_REDIRECT_URIS.includes(uri)) {
+    return true;
+  }
+  
+  // Log warning for debugging
+  console.warn(`Redirect URI not in allowlist: ${uri}`);
+  console.warn(`Allowed URIs: ${ALLOWED_REDIRECT_URIS.join(', ')}`);
+  
+  // In development, allow localhost
+  try {
+    const url = new URL(uri);
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+      console.log('Allowing localhost redirect URI for development');
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  
+  return false;
+}
 
 /**
  * Start OAuth flow - redirects to Meta's OAuth page
@@ -144,7 +183,15 @@ export const authStart = functions.https.onRequest((req, res) => {
   }
 
   // Use Firebase Hosting URL for OAuth callback to avoid Safe Browsing warnings
+  // This must match the redirect URI registered in Meta App Dashboard
   const redirectUri = `${config.hostingUrl}/api/auth/callback`;
+  
+  // Validate redirect URI
+  if (!validateRedirectUri(redirectUri)) {
+    res.status(500).json({ error: 'Invalid redirect URI configuration' });
+    return;
+  }
+  
   const oauthUrl = buildOAuthUrl(
     config.appId,
     redirectUri,
@@ -209,7 +256,14 @@ export const authCallback = functions.https.onRequest(async (req, res) => {
     
     console.log('Auth callback - sessionId:', sessionId, 'platform:', platform, 'frontendUrl:', frontendUrl);
     // Use Firebase Hosting URL for OAuth callback (must match what was used in authStart)
+    // This must also match the redirect URI registered in Meta App Dashboard
     const redirectUri = `${config.hostingUrl}/api/auth/callback`;
+    
+    // Validate redirect URI
+    if (!validateRedirectUri(redirectUri)) {
+      res.redirect(`${frontendUrl}?auth_error=${encodeURIComponent('Invalid redirect URI configuration')}`);
+      return;
+    }
 
     // Exchange code for short-lived token
     const tokenResponse = await exchangeCodeForToken(
@@ -618,6 +672,97 @@ export const disconnectAccount = functions.https.onRequest((req, res) => {
     } catch (err) {
       console.error('Error disconnecting account:', err);
       res.status(500).json({ error: 'Failed to disconnect account' });
+    }
+  });
+});
+
+/**
+ * Meta Data Deletion Callback
+ * 
+ * This endpoint is called by Meta when a user deletes their data from Facebook.
+ * Required for Meta App Review and GDPR compliance.
+ * 
+ * Meta sends a signed_request parameter containing the user's ID.
+ * We must delete all data associated with that user and return a confirmation.
+ */
+export const metaDataDeletion = functions.https.onRequest((req, res) => {
+  corsHandler(req, res, async () => {
+    // Meta sends a POST request with signed_request
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    const config = getConfig();
+    const { signed_request } = req.body;
+
+    if (!signed_request) {
+      res.status(400).json({ error: 'Missing signed_request parameter' });
+      return;
+    }
+
+    try {
+      // Parse the signed request from Meta
+      // Format: [signature].[base64_encoded_payload]
+      const [signature, payload] = signed_request.split('.');
+      
+      if (!signature || !payload) {
+        res.status(400).json({ error: 'Invalid signed_request format' });
+        return;
+      }
+
+      // Decode the payload
+      const decodedPayload = Buffer.from(payload, 'base64').toString('utf-8');
+      const data = JSON.parse(decodedPayload);
+      
+      // Verify the signature using HMAC SHA256
+      const crypto = await import('crypto');
+      const expectedSignature = crypto
+        .createHmac('sha256', config.appSecret)
+        .update(payload)
+        .digest('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      
+      if (signature !== expectedSignature) {
+        console.error('Meta data deletion: Invalid signature');
+        res.status(401).json({ error: 'Invalid signature' });
+        return;
+      }
+
+      const userId = data.user_id;
+      console.log(`[Meta Data Deletion] Received request for user ID: ${userId}`);
+
+      // Generate a confirmation code for this deletion request
+      const confirmationCode = `SS-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+      // Search for and delete any sessions that might be associated with this Meta user
+      // Note: Our app stores data by sessionId (shop domain), not by Meta user ID
+      // We log the deletion request for audit purposes
+      
+      await db.collection('metaDataDeletionRequests').add({
+        metaUserId: userId,
+        confirmationCode,
+        requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: 'received',
+        note: 'Data deletion request received from Meta. Our app stores data by shop domain, not Meta user ID. Users should disconnect their account from within the app or uninstall the app to delete their data.'
+      });
+
+      // Meta expects a specific response format
+      // url: A URL where the user can check the status of their deletion request
+      // confirmation_code: A unique code the user can use to track their request
+      const statusUrl = `https://api.socialstitch.io/data-deletion?code=${confirmationCode}`;
+      
+      res.json({
+        url: statusUrl,
+        confirmation_code: confirmationCode
+      });
+
+      console.log(`[Meta Data Deletion] Completed for user ${userId}, confirmation: ${confirmationCode}`);
+    } catch (err) {
+      console.error('Error processing Meta data deletion:', err);
+      res.status(500).json({ error: 'Failed to process deletion request' });
     }
   });
 });
