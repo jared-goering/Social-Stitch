@@ -504,11 +504,17 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
   }
 
   // App Bridge config for embedded apps
+  // Note: forceRedirect removed as it can cause issues with session tokens
   const config = {
     apiKey: shopifyConfig.apiKey,
     host: host,
-    forceRedirect: true,
   };
+  
+  console.log('[ShopifyProvider] App Bridge config:', { 
+    apiKey: shopifyConfig.apiKey?.substring(0, 8) + '...', 
+    hostPresent: !!host,
+    hostLength: host?.length 
+  });
 
   return (
     <AppBridgeProvider config={config}>
