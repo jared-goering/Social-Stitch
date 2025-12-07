@@ -301,7 +301,8 @@ export const generateMockupImage = async (
     const detectedMimeType = mimeTypeMatch ? mimeTypeMatch[1] : 'image/png';
 
     // Detect if this is a product-only shot (no person) based on style prompt keywords
-    const isProductShot = /flat\s*lay|laid\s*flat|folded|hanging|hanger|display|surface|background|minimal|clean|isolated|overhead|top-down/i.test(stylePrompt);
+    // Use word boundaries to avoid false positives like "minimalist" matching "minimal"
+    const isProductShot = /\b(flat\s*lay|laid\s*flat|folded|hanging|hanger|product\s*display|on\s+a?\s*surface|plain\s+background|isolated|overhead\s+shot|top-down\s+view)\b/i.test(stylePrompt);
     
     const prompt = isProductShot ? `
       You are a professional product photographer creating stunning product imagery.
