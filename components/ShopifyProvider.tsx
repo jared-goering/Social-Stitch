@@ -19,6 +19,8 @@ interface ShopifyContextValue {
   isLoading: boolean;
   host: string | null;
   refreshToken: () => Promise<void>;
+  /** Trigger OAuth redirect to reinstall/reconnect the app */
+  triggerOAuthRedirect: () => void;
 }
 
 const ShopifyContext = createContext<ShopifyContextValue>({
@@ -27,6 +29,7 @@ const ShopifyContext = createContext<ShopifyContextValue>({
   isLoading: true,
   host: null,
   refreshToken: async () => {},
+  triggerOAuthRedirect: () => {},
 });
 
 /**
@@ -118,12 +121,23 @@ function SessionTokenProvider({
     }
   })();
 
+  // Handler to trigger OAuth redirect for app reinstallation
+  const triggerOAuthRedirect = useCallback(() => {
+    if (shop) {
+      console.log('[SessionTokenProvider] Triggering OAuth redirect for shop:', shop);
+      redirectToOAuth(shop);
+    } else {
+      console.error('[SessionTokenProvider] Cannot trigger OAuth redirect: no shop domain');
+    }
+  }, [shop]);
+
   const contextValue: ShopifyContextValue = {
     shop,
     isAuthenticated,
     isLoading,
     host,
     refreshToken: async () => { await fetchSessionToken(); },
+    triggerOAuthRedirect,
   };
 
   if (isLoading) {
@@ -246,7 +260,14 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
   // If not in Shopify mode, just render children directly
   if (!shopifyConfig.isEmbedded) {
     return (
-      <ShopifyContext.Provider value={{ shop: null, isAuthenticated: false, isLoading: false, host: null, refreshToken: async () => {} }}>
+      <ShopifyContext.Provider value={{ 
+        shop: null, 
+        isAuthenticated: false, 
+        isLoading: false, 
+        host: null, 
+        refreshToken: async () => {},
+        triggerOAuthRedirect: () => {},
+      }}>
         {children}
       </ShopifyContext.Provider>
     );

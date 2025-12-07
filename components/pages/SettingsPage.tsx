@@ -43,11 +43,13 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  Link2Off,
 } from 'lucide-react';
 import { useShopifyContext } from '../ShopifyProvider';
 import { subscribeToScheduledPosts } from '../../services/scheduledPostsService';
 import { fetchUserMockups } from '../../services/mockupStorageService';
 import { generateBrandProfile, getBrandProfile } from '../../services/brandProfileService';
+import { isOAuthRequired, redirectToOAuth } from '../../services/shopifyProductService';
 import { ScheduledPost, SavedMockup, BrandProfile } from '../../types';
 
 interface SettingsPageProps {
@@ -77,6 +79,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
   const [isGeneratingProfile, setIsGeneratingProfile] = useState(false);
   const [generationProgress, setGenerationProgress] = useState({ stage: '', progress: 0 });
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [isOAuthError, setIsOAuthError] = useState(false);
   const [isProfileExpanded, setIsProfileExpanded] = useState(false);
 
   // Load usage statistics
@@ -121,6 +124,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
 
     setIsGeneratingProfile(true);
     setProfileError(null);
+    setIsOAuthError(false);
     setGenerationProgress({ stage: 'Starting...', progress: 0 });
 
     try {
@@ -131,9 +135,23 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
       setIsProfileExpanded(true);
     } catch (error: any) {
       console.error('Error generating brand profile:', error);
-      setProfileError(error.message || 'Failed to generate brand profile');
+      
+      // Check if this is an OAuth error that requires app reinstallation
+      if (isOAuthRequired(error)) {
+        setIsOAuthError(true);
+        setProfileError('Your app connection has expired or is invalid.');
+      } else {
+        setProfileError(error.message || 'Failed to generate brand profile');
+      }
     } finally {
       setIsGeneratingProfile(false);
+    }
+  };
+
+  // Handle reconnecting the app (OAuth redirect)
+  const handleReconnectApp = () => {
+    if (shop) {
+      redirectToOAuth(shop);
     }
   };
 
@@ -213,8 +231,35 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
             </div>
           )}
 
-          {/* Error State */}
-          {profileError && (
+          {/* OAuth Error State - Special UI for reconnection */}
+          {profileError && isOAuthError && (
+            <div className="mb-6 p-5 bg-amber-50 border border-amber-200 rounded-xl">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <Link2Off size={20} className="text-amber-600" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-amber-800 mb-1">
+                    App Connection Expired
+                  </h4>
+                  <p className="text-sm text-amber-700 mb-4">
+                    Your connection to Shopify needs to be refreshed. This can happen if the app was reinstalled 
+                    or if permissions were changed. Click below to reconnect.
+                  </p>
+                  <button
+                    onClick={handleReconnectApp}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-medium text-sm transition-colors shadow-sm"
+                  >
+                    <RefreshCw size={16} />
+                    Reconnect App
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Generic Error State */}
+          {profileError && !isOAuthError && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
               <div className="flex items-center gap-2 text-red-600">
                 <AlertCircle size={16} />

@@ -7,6 +7,34 @@
 
 import { shopifyConfig } from '../shopify.config';
 
+/**
+ * Custom error class for OAuth-related errors
+ * Thrown when the access token is invalid and the app needs reinstallation
+ */
+export class ShopifyOAuthError extends Error {
+  public readonly code: string;
+  public readonly requiresReinstall: boolean;
+
+  constructor(message: string, code: string = 'INVALID_ACCESS_TOKEN') {
+    super(message);
+    this.name = 'ShopifyOAuthError';
+    this.code = code;
+    this.requiresReinstall = true;
+    
+    // Maintains proper stack trace for where error was thrown
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ShopifyOAuthError);
+    }
+  }
+}
+
+/**
+ * Check if an error is a ShopifyOAuthError
+ */
+export function isShopifyOAuthError(error: unknown): error is ShopifyOAuthError {
+  return error instanceof ShopifyOAuthError;
+}
+
 // Types for Shopify products
 export interface ShopifyProductImage {
   id: number;
@@ -93,12 +121,22 @@ export function getShopDomain(): string | null {
 /**
  * Check if an error indicates the shop needs to complete OAuth
  */
-export function isOAuthRequired(error: Error): boolean {
-  const message = error.message.toLowerCase();
-  return message.includes('access token not found') || 
-         message.includes('shop has not installed') ||
-         message.includes('invalid') ||
-         message.includes('reinstall');
+export function isOAuthRequired(error: unknown): boolean {
+  // First check if it's our typed OAuth error
+  if (isShopifyOAuthError(error)) {
+    return true;
+  }
+  
+  // Fallback: check error message for OAuth-related keywords
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return message.includes('access token not found') || 
+           message.includes('access token is invalid') ||
+           message.includes('shop has not installed') ||
+           message.includes('reinstall');
+  }
+  
+  return false;
 }
 
 // Store App Bridge app instance for redirects
@@ -201,7 +239,25 @@ async function shopifyApiRequest<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(errorData.error || `API error: ${response.status}`);
+    const errorMessage = errorData.error || `API error: ${response.status}`;
+    const errorCode = errorData.code;
+    
+    // Check if this is an OAuth/token error that requires reinstallation
+    if (
+      errorCode === 'INVALID_ACCESS_TOKEN' ||
+      response.status === 401 ||
+      response.status === 403 ||
+      errorMessage.toLowerCase().includes('access token') ||
+      errorMessage.toLowerCase().includes('reinstall')
+    ) {
+      console.error('[shopifyApiRequest] OAuth error detected:', { errorMessage, errorCode, status: response.status });
+      throw new ShopifyOAuthError(
+        errorMessage,
+        errorCode || 'INVALID_ACCESS_TOKEN'
+      );
+    }
+    
+    throw new Error(errorMessage);
   }
 
   return response.json();
