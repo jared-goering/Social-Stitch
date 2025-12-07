@@ -87,7 +87,6 @@ async function getCroppedImg(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.crossOrigin = 'anonymous';
     image.onload = () => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -327,40 +326,16 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   };
 
   // Crop modal handlers
-  const openCropModal = async (mockup: SavedMockup) => {
+  const openCropModal = (mockup: SavedMockup) => {
     setCropMockup(mockup);
     setShowCropModal(true);
     setSelectedRatio(ASPECT_RATIOS[0]);
     setCrop(undefined);
     setCompletedCrop(undefined);
     setImageDimensions(null);
-    setCropImageDataUrl(null);
-    setIsLoadingCropImage(true);
-    
-    try {
-      // Fetch image as blob using Firebase's getBlob to bypass CORS
-      // Use getSessionId() which works in both Firebase Auth and Shopify contexts
-      const userId = getSessionId();
-      
-      const storageRef = ref(storage, `mockups/${userId}/${mockup.id}.png`);
-      const blob = await getBlob(storageRef);
-      
-      // Convert blob to data URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCropImageDataUrl(reader.result as string);
-        setIsLoadingCropImage(false);
-      };
-      reader.onerror = () => {
-        setToast({ message: 'Failed to load image for cropping', type: 'error' });
-        setIsLoadingCropImage(false);
-      };
-      reader.readAsDataURL(blob);
-    } catch (error) {
-      console.error('Failed to load image for cropping:', error);
-      setToast({ message: 'Failed to load image for cropping', type: 'error' });
-      setIsLoadingCropImage(false);
-    }
+    // Use the image URL directly - it displays fine in img tags
+    setCropImageDataUrl(mockup.imageUrl);
+    setIsLoadingCropImage(false);
   };
 
   const closeCropModal = () => {
@@ -410,16 +385,24 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
   };
 
   const handleApplyCrop = async () => {
-    if (!cropMockup || !completedCrop || !imageDimensions || !cropImageDataUrl) return;
+    if (!cropMockup || !completedCrop || !imageDimensions) return;
     
     setIsCropping(true);
     try {
+      // Use Firebase getBlob to fetch the image (bypasses browser CORS for authenticated users)
+      const userId = getSessionId();
+      const storageRef = ref(storage, `mockups/${userId}/${cropMockup.id}.png`);
+      const blob = await getBlob(storageRef);
+      const objectUrl = URL.createObjectURL(blob);
+      
       const croppedBase64 = await getCroppedImg(
-        cropImageDataUrl,
+        objectUrl,
         completedCrop,
         imageDimensions.width,
         imageDimensions.height
       );
+      
+      URL.revokeObjectURL(objectUrl);
       
       const updatedMockup = await updateMockupImage(cropMockup, croppedBase64);
       
@@ -435,7 +418,7 @@ export const GalleryView: React.FC<Props> = ({ onCreatePost }) => {
       closeCropModal();
     } catch (error) {
       console.error('Crop failed:', error);
-      setToast({ message: 'Failed to crop image', type: 'error' });
+      setToast({ message: 'Failed to crop image. Please try again.', type: 'error' });
     } finally {
       setIsCropping(false);
     }

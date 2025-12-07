@@ -10,11 +10,13 @@
       "http://127.0.0.1:3002",
       "http://127.0.0.1:5173",
       "https://social-stitch.vercel.app",
-      "https://*.vercel.app"
+      "https://*.vercel.app",
+      "https://app.socialstitch.io",
+      "https://admin.shopify.com"
     ],
-    "method": ["GET", "POST", "PUT", "DELETE", "HEAD"],
+    "method": ["GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"],
     "maxAgeSeconds": 3600,
-    "responseHeader": ["Content-Type", "Authorization", "Content-Length", "X-Requested-With"]
+    "responseHeader": ["Content-Type", "Authorization", "Content-Length", "X-Requested-With", "Access-Control-Allow-Origin"]
   }
 ]
 
