@@ -1030,7 +1030,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
             <FeatureItem 
               icon={ImageIcon} 
               title="AI Mockups" 
-              description="Generate professional lifestyle photos with Gemini AI"
+              description="Generate professional lifestyle photos with AI"
             />
             <FeatureItem 
               icon={Sparkles} 

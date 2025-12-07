@@ -1718,7 +1718,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
                     </div>
                   )}
                   
-                  <p className="text-[10px] text-slate-400 mt-3">Using Gemini 3 Pro</p>
+                  <p className="text-[10px] text-slate-400 mt-3">Powered by AI</p>
                   
                   {/* Pro tip */}
                   <div className="mt-4 p-3 bg-amber-50 border border-amber-200/50 rounded-lg">

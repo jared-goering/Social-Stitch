@@ -136,7 +136,7 @@ export function SignInPage() {
       {/* Footer */}
       <footer className="bg-white/50 backdrop-blur-sm border-t border-slate-200/50 py-6">
         <div className="max-w-6xl mx-auto px-4 text-center text-slate-400 text-sm">
-          <p>&copy; {new Date().getFullYear()} SocialStitch. Built with React & Google Gemini.</p>
+          <p>&copy; {new Date().getFullYear()} SocialStitch</p>
         </div>
       </footer>
     </div>

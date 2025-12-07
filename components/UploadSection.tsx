@@ -249,7 +249,7 @@ export const UploadSection: React.FC<Props> = ({ onUpload, onNavigateToProducts 
         <div className="text-sm">
           <p className="font-semibold text-slate-warm-800 mb-1">AI Magic Tip</p>
           <p className="text-slate-warm-600 leading-relaxed">
-            Upload the actual garment photo. Our <span className="font-medium text-coral-600">Gemini AI</span> will faithfully place this exact item on a model in your chosen lifestyle setting.
+            Upload the actual garment photo. Our <span className="font-medium text-coral-600">AI</span> will faithfully place this exact item on a model in your chosen lifestyle setting.
           </p>
         </div>
       </div>
