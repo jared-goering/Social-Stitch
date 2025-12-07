@@ -5,7 +5,7 @@
  * Provides functions to fetch, save, and delete user's mockup history.
  */
 
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from 'firebase/storage';
 import { 
   collection, 
   doc, 
@@ -165,13 +165,42 @@ export const fetchUserMockups = async (): Promise<SavedMockup[]> => {
 
 /**
  * Update a mockup's image (for cropping)
- * Uploads the new cropped image and preserves the original URL for revert functionality
+ * Uploads the new cropped image and preserves the original in a separate file
  */
 export const updateMockupImage = async (
   mockup: SavedMockup,
   croppedBase64Image: string
 ): Promise<SavedMockup> => {
   const userId = getCurrentUserId();
+  
+  let originalImageUrl = mockup.originalImageUrl;
+  
+  // If this is the first crop, save the original image to a separate file
+  if (!originalImageUrl) {
+    try {
+      // Fetch the original image
+      const originalStorageRef = ref(storage, getMockupStoragePath(mockup.id));
+      const originalBlob = await getBlob(originalStorageRef);
+      
+      // Save it to a new path with _original suffix
+      const originalBackupRef = ref(storage, `mockups/${userId}/${mockup.id}_original.png`);
+      await uploadBytes(originalBackupRef, originalBlob, {
+        contentType: 'image/png',
+        customMetadata: {
+          styleDescription: mockup.styleDescription,
+          designId: mockup.designId,
+          userId,
+          isOriginal: 'true',
+        },
+      });
+      
+      // Get the URL for the backed up original
+      originalImageUrl = await getDownloadURL(originalBackupRef);
+    } catch (error) {
+      console.error('Failed to backup original image:', error);
+      // Continue anyway - we'll just lose the ability to re-crop from original
+    }
+  }
   
   // Upload cropped image to Firebase Storage (overwrites existing)
   const storageRef = ref(storage, getMockupStoragePath(mockup.id));
@@ -189,9 +218,6 @@ export const updateMockupImage = async (
   
   // Get the new download URL (with updated token)
   const newImageUrl = await getDownloadURL(storageRef);
-  
-  // Preserve the original image URL if this is the first crop
-  const originalImageUrl = mockup.originalImageUrl || mockup.imageUrl;
   
   // Update Firestore document
   const updatedMockup: SavedMockup = {
