@@ -16,7 +16,8 @@ function shopifyApiKeyPlugin(): Plugin {
       order: 'pre',
       handler(html) {
         // Get the API key from environment variables
-        const apiKey = process.env.VITE_SHOPIFY_API_KEY || '';
+        // IMPORTANT: trim() removes any accidental whitespace/newlines
+        const apiKey = (process.env.VITE_SHOPIFY_API_KEY || '').trim();
         
         // Only replace in the meta tag content attribute (not globally!)
         // This prevents accidentally replacing variable names in scripts
