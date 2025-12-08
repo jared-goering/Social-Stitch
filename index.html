@@ -4,19 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SocialStitch</title>
-    <!-- Shopify App Bridge CDN (required for embedded app submission) -->
+    <!-- 
+      Shopify App Bridge CDN Setup (required for embedded app submission)
+      IMPORTANT: The API key must be set BEFORE the CDN script loads!
+      __SHOPIFY_API_KEY__ is replaced by Vite at build time with the actual key.
+    -->
     <meta name="shopify-api-key" content="__SHOPIFY_API_KEY__" />
-    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
     <script>
-      // Inject Shopify API key at runtime (replaced by Vite build or loaded from env)
+      // This script MUST run before app-bridge.js loads to set the API key
+      // At build time, Vite replaces __SHOPIFY_API_KEY__ and sets window.__SHOPIFY_API_KEY__
+      // This script ensures the meta tag has the correct value before CDN reads it
       (function() {
-        var key = window.__SHOPIFY_API_KEY__ || '';
-        var meta = document.querySelector('meta[name="shopify-api-key"]');
-        if (meta && key && key !== '__SHOPIFY_API_KEY__') {
-          meta.setAttribute('content', key);
+        var key = window.__SHOPIFY_API_KEY__;
+        if (key) {
+          var meta = document.querySelector('meta[name="shopify-api-key"]');
+          if (meta) meta.setAttribute('content', key);
         }
       })();
     </script>
+    <!-- App Bridge CDN must load AFTER the meta tag is properly set above -->
+    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
