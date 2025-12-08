@@ -2,22 +2,22 @@
  * Shopify App Bridge Provider
  *
  * Provides Shopify App Bridge context for the embedded app experience.
- * App Bridge handles authentication automatically for embedded apps.
+ * 
+ * MODERN APPROACH: Uses ONLY the CDN-loaded App Bridge (window.shopify)
+ * No npm AppBridgeProvider - that was causing conflicts with the CDN version.
  * 
  * IMPORTANT: When a user installs from App Store, they must complete OAuth first.
  * This provider checks if OAuth is complete and redirects if needed.
  * 
- * SESSION TOKEN STRATEGY (Simplified):
- * - Session tokens are fetched per-request in shopifyProductService
- * - This provider just sets up the shop domain and App Bridge instance
- * - The app works with or without session tokens (backend auth fallback)
+ * SESSION TOKEN STRATEGY:
+ * - Session tokens are fetched per-request via window.shopify.idToken()
+ * - The CDN handles everything - no need for npm packages
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Provider as AppBridgeProvider, useAppBridge } from '@shopify/app-bridge-react';
 import { shopifyConfig } from '../shopify.config';
 import { setShopifyShop } from '../services/socialAuthService';
-import { setShopDomain, setAppBridgeApp, redirectToOAuth } from '../services/shopifyProductService';
+import { setShopDomain, redirectToOAuth } from '../services/shopifyProductService';
 
 // Type for global Shopify object from CDN
 declare global {
@@ -60,59 +60,48 @@ export function useShopifyContext() {
 }
 
 /**
- * Inner component that sets up App Bridge context
- * Must be inside AppBridgeProvider to use useAppBridge hook
+ * Inner component that sets up shop context
+ * Uses ONLY the CDN's window.shopify - no npm AppBridgeProvider needed
  * 
- * SIMPLIFIED: Session tokens are now fetched per-request in shopifyProductService
- * This component just sets up the shop domain and App Bridge instance
+ * Session tokens are fetched per-request via window.shopify.idToken()
  */
-function SessionTokenProvider({ 
+function ShopContextProvider({ 
   children, 
-  shop 
+  shop,
+  host
 }: { 
   children: React.ReactNode; 
   shop: string | null;
+  host: string | null;
 }) {
-  const app = useAppBridge();
   const [isLoading, setIsLoading] = useState(true);
 
-  // Set the shop domain and app bridge for OAuth redirects
+  // Set the shop domain for API requests
   useEffect(() => {
     if (shop) {
       setShopDomain(shop);
     }
-    // Set the App Bridge instance for redirects
-    setAppBridgeApp(app);
     
-    // Log session token availability (but don't block on it)
-    console.log('[SessionTokenProvider] App Bridge initialized');
-    console.log('[SessionTokenProvider] Global shopify CDN available:', !!window.shopify);
-    console.log('[SessionTokenProvider] Shop domain set:', shop);
+    // Log CDN availability
+    console.log('[ShopContextProvider] Global shopify CDN available:', !!window.shopify);
+    console.log('[ShopContextProvider] Shop domain set:', shop);
+    console.log('[ShopContextProvider] Host available:', !!host);
     
-    // Brief delay to let App Bridge fully initialize, then proceed
+    // Brief delay to ensure CDN is ready, then proceed
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 300);
     
     return () => clearTimeout(timer);
-  }, [shop, app]);
-
-  // Get host from sessionStorage since we're inside the provider
-  const host = (() => {
-    try {
-      return sessionStorage.getItem('shopify_host');
-    } catch {
-      return null;
-    }
-  })();
+  }, [shop, host]);
 
   // Handler to trigger OAuth redirect for app reinstallation
   const triggerOAuthRedirect = useCallback(() => {
     if (shop) {
-      console.log('[SessionTokenProvider] Triggering OAuth redirect for shop:', shop);
+      console.log('[ShopContextProvider] Triggering OAuth redirect for shop:', shop);
       redirectToOAuth(shop);
     } else {
-      console.error('[SessionTokenProvider] Cannot trigger OAuth redirect: no shop domain');
+      console.error('[ShopContextProvider] Cannot trigger OAuth redirect: no shop domain');
     }
   }, [shop]);
 
@@ -121,7 +110,7 @@ function SessionTokenProvider({
     shop,
     isAuthenticated: true, // Backend auth always works
     isLoading,
-    host,
+    host, // Passed from props
     refreshToken: async () => { /* Session tokens fetched per-request now */ },
     triggerOAuthRedirect,
   };
@@ -466,25 +455,20 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
     );
   }
 
-  // App Bridge config for embedded apps
-  // Note: forceRedirect removed as it can cause issues with session tokens
-  const config = {
-    apiKey: shopifyConfig.apiKey,
-    host: host,
-  };
-  
-  console.log('[ShopifyProvider] App Bridge config:', { 
+  // Log config (CDN handles App Bridge initialization via meta tag)
+  console.log('[ShopifyProvider] Using CDN App Bridge (no npm provider)');
+  console.log('[ShopifyProvider] Config:', { 
     apiKey: shopifyConfig.apiKey?.substring(0, 8) + '...', 
     hostPresent: !!host,
-    hostLength: host?.length 
+    hostLength: host?.length,
+    cdnAvailable: !!window.shopify
   });
 
+  // Use only CDN - no AppBridgeProvider from npm
   return (
-    <AppBridgeProvider config={config}>
-      <SessionTokenProvider shop={shop}>
-        {children}
-      </SessionTokenProvider>
-    </AppBridgeProvider>
+    <ShopContextProvider shop={shop} host={host}>
+      {children}
+    </ShopContextProvider>
   );
 }
 
