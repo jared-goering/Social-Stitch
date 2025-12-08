@@ -2,10 +2,24 @@
  * Shopify Product Service
  *
  * Frontend service for fetching products from the Shopify API
- * via our Firebase Functions proxy. Uses session tokens for authentication.
+ * via our Firebase Functions proxy. 
+ * 
+ * SESSION TOKEN STRATEGY:
+ * - Tokens are fetched FRESH on each request (they expire in 1 minute)
+ * - Uses window.shopify.idToken() from CDN (most reliable)
+ * - Falls back to shop domain auth if session tokens unavailable
  */
 
 import { shopifyConfig } from '../shopify.config';
+
+// Type for global Shopify object from CDN
+declare global {
+  interface Window {
+    shopify?: {
+      idToken: () => Promise<string>;
+    };
+  }
+}
 
 /**
  * Custom error class for OAuth-related errors
@@ -211,9 +225,37 @@ export function getSessionToken(): string | null {
 }
 
 /**
+ * Try to get a fresh session token from Shopify App Bridge CDN
+ * This is called on EACH request since tokens expire in 1 minute
+ */
+async function getFreshSessionToken(): Promise<string | null> {
+  // First try: Use global shopify from CDN (recommended by Shopify)
+  if (window.shopify?.idToken) {
+    try {
+      const token = await Promise.race([
+        window.shopify.idToken(),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('timeout')), 2000)
+        )
+      ]);
+      return token;
+    } catch (e) {
+      // CDN method failed, that's okay - we'll fall back
+    }
+  }
+  
+  // Second try: Use cached token if available (from ShopifyProvider)
+  if (currentSessionToken) {
+    return currentSessionToken;
+  }
+  
+  return null;
+}
+
+/**
  * Make an authenticated request to our Shopify API proxy
- * Uses session token if available, otherwise falls back to shop domain
- * The backend will use the stored access token for the shop
+ * Tries to get a FRESH session token on each request (per Shopify's recommendation)
+ * Falls back to shop domain auth if session tokens unavailable
  */
 async function shopifyApiRequest<T>(
   endpoint: string,
@@ -224,18 +266,20 @@ async function shopifyApiRequest<T>(
     throw new Error('Firebase Functions URL not configured');
   }
 
-  // Build URL with shop parameter if we don't have a session token
   let url = `${functionsUrl}/${endpoint}`;
   
-  // If no session token, we need to pass the shop domain for backend auth
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...options.headers as Record<string, string>,
   };
 
-  if (currentSessionToken) {
-    // Use session token if available
-    headers['Authorization'] = `Bearer ${currentSessionToken}`;
+  // Try to get a fresh session token for this request
+  const sessionToken = await getFreshSessionToken();
+  
+  if (sessionToken) {
+    // Use session token (this is what Shopify's checks look for)
+    headers['Authorization'] = `Bearer ${sessionToken}`;
+    console.log('[shopifyApiRequest] Using session token auth');
   } else if (currentShopDomain) {
     // Fall back to shop domain - backend will use stored access token
     const separator = url.includes('?') ? '&' : '?';

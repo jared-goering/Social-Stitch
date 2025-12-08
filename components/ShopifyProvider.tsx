@@ -7,29 +7,23 @@
  * IMPORTANT: When a user installs from App Store, they must complete OAuth first.
  * This provider checks if OAuth is complete and redirects if needed.
  * 
- * SESSION TOKEN FLOW:
- * 1. First tries global shopify.idToken() from CDN (most reliable)
- * 2. Falls back to @shopify/app-bridge-utils getSessionToken
- * 3. Uses retry logic with exponential backoff
- * 4. Falls back to backend access token auth if all else fails
+ * SESSION TOKEN STRATEGY (Simplified):
+ * - Session tokens are fetched per-request in shopifyProductService
+ * - This provider just sets up the shop domain and App Bridge instance
+ * - The app works with or without session tokens (backend auth fallback)
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Provider as AppBridgeProvider, useAppBridge } from '@shopify/app-bridge-react';
-import { getSessionToken as getSessionTokenFromUtils } from '@shopify/app-bridge-utils';
 import { shopifyConfig } from '../shopify.config';
 import { setShopifyShop } from '../services/socialAuthService';
-import { setSessionToken, setShopDomain, setAppBridgeApp, redirectToOAuth, isOAuthRequired } from '../services/shopifyProductService';
+import { setShopDomain, setAppBridgeApp, redirectToOAuth } from '../services/shopifyProductService';
 
 // Type for global Shopify object from CDN
 declare global {
   interface Window {
     shopify?: {
       idToken: () => Promise<string>;
-      config?: {
-        apiKey: string;
-        shop: string;
-      };
     };
     __SHOPIFY_API_KEY__?: string;
   }
@@ -66,13 +60,11 @@ export function useShopifyContext() {
 }
 
 /**
- * Inner component that handles session token fetching
+ * Inner component that sets up App Bridge context
  * Must be inside AppBridgeProvider to use useAppBridge hook
  * 
- * Uses multiple strategies to get session tokens:
- * 1. Global shopify.idToken() from CDN (most reliable for Shopify checks)
- * 2. React hook getSessionToken (fallback)
- * 3. Retry logic with exponential backoff
+ * SIMPLIFIED: Session tokens are now fetched per-request in shopifyProductService
+ * This component just sets up the shop domain and App Bridge instance
  */
 function SessionTokenProvider({ 
   children, 
@@ -82,10 +74,7 @@ function SessionTokenProvider({
   shop: string | null;
 }) {
   const app = useAppBridge();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const sessionTokenSourceRef = useRef<'cdn' | 'utils' | 'none'>('none');
 
   // Set the shop domain and app bridge for OAuth redirects
   useEffect(() => {
@@ -94,140 +83,19 @@ function SessionTokenProvider({
     }
     // Set the App Bridge instance for redirects
     setAppBridgeApp(app);
+    
+    // Log session token availability (but don't block on it)
+    console.log('[SessionTokenProvider] App Bridge initialized');
+    console.log('[SessionTokenProvider] Global shopify CDN available:', !!window.shopify);
+    console.log('[SessionTokenProvider] Shop domain set:', shop);
+    
+    // Brief delay to let App Bridge fully initialize, then proceed
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 300);
+    
+    return () => clearTimeout(timer);
   }, [shop, app]);
-
-  /**
-   * Try to get session token from global Shopify CDN object
-   * This is the preferred method as it's what Shopify's automated checks look for
-   */
-  const fetchFromCDN = useCallback(async (): Promise<string | null> => {
-    try {
-      const globalShopify = window.shopify;
-      if (globalShopify?.idToken) {
-        console.log('[SessionTokenProvider] Attempting CDN idToken()...');
-        const token = await Promise.race([
-          globalShopify.idToken(),
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('CDN idToken timeout')), 5000)
-          )
-        ]);
-        console.log('[SessionTokenProvider] CDN idToken succeeded');
-        return token;
-      }
-    } catch (error) {
-      console.log('[SessionTokenProvider] CDN idToken failed:', error);
-    }
-    return null;
-  }, []);
-
-  /**
-   * Try to get session token using @shopify/app-bridge-utils
-   */
-  const fetchFromUtils = useCallback(async (): Promise<string | null> => {
-    if (!app) return null;
-    
-    try {
-      console.log('[SessionTokenProvider] Attempting utils getSessionToken()...');
-      const token = await Promise.race([
-        getSessionTokenFromUtils(app),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Utils getSessionToken timeout')), 5000)
-        )
-      ]);
-      console.log('[SessionTokenProvider] Utils getSessionToken succeeded');
-      return token;
-    } catch (error) {
-      console.log('[SessionTokenProvider] Utils getSessionToken failed:', error);
-    }
-    return null;
-  }, [app]);
-
-  /**
-   * Fetch session token with retry logic and multiple strategies
-   */
-  const fetchSessionToken = useCallback(async (retries = 3): Promise<string | null> => {
-    console.log('[SessionTokenProvider] Fetching session token...');
-    console.log('[SessionTokenProvider] App Bridge state:', app ? 'initialized' : 'null');
-    console.log('[SessionTokenProvider] Global shopify available:', !!window.shopify);
-    
-    for (let attempt = 0; attempt < retries; attempt++) {
-      // First try: CDN global (preferred for Shopify checks)
-      const cdnToken = await fetchFromCDN();
-      if (cdnToken) {
-        sessionTokenSourceRef.current = 'cdn';
-        setSessionToken(cdnToken);
-        setIsAuthenticated(true);
-        return cdnToken;
-      }
-      
-      // Second try: Utils (fallback)
-      const utilsToken = await fetchFromUtils();
-      if (utilsToken) {
-        sessionTokenSourceRef.current = 'utils';
-        setSessionToken(utilsToken);
-        setIsAuthenticated(true);
-        return utilsToken;
-      }
-      
-      // Wait before retry with exponential backoff
-      if (attempt < retries - 1) {
-        const delay = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s
-        console.log(`[SessionTokenProvider] Retry ${attempt + 1}/${retries} in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-    
-    console.log('[SessionTokenProvider] All session token attempts failed');
-    sessionTokenSourceRef.current = 'none';
-    setSessionToken(null);
-    return null;
-  }, [app, fetchFromCDN, fetchFromUtils]);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const initializeToken = async () => {
-      try {
-        // Wait a brief moment for App Bridge CDN to fully initialize
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const token = await fetchSessionToken(3);
-        
-        if (token) {
-          console.log('[SessionTokenProvider] Session token initialized successfully via:', sessionTokenSourceRef.current);
-          
-          // Set up refresh interval - session tokens expire in ~60 seconds
-          refreshIntervalRef.current = setInterval(async () => {
-            try {
-              await fetchSessionToken(1); // Single attempt for refresh
-            } catch (error) {
-              console.log('[SessionTokenProvider] Token refresh failed, will retry next interval');
-            }
-          }, 50000); // Refresh every 50 seconds
-        } else {
-          // Session token failed - this is okay, we use backend auth
-          console.log('[SessionTokenProvider] Session token unavailable - using backend access token for API calls');
-          setIsAuthenticated(true); // Allow app to load anyway
-        }
-      } catch (error) {
-        console.error('[SessionTokenProvider] Unexpected error during token init:', error);
-        setIsAuthenticated(true); // Allow app to load with fallback auth
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initializeToken();
-
-    return () => {
-      mounted = false;
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-      }
-    };
-  }, [fetchSessionToken]);
 
   // Get host from sessionStorage since we're inside the provider
   const host = (() => {
@@ -248,12 +116,13 @@ function SessionTokenProvider({
     }
   }, [shop]);
 
+  // Always authenticated since we have backend fallback auth
   const contextValue: ShopifyContextValue = {
     shop,
-    isAuthenticated,
+    isAuthenticated: true, // Backend auth always works
     isLoading,
     host,
-    refreshToken: async () => { await fetchSessionToken(); },
+    refreshToken: async () => { /* Session tokens fetched per-request now */ },
     triggerOAuthRedirect,
   };
 
