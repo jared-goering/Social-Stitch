@@ -6,10 +6,8 @@ import react from '@vitejs/plugin-react';
  * Custom plugin to inject Shopify API key into HTML
  * This is required for Shopify's embedded app checks to pass
  * 
- * IMPORTANT: The API key must be available BEFORE the App Bridge CDN script loads.
- * The CDN script reads the meta tag immediately, so we:
- * 1. Replace __SHOPIFY_API_KEY__ placeholder in the meta tag directly
- * 2. Inject window.__SHOPIFY_API_KEY__ right after <head> so it's available early
+ * Only replaces the API key in the meta tag - the CDN reads it from there.
+ * Simple and clean - no extra scripts needed.
  */
 function shopifyApiKeyPlugin(): Plugin {
   return {
@@ -20,18 +18,11 @@ function shopifyApiKeyPlugin(): Plugin {
         // Get the API key from environment variables
         const apiKey = process.env.VITE_SHOPIFY_API_KEY || '';
         
-        // Replace the placeholder in the meta tag content directly
-        let transformed = html.replace(
-          /__SHOPIFY_API_KEY__/g,
-          apiKey
-        );
-        
-        // Also inject the API key as a global variable RIGHT AFTER <head>
-        // This ensures it's available before any scripts run
-        const scriptInjection = `<script>window.__SHOPIFY_API_KEY__ = "${apiKey}";</script>\n    `;
-        transformed = transformed.replace(
-          '<meta charset="UTF-8" />',
-          `<meta charset="UTF-8" />\n    ${scriptInjection}`
+        // Only replace in the meta tag content attribute (not globally!)
+        // This prevents accidentally replacing variable names in scripts
+        const transformed = html.replace(
+          /(<meta name="shopify-api-key" content=")__SHOPIFY_API_KEY__(")/,
+          `$1${apiKey}$2`
         );
         
         return transformed;
