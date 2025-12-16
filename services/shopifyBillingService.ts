@@ -6,7 +6,7 @@
  */
 
 import { SubscriptionTier, SUBSCRIPTION_TIERS, TierConfig } from '../types';
-import { getSessionToken, getShopDomain } from './shopifyProductService';
+import { getFreshSessionToken, getShopDomain } from './shopifyProductService';
 
 // Get the functions URL from environment
 const getFunctionsUrl = () => {
@@ -90,7 +90,7 @@ export class BillingError extends Error {
 
 /**
  * Make an authenticated request to our billing API
- * Uses session token if available, otherwise falls back to shop domain
+ * Uses fresh session token if available, otherwise falls back to shop domain
  */
 async function billingApiRequest<T>(
   endpoint: string,
@@ -103,17 +103,20 @@ async function billingApiRequest<T>(
 
   // Build URL - add shop param if no session token
   let url = `${functionsUrl}/${endpoint}`;
-  const sessionToken = getSessionToken();
-  const shopDomain = getShopDomain();
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...options.headers as Record<string, string>,
   };
 
+  // Get FRESH session token (not cached) - tokens expire in 1 minute
+  const sessionToken = await getFreshSessionToken();
+  const shopDomain = getShopDomain();
+
   if (sessionToken) {
-    // Use session token if available
+    // Use fresh session token
     headers['Authorization'] = `Bearer ${sessionToken}`;
+    console.log('[billingApiRequest] Using fresh session token auth');
   } else if (shopDomain) {
     // Fall back to shop domain - backend will use stored access token
     const separator = url.includes('?') ? '&' : '?';

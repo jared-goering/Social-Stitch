@@ -206,7 +206,7 @@ export function getSessionToken(): string | null {
  * Try to get a fresh session token from Shopify App Bridge CDN
  * This is called on EACH request since tokens expire in 1 minute
  */
-async function getFreshSessionToken(): Promise<string | null> {
+export async function getFreshSessionToken(): Promise<string | null> {
   // First try: Use global shopify from CDN (recommended by Shopify)
   if (window.shopify?.idToken) {
     try {
