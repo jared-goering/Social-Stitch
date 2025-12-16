@@ -495,16 +495,22 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigateToCreate }
                 </div>
               </div>
 
-              {/* Upgrade Button */}
-              {subscription.tier !== 'business' && (
-                <button
-                  onClick={() => setShowUpgradeModal(true)}
-                  className="w-full btn-primary text-white py-3 rounded-xl font-medium text-sm inline-flex items-center justify-center gap-2"
-                >
-                  <Zap size={18} />
-                  {subscription.tier === 'free' ? 'Upgrade to Pro' : 'Upgrade to Business'}
-                </button>
-              )}
+              {/* Manage Plan Button */}
+              <button
+                onClick={() => setShowUpgradeModal(true)}
+                className={`w-full py-3 rounded-xl font-medium text-sm inline-flex items-center justify-center gap-2 ${
+                  subscription.tier === 'business'
+                    ? 'border-2 border-slate-warm-200 text-slate-warm-700 hover:border-slate-warm-300 hover:bg-slate-warm-50'
+                    : 'btn-primary text-white'
+                }`}
+              >
+                <Zap size={18} />
+                {subscription.tier === 'free' 
+                  ? 'Upgrade to Pro' 
+                  : subscription.tier === 'pro'
+                  ? 'Upgrade to Business'
+                  : 'Manage Plan'}
+              </button>
             </div>
           ) : (
             <div className="flex items-center justify-center py-8">
