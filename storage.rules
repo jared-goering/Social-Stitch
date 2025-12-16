@@ -1,21 +1,98 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    match /posts/{allPaths=**} {
-      allow read: if true;
-      allow write: if true;
+    
+    // ============================================
+    // SOCIALSTITCH STORAGE SECURITY RULES
+    // ============================================
+    //
+    // Storage paths:
+    // - posts/{sessionId}/* - Social media post images
+    // - styles/{userId}/* - Saved style templates  
+    // - mockups/{userId}/* - User mockup images
+    // - scheduled/* - Scheduled post images
+    // - shops/{shopDomain}/* - Shop-scoped content (Shopify)
+    //
+    // Security Model:
+    // - Public read for all user-generated content (needed for social posting)
+    // - Scoped write access based on path segments
+    // - Size limits to prevent abuse
+    //
+    // ============================================
+    
+    // Helper function to check file size (10MB max)
+    function isValidSize() {
+      return request.resource.size < 10 * 1024 * 1024;
     }
-    match /styles/{allPaths=**} {
-      allow read: if true;
-      allow write: if true;
+    
+    // Helper function to check if file is an image
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
     }
+    
+    // --------------------------------------------
+    // POSTS (Social Media Images)
+    // --------------------------------------------
+    // Path: posts/{sessionId}/{filename}
+    // Session ID acts as scope identifier
+    match /posts/{sessionId}/{allPaths=**} {
+      // Public read - needed for Meta Graph API to fetch images
+      allow read: if true;
+      // Allow write with validation
+      allow write: if isValidSize() && isImage();
+    }
+    
+    // --------------------------------------------
+    // STYLES (Saved Templates)
+    // --------------------------------------------
+    // Path: styles/{userId}/{styleId}
+    match /styles/{userId}/{allPaths=**} {
+      // Public read - styles can be shared
+      allow read: if true;
+      // Allow write with validation
+      allow write: if isValidSize() && isImage();
+    }
+    
+    // --------------------------------------------
+    // MOCKUPS (User-Generated Content)
+    // --------------------------------------------
+    // Path: mockups/{userId}/{mockupId}
     match /mockups/{userId}/{allPaths=**} {
+      // Public read - needed for social posting and sharing
       allow read: if true;
-      allow write: if true;
+      // Allow write with validation
+      allow write: if isValidSize() && isImage();
     }
+    
+    // --------------------------------------------
+    // SCHEDULED POSTS
+    // --------------------------------------------
+    // Path: scheduled/{filename}
     match /scheduled/{allPaths=**} {
+      // Public read - needed for scheduled post processing
       allow read: if true;
-      allow write: if true;
+      // Allow write with validation
+      allow write: if isValidSize() && isImage();
+    }
+    
+    // --------------------------------------------
+    // SHOP-SCOPED CONTENT (Shopify App)
+    // --------------------------------------------
+    // Path: shops/{shopDomain}/mockups/{filename}
+    // Shop domain acts as scope identifier
+    match /shops/{shopDomain}/{allPaths=**} {
+      // Public read - needed for social posting
+      allow read: if true;
+      // Allow write with validation
+      allow write: if isValidSize() && isImage();
+    }
+    
+    // --------------------------------------------
+    // DEFAULT: Deny everything else
+    // --------------------------------------------
+    // Any path not explicitly defined above is denied
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

@@ -15,7 +15,7 @@ import { verifyRequestSession, getShopAccessToken } from './shopify-auth';
 const corsHandler = cors({ origin: true });
 
 // Shopify API version
-const API_VERSION = '2024-01';
+const API_VERSION = '2024-10';
 
 /**
  * Shopify Product type

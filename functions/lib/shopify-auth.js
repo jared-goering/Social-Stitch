@@ -276,7 +276,7 @@ exports.shopifyAuthCallback = functions.https.onRequest(async (req, res) => {
         console.log('[shopifyAuthCallback] Token exchange successful, got access token:', tokenData.access_token ? `${tokenData.access_token.substring(0, 10)}...` : 'NONE');
         console.log('[shopifyAuthCallback] Scopes:', tokenData.scope);
         // Fetch shop information
-        const shopResponse = await fetch(`https://${shop}/admin/api/2024-01/shop.json`, {
+        const shopResponse = await fetch(`https://${shop}/admin/api/2024-10/shop.json`, {
             headers: {
                 'X-Shopify-Access-Token': tokenData.access_token,
             },
@@ -464,7 +464,7 @@ exports.shopifyCheckInstall = functions.https.onRequest((req, res) => {
             console.log(`[shopifyCheckInstall] Legacy install for ${shop}, verifying token and updating with current API key`);
             // Verify the token works
             try {
-                const testResponse = await fetch(`https://${shop}/admin/api/2024-01/shop.json`, {
+                const testResponse = await fetch(`https://${shop}/admin/api/2024-10/shop.json`, {
                     headers: {
                         'X-Shopify-Access-Token': accessToken,
                     },

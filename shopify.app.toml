@@ -6,12 +6,13 @@ application_url = "https://app.socialstitch.io"
 embedded = true
 
 [webhooks]
-api_version = "2025-10"
+api_version = "2024-10"
 
 [webhooks.privacy_compliance]
-customer_deletion_url = "https://social-stitch.web.app/api/gdpr/customers/redact"
-customer_data_request_url = "https://social-stitch.web.app/api/gdpr/customers/data_request"
-shop_deletion_url = "https://social-stitch.web.app/api/gdpr/shop/redact"
+# GDPR Compliance Webhooks - pointing to Firebase Functions
+customer_deletion_url = "https://us-central1-social-stitch.cloudfunctions.net/gdprCustomersRedact"
+customer_data_request_url = "https://us-central1-social-stitch.cloudfunctions.net/gdprCustomersDataRequest"
+shop_deletion_url = "https://us-central1-social-stitch.cloudfunctions.net/gdprShopRedact"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes

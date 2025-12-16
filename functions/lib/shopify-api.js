@@ -51,7 +51,7 @@ const cors_1 = __importDefault(require("cors"));
 const shopify_auth_1 = require("./shopify-auth");
 const corsHandler = (0, cors_1.default)({ origin: true });
 // Shopify API version
-const API_VERSION = '2024-01';
+const API_VERSION = '2024-10';
 /**
  * Make authenticated request to Shopify API
  */

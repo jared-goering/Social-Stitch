@@ -17,7 +17,10 @@ export const shopifyConfig = {
   isEmbedded: import.meta.env.VITE_APP_MODE === 'shopify',
   
   // Shopify scopes required by your app
-  scopes: ['read_products', 'write_products'],
+  // - read_products: Display merchant's product catalog for content creation
+  // - write_products: Save generated mockups back to product images
+  // - read_content: Access store content for brand profile analysis
+  scopes: ['read_products', 'write_products', 'read_content'],
   
   // Redirect URL after authentication
   redirectUri: import.meta.env.VITE_SHOPIFY_REDIRECT_URI || '',

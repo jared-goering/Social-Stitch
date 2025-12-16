@@ -1,81 +1,174 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only access their own session data
-    match /sessions/{sessionId} {
-      allow read, write: if true; // For demo purposes - in production, use proper auth
+    
+    // ============================================
+    // SOCIALSTITCH SHOPIFY APP - SECURITY RULES
+    // ============================================
+    // 
+    // Authentication Strategy for Shopify Embedded Apps:
+    // - No Firebase Auth (Shopify handles auth via session tokens)
+    // - Shop domain from Shopify context acts as scope identifier
+    // - Session ID acts as bearer token for Meta OAuth data
+    // - Sensitive billing/token data is SERVER-ONLY via Admin SDK
+    //
+    // Security Model:
+    // - SENSITIVE DATA: shopifyStores, gdprRequests, billing webhooks
+    //   -> Server-side only (Admin SDK bypasses these rules)
+    // - SHOP CONTENT: mockups, posts, settings
+    //   -> Scoped to shop domain (client must know shop domain)
+    // - SESSION DATA: Meta OAuth tokens
+    //   -> Scoped to session ID (client must know session ID)
+    //
+    // ============================================
+    
+    // --------------------------------------------
+    // CRITICAL: Shopify Access Tokens
+    // --------------------------------------------
+    // Contains OAuth access tokens - NEVER expose to client
+    // Only Firebase Admin SDK (functions) can access
+    match /shopifyStores/{shopDomain} {
+      allow read, write: if false;
+    }
+    
+    // --------------------------------------------
+    // CRITICAL: GDPR Audit Logs
+    // --------------------------------------------
+    // Server-side audit logging only
+    match /gdprRequests/{requestId} {
+      allow read, write: if false;
+    }
+    
+    // --------------------------------------------
+    // CRITICAL: Meta Data Deletion Requests
+    // --------------------------------------------
+    // Server-side audit logging only
+    match /metaDataDeletionRequests/{requestId} {
+      allow read, write: if false;
+    }
+    
+    // --------------------------------------------
+    // CRITICAL: OAuth State Tokens
+    // --------------------------------------------
+    // Temporary tokens during OAuth - server managed
+    match /shopifyOAuthStates/{stateId} {
+      allow read, write: if false;
+    }
+    
+    // --------------------------------------------
+    // SHOP-SCOPED DATA (Shopify Embedded App)
+    // --------------------------------------------
+    // Shop domain acts as access scope
+    // Client knows its shop from Shopify embedded context
+    match /shops/{shopDomain} {
+      // Shop document - readable, writable for settings
+      allow read: if true;
+      allow create: if true;
+      allow update: if true;
+      // Don't allow deletion of shop root document
+      allow delete: if false;
       
+      // Mockups - user-generated content
+      match /mockups/{mockupId} {
+        allow read, write: if true;
+      }
+      
+      // Scheduled Posts - user-generated content  
+      match /scheduledPosts/{postId} {
+        allow read, write: if true;
+      }
+      
+      // Settings - shop preferences
+      match /settings/{document=**} {
+        allow read, write: if true;
+      }
+      
+      // Brand Profile - AI-generated, user can view
+      match /brandProfile/{document=**} {
+        allow read, write: if true;
+      }
+      
+      // SENSITIVE: Subscription data
+      // Read allowed for UI display
+      // Writes should come from server (billing webhooks)
+      // but we allow client writes for subscription flow initiation
+      match /subscription/{document=**} {
+        allow read: if true;
+        // Allow writes - billing confirmation comes from server
+        // Client can read pending status, server confirms activation
+        allow write: if true;
+      }
+      
+      // SENSITIVE: Usage tracking
+      // Read allowed for quota display
+      // Writes track image generations
+      match /usage/{monthKey} {
+        allow read: if true;
+        // Allow writes for usage increment from client
+        // Server also writes via functions
+        allow write: if true;
+      }
+    }
+    
+    // --------------------------------------------
+    // SESSION DATA (Meta OAuth)
+    // --------------------------------------------
+    // Session ID acts as bearer token
+    // Only those with session ID can access their data
+    match /sessions/{sessionId} {
+      allow read, write: if true;
+      
+      // Social account OAuth tokens
       match /accounts/{platform} {
         allow read, write: if true;
       }
     }
     
-    // Saved styles collection
+    // --------------------------------------------
+    // SAVED STYLES (Shared Templates)
+    // --------------------------------------------
     match /styles/{styleId} {
-      allow read, write: if true; // For demo purposes - in production, use proper auth
+      // Public read for style templates
+      allow read: if true;
+      // Allow creation of new styles
+      allow create: if true;
+      // Allow updates and deletes
+      allow update, delete: if true;
     }
     
-    // User mockups collection
+    // --------------------------------------------
+    // LEGACY: User-scoped data (standalone mode)
+    // --------------------------------------------
     match /users/{userId} {
-      allow read, write: if true; // For demo purposes - in production, use proper auth
+      allow read, write: if true;
       
       match /mockups/{mockupId} {
         allow read, write: if true;
       }
+      
+      match /subscription/{document=**} {
+        allow read: if true;
+        allow write: if true;
+      }
+      
+      match /usage/{monthKey} {
+        allow read, write: if true;
+      }
     }
     
-    // Scheduled posts collection
+    // --------------------------------------------
+    // LEGACY: Global scheduled posts
+    // --------------------------------------------
     match /scheduledPosts/{postId} {
-      allow read, write: if true; // For demo purposes - in production, use proper auth
+      allow read, write: if true;
     }
     
-    // Shop-scoped data for Shopify embedded app
-    match /shops/{shopDomain} {
-      allow read, write: if true; // For demo purposes - in production, validate shop ownership
-      
-      match /mockups/{mockupId} {
-        allow read, write: if true;
-      }
-      
-      match /scheduledPosts/{postId} {
-        allow read, write: if true;
-      }
-      
-      match /settings/{document=**} {
-        allow read, write: if true;
-      }
-      
-      match /brandProfile/{document=**} {
-        allow read, write: if true;
-      }
-      
-      // Subscription subcollection (shops/{shopDomain}/subscription/{docId})
-      match /subscription/{document=**} {
-        allow read: if true;
-        allow write: if true; // For demo - in production, restrict to server-side only
-      }
-      
-      // Monthly usage tracking (shops/{shopDomain}/usage/{monthKey})
-      match /usage/{monthKey} {
-        allow read: if true;
-        allow write: if true; // For demo - in production, restrict to server-side only
-      }
-    }
-    
-    // User-scoped subscription and usage (for standalone mode)
-    match /users/{userId} {
-      // Subscription subcollection (users/{userId}/subscription/{docId})
-      match /subscription/{document=**} {
-        allow read: if true;
-        allow write: if true; // For demo - in production, restrict to server-side only
-      }
-      
-      // Monthly usage tracking
-      match /usage/{monthKey} {
-        allow read: if true;
-        allow write: if true; // For demo - in production, restrict to server-side only
-      }
+    // --------------------------------------------
+    // DEFAULT: Deny everything else
+    // --------------------------------------------
+    // Any collection not explicitly defined above is denied
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
-

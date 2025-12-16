@@ -52,7 +52,7 @@ const cors_1 = __importDefault(require("cors"));
 const shopify_auth_1 = require("./shopify-auth");
 const corsHandler = (0, cors_1.default)({ origin: true });
 // Shopify API version for GraphQL
-const API_VERSION = '2024-01';
+const API_VERSION = '2024-10';
 // Get Shopify configuration
 const getShopifyConfig = () => {
     var _a, _b, _c, _d;

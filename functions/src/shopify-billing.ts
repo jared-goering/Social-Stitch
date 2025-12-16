@@ -16,7 +16,7 @@ import { verifyRequestSession, getShopAccessToken, verifyWebhookHmac } from './s
 const corsHandler = cors({ origin: true });
 
 // Shopify API version for GraphQL
-const API_VERSION = '2024-01';
+const API_VERSION = '2024-10';
 
 // Get Shopify configuration
 const getShopifyConfig = () => {
