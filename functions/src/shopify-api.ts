@@ -2,9 +2,12 @@
  * Shopify API Proxy Module
  *
  * Provides authenticated access to Shopify APIs for the frontend:
- * - Products API (list, get, images)
+ * - Products API (list, get, images) via GraphQL
  * - Handles pagination and rate limiting
  * - Uses stored access tokens from Firestore
+ * 
+ * MIGRATED TO GRAPHQL: As of 2024-04, REST Admin API /products and /variants
+ * endpoints are deprecated. This module now uses GraphQL for all product operations.
  */
 
 import * as functions from 'firebase-functions';
@@ -17,46 +20,155 @@ const corsHandler = cors({ origin: true });
 // Shopify API version
 const API_VERSION = '2024-10';
 
+// ============================================================================
+// GID Conversion Utilities
+// ============================================================================
+
 /**
- * Shopify Product type
+ * Convert a Shopify GID to numeric ID
+ * e.g., "gid://shopify/Product/123" -> 123
  */
-interface ShopifyProduct {
-  id: number;
+function gidToId(gid: string): number {
+  const match = gid.match(/\/(\d+)$/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+
+/**
+ * Convert a numeric ID to a Shopify GID
+ * e.g., 123 -> "gid://shopify/Product/123"
+ */
+function idToGid(id: number | string, type: 'Product' | 'ProductImage' | 'ProductVariant' | 'Collection' | 'MediaImage'): string {
+  return `gid://shopify/${type}/${id}`;
+}
+
+// ============================================================================
+// GraphQL Types
+// ============================================================================
+
+interface GraphQLResponse<T> {
+  data?: T;
+  errors?: Array<{ message: string; locations?: Array<{ line: number; column: number }> }>;
+  extensions?: {
+    cost?: {
+      requestedQueryCost: number;
+      actualQueryCost: number;
+      throttleStatus: {
+        maximumAvailable: number;
+        currentlyAvailable: number;
+        restoreRate: number;
+      };
+    };
+  };
+}
+
+interface GraphQLProductNode {
+  id: string;
   title: string;
-  body_html: string;
+  descriptionHtml: string;
   vendor: string;
-  product_type: string;
+  productType: string;
   handle: string;
   status: string;
-  tags: string;
-  images: ShopifyImage[];
-  variants: ShopifyVariant[];
-  created_at: string;
-  updated_at: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  featuredImage?: {
+    id: string;
+    url: string;
+    width: number;
+    height: number;
+    altText: string | null;
+  } | null;
+  images: {
+    edges: Array<{
+      node: {
+        id: string;
+        url: string;
+        width: number;
+        height: number;
+        altText: string | null;
+      };
+    }>;
+  };
+  variants: {
+    edges: Array<{
+      node: {
+        id: string;
+        title: string;
+        price: string;
+        sku: string | null;
+        inventoryQuantity: number | null;
+        image?: {
+          id: string;
+        } | null;
+      };
+    }>;
+  };
 }
 
-interface ShopifyImage {
-  id: number;
-  product_id: number;
-  position: number;
-  src: string;
-  width: number;
-  height: number;
-  alt: string | null;
-}
-
-interface ShopifyVariant {
-  id: number;
-  product_id: number;
+interface GraphQLCollectionNode {
+  id: string;
   title: string;
-  price: string;
-  sku: string;
-  inventory_quantity: number;
-  image_id: number | null;
+  handle: string;
+  image?: {
+    url: string;
+  } | null;
+  productsCount: {
+    count: number;
+  };
+}
+
+// ============================================================================
+// GraphQL Helper
+// ============================================================================
+
+/**
+ * Make authenticated GraphQL request to Shopify API
+ */
+async function shopifyGraphQL<T>(
+  shop: string,
+  accessToken: string,
+  query: string,
+  variables: Record<string, any> = {}
+): Promise<T> {
+  const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-Shopify-Access-Token': accessToken,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`Shopify GraphQL error (${response.status}):`, errorText);
+    
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('INVALID_ACCESS_TOKEN');
+    }
+    
+    throw new Error(`Shopify GraphQL error: ${response.status}`);
+  }
+
+  const result = await response.json() as GraphQLResponse<T>;
+
+  if (result.errors && result.errors.length > 0) {
+    console.error('GraphQL errors:', result.errors);
+    throw new Error(`GraphQL error: ${result.errors[0].message}`);
+  }
+
+  if (!result.data) {
+    throw new Error('No data returned from GraphQL');
+  }
+
+  return result.data;
 }
 
 /**
- * Make authenticated request to Shopify API
+ * Legacy REST fetch (kept for non-deprecated endpoints like /shop.json)
  */
 async function shopifyFetch<T>(
   shop: string,
@@ -79,7 +191,6 @@ async function shopifyFetch<T>(
     const errorText = await response.text();
     console.error(`Shopify API error (${response.status}):`, errorText);
     
-    // If token is invalid, throw a specific error that frontend can detect
     if (response.status === 401 || response.status === 403) {
       throw new Error('INVALID_ACCESS_TOKEN');
     }
@@ -90,9 +201,295 @@ async function shopifyFetch<T>(
   return response.json();
 }
 
+// ============================================================================
+// GraphQL Queries
+// ============================================================================
+
+const PRODUCTS_QUERY = `
+  query getProducts($first: Int!, $after: String, $query: String) {
+    products(first: $first, after: $after, query: $query) {
+      edges {
+        node {
+          id
+          title
+          descriptionHtml
+          vendor
+          productType
+          handle
+          status
+          tags
+          createdAt
+          updatedAt
+          featuredImage {
+            id
+            url
+            width
+            height
+            altText
+          }
+          images(first: 20) {
+            edges {
+              node {
+                id
+                url
+                width
+                height
+                altText
+              }
+            }
+          }
+          variants(first: 100) {
+            edges {
+              node {
+                id
+                title
+                price
+                sku
+                inventoryQuantity
+                image {
+                  id
+                }
+              }
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+const PRODUCT_BY_ID_QUERY = `
+  query getProduct($id: ID!) {
+    product(id: $id) {
+      id
+      title
+      descriptionHtml
+      vendor
+      productType
+      handle
+      status
+      tags
+      createdAt
+      updatedAt
+      images(first: 50) {
+        edges {
+          node {
+            id
+            url
+            width
+            height
+            altText
+          }
+        }
+      }
+      variants(first: 100) {
+        edges {
+          node {
+            id
+            title
+            price
+            sku
+            inventoryQuantity
+            image {
+              id
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const COLLECTIONS_QUERY = `
+  query getCollections($first: Int!, $after: String) {
+    collections(first: $first, after: $after) {
+      edges {
+        node {
+          id
+          title
+          handle
+          image {
+            url
+          }
+          productsCount {
+            count
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+const COLLECTION_PRODUCTS_QUERY = `
+  query getCollectionProducts($id: ID!, $first: Int!, $after: String) {
+    collection(id: $id) {
+      products(first: $first, after: $after) {
+        edges {
+          node {
+            id
+            title
+            descriptionHtml
+            vendor
+            productType
+            handle
+            status
+            tags
+            createdAt
+            updatedAt
+            featuredImage {
+              id
+              url
+              width
+              height
+              altText
+            }
+            images(first: 20) {
+              edges {
+                node {
+                  id
+                  url
+                  width
+                  height
+                  altText
+                }
+              }
+            }
+            variants(first: 100) {
+              edges {
+                node {
+                  id
+                  title
+                  price
+                  sku
+                  inventoryQuantity
+                  image {
+                    id
+                  }
+                }
+              }
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
+const CREATE_PRODUCT_MEDIA_MUTATION = `
+  mutation productCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+    productCreateMedia(productId: $productId, media: $media) {
+      media {
+        ... on MediaImage {
+          id
+          image {
+            url
+            width
+            height
+            altText
+          }
+        }
+      }
+      mediaUserErrors {
+        field
+        message
+      }
+      product {
+        id
+      }
+    }
+  }
+`;
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Transform GraphQL product node to frontend format
+ */
+function transformProduct(node: GraphQLProductNode) {
+  return {
+    id: gidToId(node.id),
+    title: node.title,
+    description: node.descriptionHtml?.replace(/<[^>]*>/g, '').substring(0, 200) || '',
+    vendor: node.vendor,
+    productType: node.productType,
+    handle: node.handle,
+    status: node.status.toLowerCase(),
+    tags: node.tags,
+    featuredImage: node.featuredImage?.url || node.images.edges[0]?.node.url || null,
+    images: node.images.edges.map((edge) => ({
+      id: gidToId(edge.node.id),
+      src: edge.node.url,
+      width: edge.node.width,
+      height: edge.node.height,
+      alt: edge.node.altText,
+    })),
+    variants: node.variants.edges.map((edge) => ({
+      id: gidToId(edge.node.id),
+      title: edge.node.title,
+      price: edge.node.price,
+      sku: edge.node.sku || '',
+      inventoryQuantity: edge.node.inventoryQuantity || 0,
+      imageId: edge.node.image ? gidToId(edge.node.image.id) : null,
+    })),
+    createdAt: node.createdAt,
+    updatedAt: node.updatedAt,
+  };
+}
+
+/**
+ * Build GraphQL query string from filter parameters
+ */
+function buildProductQueryString(params: {
+  productType?: string;
+  vendor?: string;
+  status?: string;
+  ids?: string;
+  title?: string;
+}): string | undefined {
+  const queryParts: string[] = [];
+
+  if (params.productType) {
+    queryParts.push(`product_type:${params.productType}`);
+  }
+  if (params.vendor) {
+    queryParts.push(`vendor:${params.vendor}`);
+  }
+  if (params.status) {
+    queryParts.push(`status:${params.status}`);
+  }
+  if (params.ids) {
+    // Convert comma-separated IDs to GraphQL query format
+    const ids = params.ids.split(',').map(id => `id:${id.trim()}`).join(' OR ');
+    queryParts.push(`(${ids})`);
+  }
+  if (params.title) {
+    queryParts.push(`title:*${params.title}*`);
+  }
+
+  return queryParts.length > 0 ? queryParts.join(' AND ') : undefined;
+}
+
+// ============================================================================
+// Cloud Functions
+// ============================================================================
+
 /**
  * Get products list
- * Supports pagination and filtering
+ * Supports pagination and filtering via GraphQL
  */
 export const shopifyGetProducts = functions.https.onRequest((req, res) => {
   corsHandler(req, res, async () => {
@@ -118,84 +515,75 @@ export const shopifyGetProducts = functions.https.onRequest((req, res) => {
       return;
     }
     console.log('[shopifyGetProducts] Access token found:', accessToken.substring(0, 10) + '...');
-    console.log('[shopifyGetProducts] Fetching products...');
+    console.log('[shopifyGetProducts] Fetching products via GraphQL...');
 
     try {
-      // Build query parameters
-      const params = new URLSearchParams();
-
-      // Pagination
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 250);
-      params.set('limit', limit.toString());
+      const after = req.query.page_info as string | undefined;
+      const collectionId = req.query.collection_id as string | undefined;
 
-      if (req.query.page_info) {
-        params.set('page_info', req.query.page_info as string);
-      }
+      // Build query string for filtering
+      const queryString = buildProductQueryString({
+        productType: req.query.product_type as string,
+        vendor: req.query.vendor as string,
+        status: req.query.status as string,
+        ids: req.query.ids as string,
+      });
 
-      // Filtering
-      if (req.query.product_type) {
-        params.set('product_type', req.query.product_type as string);
-      }
-      if (req.query.vendor) {
-        params.set('vendor', req.query.vendor as string);
-      }
-      if (req.query.status) {
-        params.set('status', req.query.status as string);
-      }
-      if (req.query.collection_id) {
-        params.set('collection_id', req.query.collection_id as string);
-      }
-      if (req.query.ids) {
-        params.set('ids', req.query.ids as string);
-      }
+      let products: ReturnType<typeof transformProduct>[] = [];
+      let pageInfo: { hasNextPage: boolean; endCursor?: string } = { hasNextPage: false };
 
-      // Fields to return
-      params.set('fields', 'id,title,body_html,vendor,product_type,handle,status,tags,images,variants,created_at,updated_at');
+      if (collectionId) {
+        // Fetch products from a specific collection
+        const collectionGid = idToGid(collectionId, 'Collection');
+        const data = await shopifyGraphQL<{
+          collection: {
+            products: {
+              edges: Array<{ node: GraphQLProductNode }>;
+              pageInfo: { hasNextPage: boolean; endCursor: string | null };
+            };
+          } | null;
+        }>(session.shop, accessToken, COLLECTION_PRODUCTS_QUERY, {
+          id: collectionGid,
+          first: limit,
+          after: after || null,
+        });
 
-      const endpoint = `/products.json?${params.toString()}`;
-      const data = await shopifyFetch<{ products: ShopifyProduct[] }>(
-        session.shop,
-        endpoint,
-        accessToken
-      );
+        if (data.collection) {
+          products = data.collection.products.edges.map((edge) => transformProduct(edge.node));
+          pageInfo = {
+            hasNextPage: data.collection.products.pageInfo.hasNextPage,
+            endCursor: data.collection.products.pageInfo.endCursor || undefined,
+          };
+        }
+      } else {
+        // Fetch all products with optional filtering
+        const data = await shopifyGraphQL<{
+          products: {
+            edges: Array<{ node: GraphQLProductNode }>;
+            pageInfo: { hasNextPage: boolean; endCursor: string | null };
+          };
+        }>(session.shop, accessToken, PRODUCTS_QUERY, {
+          first: limit,
+          after: after || null,
+          query: queryString || null,
+        });
 
-      // Transform products for frontend
-      const products = data.products.map((product) => ({
-        id: product.id,
-        title: product.title,
-        description: product.body_html?.replace(/<[^>]*>/g, '').substring(0, 200) || '',
-        vendor: product.vendor,
-        productType: product.product_type,
-        handle: product.handle,
-        status: product.status,
-        tags: product.tags ? product.tags.split(', ') : [],
-        featuredImage: product.images[0]?.src || null,
-        images: product.images.map((img) => ({
-          id: img.id,
-          src: img.src,
-          width: img.width,
-          height: img.height,
-          alt: img.alt,
-        })),
-        variants: product.variants.map((v) => ({
-          id: v.id,
-          title: v.title,
-          price: v.price,
-          sku: v.sku,
-          inventoryQuantity: v.inventory_quantity,
-        })),
-        createdAt: product.created_at,
-        updatedAt: product.updated_at,
-      }));
+        products = data.products.edges.map((edge) => transformProduct(edge.node));
+        pageInfo = {
+          hasNextPage: data.products.pageInfo.hasNextPage,
+          endCursor: data.products.pageInfo.endCursor || undefined,
+        };
+      }
 
       res.json({
         products,
         shop: session.shop,
+        pageInfo,
       });
     } catch (error: any) {
       console.error('Error fetching products:', error);
       
-      // If the access token is invalid, delete it and tell the frontend to re-auth
       if (error.message === 'INVALID_ACCESS_TOKEN') {
         console.log('[shopifyGetProducts] Deleting invalid token for shop:', session.shop);
         const db = admin.firestore();
@@ -214,7 +602,7 @@ export const shopifyGetProducts = functions.https.onRequest((req, res) => {
 });
 
 /**
- * Get single product by ID
+ * Get single product by ID via GraphQL
  */
 export const shopifyGetProduct = functions.https.onRequest((req, res) => {
   corsHandler(req, res, async () => {
@@ -239,42 +627,49 @@ export const shopifyGetProduct = functions.https.onRequest((req, res) => {
     }
 
     try {
-      const data = await shopifyFetch<{ product: ShopifyProduct }>(
-        session.shop,
-        `/products/${productId}.json`,
-        accessToken
-      );
+      const productGid = idToGid(productId, 'Product');
+      
+      const data = await shopifyGraphQL<{
+        product: GraphQLProductNode | null;
+      }>(session.shop, accessToken, PRODUCT_BY_ID_QUERY, {
+        id: productGid,
+      });
+
+      if (!data.product) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
 
       const product = data.product;
 
       res.json({
         product: {
-          id: product.id,
+          id: gidToId(product.id),
           title: product.title,
-          description: product.body_html,
+          description: product.descriptionHtml,
           vendor: product.vendor,
-          productType: product.product_type,
+          productType: product.productType,
           handle: product.handle,
-          status: product.status,
-          tags: product.tags ? product.tags.split(', ') : [],
-          images: product.images.map((img) => ({
-            id: img.id,
-            src: img.src,
-            width: img.width,
-            height: img.height,
-            alt: img.alt,
-            position: img.position,
+          status: product.status.toLowerCase(),
+          tags: product.tags,
+          images: product.images.edges.map((edge, index) => ({
+            id: gidToId(edge.node.id),
+            src: edge.node.url,
+            width: edge.node.width,
+            height: edge.node.height,
+            alt: edge.node.altText,
+            position: index + 1,
           })),
-          variants: product.variants.map((v) => ({
-            id: v.id,
-            title: v.title,
-            price: v.price,
-            sku: v.sku,
-            inventoryQuantity: v.inventory_quantity,
-            imageId: v.image_id,
+          variants: product.variants.edges.map((edge) => ({
+            id: gidToId(edge.node.id),
+            title: edge.node.title,
+            price: edge.node.price,
+            sku: edge.node.sku || '',
+            inventoryQuantity: edge.node.inventoryQuantity || 0,
+            imageId: edge.node.image ? gidToId(edge.node.image.id) : null,
           })),
-          createdAt: product.created_at,
-          updatedAt: product.updated_at,
+          createdAt: product.createdAt,
+          updatedAt: product.updatedAt,
         },
         shop: session.shop,
       });
@@ -286,7 +681,8 @@ export const shopifyGetProduct = functions.https.onRequest((req, res) => {
 });
 
 /**
- * Get product images
+ * Get product images via GraphQL
+ * Uses the product query to fetch images
  */
 export const shopifyGetProductImages = functions.https.onRequest((req, res) => {
   corsHandler(req, res, async () => {
@@ -311,21 +707,61 @@ export const shopifyGetProductImages = functions.https.onRequest((req, res) => {
     }
 
     try {
-      const data = await shopifyFetch<{ images: ShopifyImage[] }>(
-        session.shop,
-        `/products/${productId}/images.json`,
-        accessToken
-      );
+      const productGid = idToGid(productId, 'Product');
+      
+      // Query for product images
+      const PRODUCT_IMAGES_QUERY = `
+        query getProductImages($id: ID!) {
+          product(id: $id) {
+            id
+            images(first: 100) {
+              edges {
+                node {
+                  id
+                  url
+                  width
+                  height
+                  altText
+                }
+              }
+            }
+          }
+        }
+      `;
+      
+      const data = await shopifyGraphQL<{
+        product: {
+          id: string;
+          images: {
+            edges: Array<{
+              node: {
+                id: string;
+                url: string;
+                width: number;
+                height: number;
+                altText: string | null;
+              };
+            }>;
+          };
+        } | null;
+      }>(session.shop, accessToken, PRODUCT_IMAGES_QUERY, {
+        id: productGid,
+      });
+
+      if (!data.product) {
+        res.status(404).json({ error: 'Product not found' });
+        return;
+      }
 
       res.json({
-        images: data.images.map((img) => ({
-          id: img.id,
-          productId: img.product_id,
-          src: img.src,
-          width: img.width,
-          height: img.height,
-          alt: img.alt,
-          position: img.position,
+        images: data.product.images.edges.map((edge, index) => ({
+          id: gidToId(edge.node.id),
+          productId: parseInt(productId, 10),
+          src: edge.node.url,
+          width: edge.node.width,
+          height: edge.node.height,
+          alt: edge.node.altText,
+          position: index + 1,
         })),
         shop: session.shop,
       });
@@ -337,7 +773,7 @@ export const shopifyGetProductImages = functions.https.onRequest((req, res) => {
 });
 
 /**
- * Get collections list
+ * Get collections list via GraphQL
  */
 export const shopifyGetCollections = functions.https.onRequest((req, res) => {
   corsHandler(req, res, async () => {
@@ -356,44 +792,58 @@ export const shopifyGetCollections = functions.https.onRequest((req, res) => {
     }
 
     try {
-      // Fetch both custom collections and smart collections
-      const [customCollections, smartCollections] = await Promise.all([
-        shopifyFetch<{ custom_collections: any[] }>(
-          session.shop,
-          '/custom_collections.json?limit=250',
-          accessToken
-        ),
-        shopifyFetch<{ smart_collections: any[] }>(
-          session.shop,
-          '/smart_collections.json?limit=250',
-          accessToken
-        ),
-      ]);
+      // Response type for collections query
+      interface CollectionsResponse {
+        collections: {
+          edges: Array<{ node: GraphQLCollectionNode }>;
+          pageInfo: { hasNextPage: boolean; endCursor: string | null };
+        };
+      }
+      
+      // Fetch all collections (paginated)
+      const allCollections: Array<{
+        id: number;
+        title: string;
+        handle: string;
+        type: string;
+        image: string | null;
+        productsCount: number;
+      }> = [];
+      
+      let hasNextPage = true;
+      let cursor: string | null = null;
+      
+      while (hasNextPage) {
+        const data: CollectionsResponse = await shopifyGraphQL<CollectionsResponse>(
+          session.shop, 
+          accessToken, 
+          COLLECTIONS_QUERY, 
+          {
+            first: 250,
+            after: cursor,
+          }
+        );
 
-      const collections = [
-        ...customCollections.custom_collections.map((c) => ({
-          id: c.id,
-          title: c.title,
-          handle: c.handle,
-          type: 'custom',
-          image: c.image?.src || null,
-          productsCount: c.products_count,
-        })),
-        ...smartCollections.smart_collections.map((c) => ({
-          id: c.id,
-          title: c.title,
-          handle: c.handle,
-          type: 'smart',
-          image: c.image?.src || null,
-          productsCount: c.products_count,
-        })),
-      ];
+        for (const edge of data.collections.edges) {
+          allCollections.push({
+            id: gidToId(edge.node.id),
+            title: edge.node.title,
+            handle: edge.node.handle,
+            type: 'collection', // GraphQL doesn't distinguish custom vs smart in basic query
+            image: edge.node.image?.url || null,
+            productsCount: edge.node.productsCount.count,
+          });
+        }
+
+        hasNextPage = data.collections.pageInfo.hasNextPage;
+        cursor = data.collections.pageInfo.endCursor;
+      }
 
       // Sort by title
-      collections.sort((a, b) => a.title.localeCompare(b.title));
+      allCollections.sort((a, b) => a.title.localeCompare(b.title));
 
       res.json({
-        collections,
+        collections: allCollections,
         shop: session.shop,
       });
     } catch (error) {
@@ -404,7 +854,7 @@ export const shopifyGetCollections = functions.https.onRequest((req, res) => {
 });
 
 /**
- * Search products
+ * Search products via GraphQL
  */
 export const shopifySearchProducts = functions.https.onRequest((req, res) => {
   corsHandler(req, res, async () => {
@@ -429,35 +879,39 @@ export const shopifySearchProducts = functions.https.onRequest((req, res) => {
     }
 
     try {
-      // Shopify REST API doesn't have great search, so we use title filter
-      // For better search, GraphQL would be preferred
-      const params = new URLSearchParams();
-      params.set('limit', '50');
-      params.set('title', query);
-      params.set('fields', 'id,title,body_html,vendor,product_type,handle,status,images,variants');
+      // GraphQL search query - searches across multiple fields
+      const searchQuery = `title:*${query}* OR vendor:*${query}* OR product_type:*${query}*`;
+      
+      const data = await shopifyGraphQL<{
+        products: {
+          edges: Array<{ node: GraphQLProductNode }>;
+          pageInfo: { hasNextPage: boolean; endCursor: string | null };
+        };
+      }>(session.shop, accessToken, PRODUCTS_QUERY, {
+        first: 50,
+        after: null,
+        query: searchQuery,
+      });
 
-      const data = await shopifyFetch<{ products: ShopifyProduct[] }>(
-        session.shop,
-        `/products.json?${params.toString()}`,
-        accessToken
-      );
-
-      const products = data.products.map((product) => ({
-        id: product.id,
-        title: product.title,
-        description: product.body_html?.replace(/<[^>]*>/g, '').substring(0, 200) || '',
-        vendor: product.vendor,
-        productType: product.product_type,
-        handle: product.handle,
-        status: product.status,
-        featuredImage: product.images[0]?.src || null,
-        images: product.images.map((img) => ({
-          id: img.id,
-          src: img.src,
-          alt: img.alt,
-        })),
-        price: product.variants[0]?.price || '0.00',
-      }));
+      const products = data.products.edges.map((edge) => {
+        const node = edge.node;
+        return {
+          id: gidToId(node.id),
+          title: node.title,
+          description: node.descriptionHtml?.replace(/<[^>]*>/g, '').substring(0, 200) || '',
+          vendor: node.vendor,
+          productType: node.productType,
+          handle: node.handle,
+          status: node.status.toLowerCase(),
+          featuredImage: node.featuredImage?.url || node.images.edges[0]?.node.url || null,
+          images: node.images.edges.map((imgEdge) => ({
+            id: gidToId(imgEdge.node.id),
+            src: imgEdge.node.url,
+            alt: imgEdge.node.altText,
+          })),
+          price: node.variants.edges[0]?.node.price || '0.00',
+        };
+      });
 
       res.json({
         products,
@@ -473,6 +927,7 @@ export const shopifySearchProducts = functions.https.onRequest((req, res) => {
 
 /**
  * Get shop information
+ * Note: /shop.json REST endpoint is NOT deprecated
  */
 export const shopifyGetShop = functions.https.onRequest((req, res) => {
   corsHandler(req, res, async () => {
@@ -514,7 +969,6 @@ export const shopifyGetShop = functions.https.onRequest((req, res) => {
     } catch (error: any) {
       console.error('Error fetching shop:', error);
       
-      // If the access token is invalid, delete it and tell the frontend to re-auth
       if (error.message === 'INVALID_ACCESS_TOKEN') {
         console.log('[shopifyGetShop] Deleting invalid token for shop:', session.shop);
         const db = admin.firestore();
@@ -533,7 +987,7 @@ export const shopifyGetShop = functions.https.onRequest((req, res) => {
 });
 
 /**
- * Add an image to a product
+ * Add an image to a product via GraphQL productCreateMedia mutation
  * Accepts either a URL or base64 image data
  */
 export const shopifyAddProductImage = functions.https.onRequest((req, res) => {
@@ -551,7 +1005,7 @@ export const shopifyAddProductImage = functions.https.onRequest((req, res) => {
       return;
     }
 
-    const { productId, imageUrl, imageBase64, alt, position } = req.body;
+    const { productId, imageUrl, imageBase64, alt } = req.body;
 
     if (!productId) {
       res.status(400).json({ error: 'Missing product_id' });
@@ -571,45 +1025,94 @@ export const shopifyAddProductImage = functions.https.onRequest((req, res) => {
     }
 
     try {
-      // Build the image payload
-      const imagePayload: Record<string, any> = {};
+      const productGid = idToGid(productId, 'Product');
+      
+      // For base64 images, we need to use staged uploads
+      // For URL images, we can use originalSource directly
+      let mediaInput: { originalSource: string; alt?: string; mediaContentType: string };
       
       if (imageUrl) {
-        // Use src for URL-based images
-        imagePayload.src = imageUrl;
-      } else if (imageBase64) {
-        // Use attachment for base64 images (Shopify expects base64 without data URL prefix)
+        mediaInput = {
+          originalSource: imageUrl,
+          alt: alt || '',
+          mediaContentType: 'IMAGE',
+        };
+      } else {
+        // For base64, we need to first upload via staged uploads
+        // This is a simplified approach - for large files, use stagedUploadsCreate
         const cleanBase64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-        imagePayload.attachment = cleanBase64;
+        const mimeType = imageBase64.includes('data:') 
+          ? imageBase64.split(';')[0].split(':')[1] 
+          : 'image/jpeg';
+        
+        // Create a data URL that Shopify can fetch
+        const dataUrl = `data:${mimeType};base64,${cleanBase64}`;
+        
+        mediaInput = {
+          originalSource: dataUrl,
+          alt: alt || '',
+          mediaContentType: 'IMAGE',
+        };
       }
 
-      if (alt) {
-        imagePayload.alt = alt;
+      const data = await shopifyGraphQL<{
+        productCreateMedia: {
+          media: Array<{
+            id: string;
+            image?: {
+              url: string;
+              width: number;
+              height: number;
+              altText: string | null;
+            };
+          }>;
+          mediaUserErrors: Array<{ field: string[]; message: string }>;
+          product: { id: string } | null;
+        };
+      }>(session.shop, accessToken, CREATE_PRODUCT_MEDIA_MUTATION, {
+        productId: productGid,
+        media: [mediaInput],
+      });
+
+      if (data.productCreateMedia.mediaUserErrors.length > 0) {
+        const errors = data.productCreateMedia.mediaUserErrors;
+        console.error('Media creation errors:', errors);
+        res.status(400).json({ 
+          error: errors[0].message,
+          details: errors,
+        });
+        return;
       }
 
-      if (position !== undefined) {
-        imagePayload.position = position;
+      const createdMedia = data.productCreateMedia.media[0];
+      
+      if (!createdMedia || !createdMedia.image) {
+        // Media was created but image might still be processing
+        res.json({
+          image: {
+            id: createdMedia ? gidToId(createdMedia.id) : 0,
+            productId: parseInt(productId, 10),
+            src: createdMedia?.image?.url || '',
+            width: createdMedia?.image?.width || 0,
+            height: createdMedia?.image?.height || 0,
+            alt: createdMedia?.image?.altText || alt || null,
+            position: 1,
+          },
+          shop: session.shop,
+          status: 'processing', // Indicate media might still be processing
+        });
+        return;
       }
-
-      const data = await shopifyFetch<{ image: ShopifyImage }>(
-        session.shop,
-        `/products/${productId}/images.json`,
-        accessToken,
-        {
-          method: 'POST',
-          body: JSON.stringify({ image: imagePayload }),
-        }
-      );
 
       res.json({
         image: {
-          id: data.image.id,
-          productId: data.image.product_id,
-          src: data.image.src,
-          width: data.image.width,
-          height: data.image.height,
-          alt: data.image.alt,
-          position: data.image.position,
+          id: gidToId(createdMedia.id),
+          productId: parseInt(productId, 10),
+          src: createdMedia.image.url,
+          width: createdMedia.image.width,
+          height: createdMedia.image.height,
+          alt: createdMedia.image.altText,
+          position: 1,
         },
         shop: session.shop,
       });
@@ -658,4 +1161,3 @@ export const shopifyProxyImage = functions.https.onRequest((req, res) => {
     }
   });
 });
-
