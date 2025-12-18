@@ -196,31 +196,19 @@ export async function cancelSubscription(subscriptionId: string): Promise<{ succ
 
 /**
  * Redirect the merchant to Shopify's payment approval page
- * Uses App Bridge for embedded apps, falls back to window redirect
+ * For embedded apps, breaks out of the iframe to navigate to Shopify's payment page
  * 
  * @param confirmationUrl - URL from initiateUpgrade result
  */
 export function redirectToPaymentApproval(confirmationUrl: string): void {
-  // Check if we have App Bridge available
-  const appBridge = (window as any).__SHOPIFY_APP_BRIDGE__;
+  console.log('[shopifyBillingService] Redirecting to payment approval:', confirmationUrl);
   
-  if (appBridge) {
-    try {
-      // Use App Bridge redirect for embedded apps
-      const { Redirect } = require('@shopify/app-bridge/actions');
-      const redirect = Redirect.create(appBridge);
-      redirect.dispatch(Redirect.Action.REMOTE, confirmationUrl);
-      return;
-    } catch (e) {
-      console.error('[shopifyBillingService] App Bridge redirect failed:', e);
-    }
-  }
-
-  // Fallback: handle iframe context
+  // For embedded apps, break out of the iframe to Shopify's payment page
   if (window.top !== window.self) {
     try {
       window.top!.location.href = confirmationUrl;
     } catch (e) {
+      // If direct assignment fails due to same-origin policy, use window.open
       window.open(confirmationUrl, '_top');
     }
   } else {
