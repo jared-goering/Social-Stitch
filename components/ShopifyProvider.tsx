@@ -215,21 +215,33 @@ function getShopifyParams() {
 }
 
 /**
- * Check if the store has completed OAuth installation
+ * Result of installation check
  */
-async function checkStoreInstallation(shop: string): Promise<boolean> {
+interface InstallCheckResult {
+  installed: boolean;
+  reason?: string;
+}
+
+/**
+ * Check if the store has completed OAuth installation
+ * Returns both installed status and reason if not installed
+ */
+async function checkStoreInstallation(shop: string): Promise<InstallCheckResult> {
   try {
     const response = await fetch(`${FUNCTIONS_URL}/shopifyCheckInstall?shop=${encodeURIComponent(shop)}`);
     if (!response.ok) {
       console.error('[ShopifyProvider] Failed to check installation status');
-      return false;
+      return { installed: false };
     }
     const data = await response.json();
     console.log('[ShopifyProvider] Installation check result:', data);
-    return data.installed === true;
+    return { 
+      installed: data.installed === true,
+      reason: data.reason,
+    };
   } catch (error) {
     console.error('[ShopifyProvider] Error checking installation:', error);
-    return false;
+    return { installed: false };
   }
 }
 
@@ -269,14 +281,26 @@ export function ShopifyProvider({ children }: ShopifyProviderProps) {
     const checkInstallation = async () => {
       console.log('[ShopifyProvider] Checking if shop has completed OAuth:', shop);
       
-      const installed = await checkStoreInstallation(shop);
+      const result = await checkStoreInstallation(shop);
       
       if (!mounted) return;
 
-      setIsInstalled(installed);
+      setIsInstalled(result.installed);
       setInstallationChecked(true);
 
-      if (!installed) {
+      if (!result.installed) {
+        // Check if this is a token expiration/invalidation - auto-redirect to OAuth
+        const shouldAutoRedirect = result.reason === 'token_expired' || 
+                                    result.reason === 'token_invalid' ||
+                                    result.reason === 'different_app';
+        
+        if (shouldAutoRedirect) {
+          console.log(`[ShopifyProvider] Token issue detected (${result.reason}), auto-redirecting to OAuth`);
+          // Redirect to OAuth immediately to get fresh token
+          redirectToOAuth(shop);
+          return; // Don't update state - we're redirecting
+        }
+        
         console.log('[ShopifyProvider] Shop not installed, showing connect screen');
         setIsLoading(false); // Stop loading to show connect screen
       } else {
