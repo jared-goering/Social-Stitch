@@ -51,6 +51,27 @@ firebase functions:config:unset shopify.billing_test_mode
 
 ⚠️ **Warning**: If `shopify.billing_test_mode` is set to `"true"`, all subscriptions will be created as test charges and merchants won't be billed.
 
+#### Debugging Billing Issues
+
+If billing failures occur, check Firebase Functions logs for detailed error information:
+
+```bash
+# View recent billing-related logs
+firebase functions:log --only shopifyCreateSubscription
+
+# Search for specific request ID (shown in error messages)
+firebase functions:log | grep "req_"
+```
+
+Each billing request includes a unique `requestId` (e.g., `req_1703001234567_abc123`) that can be used to trace the full request lifecycle in logs.
+
+**Common Error Codes:**
+- `CONFIG_ERROR` - Firebase Functions config missing `shopify.app_url` or `shopify.api_key`
+- `NO_ACCESS_TOKEN` - Shop needs to reinstall the app
+- `DUPLICATE_REQUEST` - User double-clicked; wait and retry
+- `ALREADY_SUBSCRIBED` - Already on the requested tier
+- `SUBSCRIPTION_CREATE_FAILED` - Shopify API error (check logs for details)
+
 ### Verify Firebase Configuration
 
 ```bash

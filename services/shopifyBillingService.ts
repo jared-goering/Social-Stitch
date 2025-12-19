@@ -79,12 +79,32 @@ export interface UpgradeResult {
 export class BillingError extends Error {
   public readonly code: string;
   public readonly userErrors?: Array<{ field: string; message: string }>;
+  public readonly requestId?: string;
+  public readonly action?: string;
+  public readonly hint?: string;
 
-  constructor(message: string, code: string = 'BILLING_ERROR', userErrors?: Array<{ field: string; message: string }>) {
+  constructor(
+    message: string, 
+    code: string = 'BILLING_ERROR', 
+    userErrors?: Array<{ field: string; message: string }>,
+    requestId?: string,
+    action?: string,
+    hint?: string
+  ) {
     super(message);
     this.name = 'BillingError';
     this.code = code;
     this.userErrors = userErrors;
+    this.requestId = requestId;
+    this.action = action;
+    this.hint = hint;
+  }
+  
+  /**
+   * Check if this error requires app reinstallation
+   */
+  requiresReinstall(): boolean {
+    return this.code === 'INVALID_ACCESS_TOKEN' || this.action === 'reinstall';
   }
 }
 
@@ -133,10 +153,20 @@ async function billingApiRequest<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+    console.error('[billingApiRequest] Error response:', {
+      status: response.status,
+      error: errorData.error,
+      code: errorData.code,
+      requestId: errorData.requestId,
+      action: errorData.action,
+    });
     throw new BillingError(
       errorData.error || `Billing API error: ${response.status}`,
       errorData.code || 'API_ERROR',
-      errorData.userErrors
+      errorData.userErrors,
+      errorData.requestId,
+      errorData.action,
+      errorData.hint
     );
   }
 

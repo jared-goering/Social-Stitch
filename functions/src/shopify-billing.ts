@@ -65,36 +65,100 @@ const SUBSCRIPTION_TIERS: Record<string, TierConfig> = {
 };
 
 /**
+ * Generate a unique request ID for tracing
+ */
+function generateRequestId(): string {
+  return `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+}
+
+/**
  * Make GraphQL request to Shopify Admin API
+ * Enhanced with detailed error logging for debugging
  */
 async function shopifyGraphQL<T>(
   shop: string,
   accessToken: string,
   query: string,
-  variables?: Record<string, unknown>
+  variables?: Record<string, unknown>,
+  requestId?: string
 ): Promise<T> {
   const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
+  const logPrefix = requestId ? `[${requestId}]` : '[shopifyGraphQL]';
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'X-Shopify-Access-Token': accessToken,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query, variables }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+  } catch (fetchError: any) {
+    console.error(`${logPrefix} Network error calling Shopify API:`, {
+      shop,
+      error: fetchError.message,
+      cause: fetchError.cause,
+    });
+    throw new Error(`Network error: ${fetchError.message}`);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error(`Shopify GraphQL error (${response.status}):`, errorText);
-    throw new Error(`Shopify GraphQL error: ${response.status}`);
+    console.error(`${logPrefix} Shopify GraphQL HTTP error:`, {
+      shop,
+      status: response.status,
+      statusText: response.statusText,
+      body: errorText.substring(0, 500), // Truncate for logging
+    });
+    
+    // Special handling for 401 - invalid access token
+    if (response.status === 401) {
+      console.error(`${logPrefix} CRITICAL: Invalid access token for shop ${shop} - token needs refresh`);
+      // Mark the token as invalid in Firestore so it can be refreshed
+      try {
+        const db = admin.firestore();
+        await db.collection('shopifyStores').doc(shop).update({
+          accessTokenInvalid: true,
+          accessTokenInvalidAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } catch (dbError) {
+        console.error(`${logPrefix} Failed to mark token as invalid:`, dbError);
+      }
+      throw new Error('INVALID_ACCESS_TOKEN: Your app authorization has expired. Please reinstall the app from the Shopify App Store.');
+    }
+    
+    throw new Error(`Shopify API error (${response.status}): ${errorText.substring(0, 200)}`);
   }
 
-  const result = await response.json();
+  let result: any;
+  try {
+    result = await response.json();
+  } catch (parseError: any) {
+    console.error(`${logPrefix} Failed to parse Shopify response:`, {
+      shop,
+      error: parseError.message,
+    });
+    throw new Error('Invalid response from Shopify API');
+  }
   
+  // Check for GraphQL-level errors
   if (result.errors && result.errors.length > 0) {
-    console.error('GraphQL errors:', result.errors);
+    console.error(`${logPrefix} GraphQL errors:`, {
+      shop,
+      errors: result.errors,
+    });
     throw new Error(`GraphQL error: ${result.errors[0].message}`);
+  }
+
+  // Validate we got data
+  if (!result.data) {
+    console.error(`${logPrefix} No data in Shopify response:`, {
+      shop,
+      result: JSON.stringify(result).substring(0, 500),
+    });
+    throw new Error('No data returned from Shopify API');
   }
 
   return result.data;
@@ -188,47 +252,156 @@ const GET_ACTIVE_SUBSCRIPTIONS_QUERY = `
  * Create a new subscription for a shop
  * POST /shopifyCreateSubscription
  * Body: { tier: 'pro' | 'business' }
+ * 
+ * Enhanced with:
+ * - Request ID tracing for debugging
+ * - Detailed error logging
+ * - Configuration validation
+ * - Existing subscription detection
+ * - Idempotency check for double-click prevention
  */
 export const shopifyCreateSubscription = functions.https.onRequest((req, res) => {
   corsHandler(req, res, async () => {
+    const requestId = generateRequestId();
+    const logPrefix = `[shopifyCreateSubscription][${requestId}]`;
+
     if (req.method !== 'POST') {
-      res.status(405).json({ error: 'Method not allowed' });
+      res.status(405).json({ error: 'Method not allowed', requestId });
       return;
     }
 
     // Verify session
     const session = await verifyRequestSession(req);
     if (!session.valid || !session.shop) {
-      res.status(401).json({ error: session.error || 'Unauthorized' });
+      console.log(`${logPrefix} Session invalid:`, { error: session.error });
+      res.status(401).json({ error: session.error || 'Unauthorized', requestId });
       return;
     }
 
+    const shop = session.shop;
     const { tier } = req.body;
+    
+    console.log(`${logPrefix} Request received:`, { shop, tier });
     
     // Validate tier
     if (!tier || !['pro', 'business'].includes(tier)) {
-      res.status(400).json({ error: 'Invalid tier. Must be "pro" or "business"' });
+      console.log(`${logPrefix} Invalid tier:`, { tier });
+      res.status(400).json({ error: 'Invalid tier. Must be "pro" or "business"', requestId });
       return;
     }
 
     const tierConfig = SUBSCRIPTION_TIERS[tier];
     if (!tierConfig || tierConfig.monthlyPriceCents === 0) {
-      res.status(400).json({ error: 'Cannot create subscription for free tier' });
+      res.status(400).json({ error: 'Cannot create subscription for free tier', requestId });
+      return;
+    }
+
+    // Validate configuration BEFORE making any API calls
+    const config = getShopifyConfig();
+    if (!config.appUrl) {
+      console.error(`${logPrefix} CRITICAL: appUrl not configured in Firebase config`);
+      res.status(500).json({ 
+        error: 'Billing configuration error. Please contact support.',
+        code: 'CONFIG_ERROR',
+        requestId 
+      });
+      return;
+    }
+
+    if (!config.apiKey) {
+      console.error(`${logPrefix} CRITICAL: apiKey not configured in Firebase config`);
+      res.status(500).json({ 
+        error: 'Billing configuration error. Please contact support.',
+        code: 'CONFIG_ERROR',
+        requestId 
+      });
       return;
     }
 
     // Get access token
-    const accessToken = await getShopAccessToken(session.shop);
+    const accessToken = await getShopAccessToken(shop);
     if (!accessToken) {
-      res.status(401).json({ error: 'Shop access token not found' });
+      console.error(`${logPrefix} No access token found for shop:`, { shop });
+      res.status(401).json({ 
+        error: 'Shop access token not found. Please reinstall the app.',
+        code: 'NO_ACCESS_TOKEN',
+        requestId 
+      });
       return;
     }
 
-    const config = getShopifyConfig();
+    const db = admin.firestore();
 
     try {
+      // Check for existing pending subscription (idempotency check)
+      const pendingDoc = await db.collection('shops').doc(shop).collection('subscription').doc('pending').get();
+      if (pendingDoc.exists) {
+        const pendingData = pendingDoc.data();
+        const pendingAge = Date.now() - (pendingData?.createdAt?.toDate?.()?.getTime() || 0);
+        
+        // If pending subscription is less than 2 minutes old, reject to prevent double-click
+        if (pendingAge < 2 * 60 * 1000) {
+          console.log(`${logPrefix} Duplicate request detected - pending subscription exists:`, {
+            pendingTier: pendingData?.tier,
+            ageMs: pendingAge,
+          });
+          res.status(409).json({ 
+            error: 'A subscription request is already in progress. Please wait.',
+            code: 'DUPLICATE_REQUEST',
+            requestId 
+          });
+          return;
+        }
+        
+        // Old pending subscription - clean it up
+        console.log(`${logPrefix} Cleaning up stale pending subscription`);
+        await pendingDoc.ref.delete();
+      }
+
+      // Check for existing active subscriptions
+      console.log(`${logPrefix} Checking existing subscriptions...`);
+      let existingSubscriptions: Array<{ id: string; name: string; status: string }> = [];
+      try {
+        const existingResult = await shopifyGraphQL<{
+          currentAppInstallation: {
+            activeSubscriptions: Array<{
+              id: string;
+              name: string;
+              status: string;
+            }>;
+          };
+        }>(shop, accessToken, GET_ACTIVE_SUBSCRIPTIONS_QUERY, undefined, requestId);
+        existingSubscriptions = existingResult.currentAppInstallation.activeSubscriptions || [];
+        console.log(`${logPrefix} Existing subscriptions:`, existingSubscriptions.map(s => ({ id: s.id, name: s.name, status: s.status })));
+      } catch (queryError: any) {
+        // Log but don't fail - we can still try to create the subscription
+        console.warn(`${logPrefix} Failed to query existing subscriptions:`, queryError.message);
+      }
+
+      // Check if already on requested tier
+      const alreadyOnTier = existingSubscriptions.some(
+        sub => sub.name === `SocialStitch ${tierConfig.name}` && sub.status === 'ACTIVE'
+      );
+      if (alreadyOnTier) {
+        console.log(`${logPrefix} Already subscribed to requested tier:`, { tier });
+        res.status(400).json({ 
+          error: `You are already subscribed to the ${tierConfig.name} plan.`,
+          code: 'ALREADY_SUBSCRIBED',
+          requestId 
+        });
+        return;
+      }
+
       // Build the return URL - this is where Shopify redirects after approval/decline
-      const returnUrl = `${config.appUrl}/shopifyBillingCallback?shop=${encodeURIComponent(session.shop)}&tier=${tier}`;
+      const returnUrl = `${config.appUrl}/shopifyBillingCallback?shop=${encodeURIComponent(shop)}&tier=${tier}`;
+      
+      console.log(`${logPrefix} Creating subscription:`, {
+        tier,
+        name: `SocialStitch ${tierConfig.name}`,
+        price: tierConfig.monthlyPriceCents / 100,
+        testMode: config.testMode,
+        returnUrl,
+      });
 
       // Create the subscription via GraphQL
       const result = await shopifyGraphQL<{
@@ -243,7 +416,7 @@ export const shopifyCreateSubscription = functions.https.onRequest((req, res) =>
           confirmationUrl: string | null;
           userErrors: Array<{ field: string; message: string }>;
         };
-      }>(session.shop, accessToken, CREATE_SUBSCRIPTION_MUTATION, {
+      }>(shop, accessToken, CREATE_SUBSCRIPTION_MUTATION, {
         name: `SocialStitch ${tierConfig.name}`,
         returnUrl,
         test: config.testMode,
@@ -260,43 +433,82 @@ export const shopifyCreateSubscription = functions.https.onRequest((req, res) =>
             },
           },
         ],
-      });
+      }, requestId);
 
       const { appSubscription, confirmationUrl, userErrors } = result.appSubscriptionCreate;
 
-      // Check for user errors
+      // Check for user errors from Shopify
       if (userErrors && userErrors.length > 0) {
-        console.error('Subscription creation errors:', userErrors);
+        console.error(`${logPrefix} Shopify user errors:`, userErrors);
         res.status(400).json({ 
           error: userErrors[0].message,
-          userErrors 
+          userErrors,
+          requestId 
         });
         return;
       }
 
       if (!confirmationUrl) {
-        res.status(500).json({ error: 'No confirmation URL returned' });
+        console.error(`${logPrefix} No confirmation URL returned from Shopify:`, { appSubscription });
+        res.status(500).json({ 
+          error: 'No confirmation URL returned from Shopify. Please try again.',
+          code: 'NO_CONFIRMATION_URL',
+          requestId 
+        });
         return;
       }
 
       // Store pending subscription in Firestore
-      const db = admin.firestore();
-      await db.collection('shops').doc(session.shop).collection('subscription').doc('pending').set({
+      await db.collection('shops').doc(shop).collection('subscription').doc('pending').set({
         tier,
         shopifySubscriptionId: appSubscription?.id,
         status: 'pending',
+        requestId,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      console.log(`[shopifyCreateSubscription] Created subscription for ${session.shop}, tier: ${tier}`);
+      console.log(`${logPrefix} SUCCESS - Subscription created:`, {
+        shop,
+        tier,
+        subscriptionId: appSubscription?.id,
+        confirmationUrl: confirmationUrl.substring(0, 50) + '...',
+      });
 
       res.json({
         confirmationUrl,
         subscriptionId: appSubscription?.id,
+        requestId,
       });
     } catch (error: any) {
-      console.error('Error creating subscription:', error);
-      res.status(500).json({ error: 'Failed to create subscription' });
+      // Detailed error logging for debugging
+      console.error(`${logPrefix} FAILED:`, {
+        shop,
+        tier,
+        errorMessage: error.message,
+        errorStack: error.stack?.split('\n').slice(0, 5).join('\n'),
+      });
+      
+      // Check for specific error types
+      const errorMessage = error.message || 'Failed to create subscription';
+      let errorCode = 'SUBSCRIPTION_CREATE_FAILED';
+      let statusCode = 500;
+      
+      // Invalid access token - needs reinstall
+      if (errorMessage.includes('INVALID_ACCESS_TOKEN') || errorMessage.includes('401')) {
+        errorCode = 'INVALID_ACCESS_TOKEN';
+        statusCode = 401;
+      }
+      
+      res.status(statusCode).json({ 
+        error: errorMessage,
+        code: errorCode,
+        requestId,
+        // Include hint for the user
+        ...(errorCode === 'INVALID_ACCESS_TOKEN' && {
+          action: 'reinstall',
+          hint: 'Please uninstall and reinstall the app from the Shopify App Store to refresh your authorization.'
+        }),
+      });
     }
   });
 });

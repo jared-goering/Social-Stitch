@@ -25,7 +25,7 @@ import {
   isDowngrade as checkIsDowngrade,
   BillingError,
 } from '../services/shopifyBillingService';
-import { getSessionToken, getShopDomain } from '../services/shopifyProductService';
+import { getSessionToken, getShopDomain, redirectToOAuth } from '../services/shopifyProductService';
 
 interface UpgradeModalProps {
   /** Whether the modal is open */
@@ -96,6 +96,11 @@ export function UpgradeModal({
   const handleUpgrade = async (tier: SubscriptionTier) => {
     if (tier === currentTier) return;
     
+    console.log('[UpgradeModal] handleUpgrade called with tier:', tier);
+    console.log('[UpgradeModal] useShopifyBilling:', useShopifyBilling);
+    console.log('[UpgradeModal] demoMode:', demoMode);
+    console.log('[UpgradeModal] isShopifyContext:', isShopifyContext());
+    
     setSelectedTier(tier);
     setUpgrading(true);
     setError(null);
@@ -103,12 +108,14 @@ export function UpgradeModal({
     try {
       // Check if this is an upgrade to a paid tier
       const isUpgradeToPaid = checkIsUpgrade(currentTier, tier) && tier !== 'free';
+      console.log('[UpgradeModal] isUpgradeToPaid:', isUpgradeToPaid);
       
       if (useShopifyBilling && isUpgradeToPaid) {
         // Use Shopify Billing API for upgrades to paid tiers
         console.log('[UpgradeModal] Initiating Shopify billing for tier:', tier);
         
         const { confirmationUrl } = await initiateUpgrade(tier);
+        console.log('[UpgradeModal] Got confirmationUrl:', confirmationUrl);
         
         // Show redirecting state
         setRedirecting(true);
@@ -130,17 +137,61 @@ export function UpgradeModal({
       onUpgradeSuccess?.(tier);
       onClose();
     } catch (err) {
-      console.error('Upgrade failed:', err);
+      console.error('[UpgradeModal] Upgrade failed:', err);
+      
+      let errorMessage = 'Failed to process upgrade. Please try again.';
+      let errorDetails = '';
+      let needsReauth = false;
       
       if (err instanceof BillingError) {
-        setError(err.message);
-      } else {
-        setError('Failed to process upgrade. Please try again.');
+        // Check if this requires re-authentication
+        needsReauth = err.requiresReinstall();
+        
+        // Log additional details for debugging
+        console.error('[UpgradeModal] BillingError details:', {
+          code: err.code,
+          message: err.message,
+          requestId: err.requestId,
+          action: err.action,
+          hint: err.hint,
+          userErrors: err.userErrors,
+          needsReauth,
+        });
+        
+        if (needsReauth) {
+          // Automatically redirect to OAuth to get fresh token
+          console.log('[UpgradeModal] Token expired - redirecting to OAuth for fresh token');
+          setError('Refreshing authorization... Please wait.');
+          setRedirecting(true);
+          
+          // Small delay so user sees the message
+          setTimeout(() => {
+            redirectToOAuth();
+          }, 1000);
+          return; // Don't reset state - we're redirecting
+        } else {
+          errorMessage = err.hint || err.message;
+        }
+        
+        // Build error details for display
+        const details: string[] = [];
+        if (err.code) details.push(err.code);
+        if (err.requestId) details.push(err.requestId);
+        errorDetails = details.join(' | ');
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
       }
-    } finally {
+      
+      // Add error details to help with debugging/support
+      if (errorDetails) {
+        setError(`${errorMessage} (${errorDetails})`);
+      } else {
+        setError(errorMessage);
+      }
+      
+      // Reset state (only if not redirecting)
       setUpgrading(false);
       setSelectedTier(null);
-      setRedirecting(false);
     }
   };
 
@@ -176,12 +227,22 @@ export function UpgradeModal({
       onUpgradeSuccess?.(tier);
       onClose();
     } catch (err) {
-      console.error('Downgrade failed:', err);
+      console.error('[UpgradeModal] Downgrade failed:', err);
+      
+      // Check if this requires re-authentication
+      if (err instanceof BillingError && err.requiresReinstall()) {
+        console.log('[UpgradeModal] Token expired during downgrade - redirecting to OAuth');
+        setError('Refreshing authorization... Please wait.');
+        setRedirecting(true);
+        setTimeout(() => {
+          redirectToOAuth();
+        }, 1000);
+        return;
+      }
+      
       setError('Failed to process plan change. Please try again.');
-    } finally {
       setUpgrading(false);
       setSelectedTier(null);
-      setRedirecting(false);
     }
   };
 
