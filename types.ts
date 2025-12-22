@@ -23,6 +23,10 @@ export interface SourceProduct {
   id: number;
   title: string;
   handle: string;
+  description?: string;     // Product description from Shopify
+  productType?: string;     // Product type/category from Shopify
+  tags?: string[];          // Product tags for context
+  vendor?: string;          // Brand/vendor name
 }
 
 export interface SavedMockup extends MockupOption {

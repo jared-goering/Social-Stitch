@@ -154,8 +154,7 @@ export function formatImageBrandContext(profile?: BrandProfile): string {
 
 /**
  * Generates a complete brand context block for style suggestion prompts.
- * This is intentionally light - it provides brand flavor without being prescriptive.
- * The garment's unique characteristics should drive the suggestions, not the brand profile.
+ * Now includes richer context to help AI understand the brand's unique identity.
  * Returns an empty string if no brand profile is provided.
  */
 export function formatStyleBrandContext(profile?: BrandProfile): string {
@@ -164,25 +163,71 @@ export function formatStyleBrandContext(profile?: BrandProfile): string {
   const ctx = buildStyleSuggestionContext(profile);
   const parts: string[] = [];
   
-  // Only include tone/mood and audience demographics - NOT specific activities
-  // This prevents all suggestions from being the same "outdoor adventure" type
+  // Include richer brand context for more tailored suggestions
+  if (profile.identity.positioningStatement) {
+    parts.push(`Brand positioning: ${profile.identity.positioningStatement}`);
+  }
   if (ctx.targetAudience) {
-    parts.push(`Target demographic: ${ctx.targetAudience}`);
+    parts.push(`Target audience: ${ctx.targetAudience}`);
+  }
+  if (ctx.lifestyleActivities) {
+    parts.push(`Customer lifestyle: ${ctx.lifestyleActivities}`);
+  }
+  if (ctx.useCases) {
+    parts.push(`Product use cases: ${ctx.useCases}`);
   }
   if (ctx.toneAndMood) {
-    parts.push(`Brand mood: ${ctx.toneAndMood}`);
+    parts.push(`Brand mood/tone: ${ctx.toneAndMood}`);
+  }
+  if (profile.voiceAndAesthetic.photographyStyle) {
+    parts.push(`Photography style: ${profile.voiceAndAesthetic.photographyStyle}`);
   }
   if (ctx.colorHarmony) {
-    parts.push(`Brand color palette: ${ctx.colorHarmony}`);
+    parts.push(`Brand colors: ${ctx.colorHarmony}`);
   }
   
   if (parts.length === 0) return '';
   
   return `
-      BRAND FLAVOR (subtle guidance, not a prescription):
+      BRAND PROFILE:
       ${parts.join('\n      ')}
-      
-      Note: Use brand context as subtle flavor, but let the GARMENT'S unique design drive the scene choices.
+  `;
+}
+
+/**
+ * Formats product context from Shopify for AI prompts.
+ * Returns an empty string if no product context is provided.
+ */
+export function formatProductContext(context?: ProductContext): string {
+  if (!context) return '';
+  
+  const parts: string[] = [];
+  
+  if (context.title) {
+    parts.push(`Product name: "${context.title}"`);
+  }
+  if (context.description) {
+    // Truncate long descriptions
+    const desc = context.description.length > 500 
+      ? context.description.substring(0, 500) + '...' 
+      : context.description;
+    parts.push(`Description: ${desc}`);
+  }
+  if (context.productType) {
+    parts.push(`Category: ${context.productType}`);
+  }
+  if (context.tags && context.tags.length > 0) {
+    parts.push(`Tags: ${context.tags.slice(0, 10).join(', ')}`);
+  }
+  if (context.vendor) {
+    parts.push(`Brand: ${context.vendor}`);
+  }
+  
+  if (parts.length === 0) return '';
+  
+  return `
+      SHOPIFY PRODUCT DETAILS:
+      ${parts.join('\n      ')}
   `;
 }
 
@@ -729,11 +774,23 @@ const CATEGORY_PROMPTS: Record<ContentCategory, string> = {
 };
 
 /**
+ * Product context from Shopify for more relevant suggestions
+ */
+export interface ProductContext {
+  title?: string;
+  description?: string;
+  productType?: string;
+  tags?: string[];
+  vendor?: string;
+}
+
+/**
  * Options for the new product analysis function
  */
 export interface ProductAnalysisOptions {
   brandProfile?: BrandProfile;
   category?: ContentCategory;
+  productContext?: ProductContext;
 }
 
 /**
@@ -754,11 +811,15 @@ export interface ProductAnalysisWithSuggestionsResult {
  * 
  * When a brandProfile is provided, suggestions are deeply tailored to the brand's
  * voice, target audience, and aesthetic preferences.
+ * 
+ * When productContext is provided (from Shopify), suggestions incorporate the
+ * product's title, description, tags, and other metadata for more relevant results.
  */
 export const analyzeProductAndSuggestStyles = async (
   base64Design: string,
   brandProfile?: BrandProfile,
-  category?: ContentCategory
+  category?: ContentCategory,
+  productContext?: ProductContext
 ): Promise<ProductAnalysisWithSuggestionsResult> => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -769,8 +830,20 @@ export const analyzeProductAndSuggestStyles = async (
   // Build brand context if profile is provided
   const brandContext = formatStyleBrandContext(brandProfile);
   
+  // Build product context if available
+  const productInfo = formatProductContext(productContext);
+  
   // Get category-specific prompt addition
   const categoryPrompt = category ? CATEGORY_PROMPTS[category] : '';
+  
+  // Add variety by including some randomization in the prompt
+  const varietySeeds = [
+    'urban environments', 'natural settings', 'home interiors', 'travel destinations',
+    'social gatherings', 'solo activities', 'morning routines', 'evening occasions',
+    'work environments', 'leisure activities', 'special events', 'everyday moments'
+  ];
+  const shuffledSeeds = varietySeeds.sort(() => Math.random() - 0.5).slice(0, 4);
+  const varietyHint = `Consider scene types like: ${shuffledSeeds.join(', ')}`;
 
   try {
     const responseSchema: Schema = {
@@ -824,53 +897,85 @@ export const analyzeProductAndSuggestStyles = async (
 
     const prompt = `
       You are a world-class creative director for social media content. Your job is to understand
-      products deeply and suggest perfect imagery that will resonate with audiences.
+      THIS SPECIFIC product deeply and suggest UNIQUE, CREATIVE imagery that will resonate with audiences.
       
-      STEP 1 - PRODUCT ANALYSIS:
-      Look at this product image and identify:
+      =============================================================================
+      STEP 1 - ANALYZE THIS EXACT PRODUCT
+      =============================================================================
+      Look at this product image CAREFULLY and identify:
       - What TYPE of product is this? (apparel, jewelry, accessories, home_decor, food_beverage, electronics, beauty, art, other)
-      - What specific item is it? (Be specific: "vintage band t-shirt", "minimalist gold necklace", "hand-thrown ceramic mug")
-      - What makes it unique? (design, colors, materials, style, vibe)
-      - Who would buy this? What kind of person?
+      - What specific item is it? Be VERY specific about what you see
+      - What UNIQUE visual elements stand out? (specific graphics, patterns, colors, textures, design details)
+      - What vibe or aesthetic does THIS PARTICULAR item convey?
+      - What kind of person would be drawn to THIS specific design?
       
-      ${brandContext ? `
-      BRAND CONTEXT - This product belongs to a brand with these characteristics:
-      ${brandContext}
+      ${productInfo ? `
+      =============================================================================
+      SHOPIFY PRODUCT INFORMATION (USE THIS!)
+      =============================================================================
+      ${productInfo}
       
-      Use this brand knowledge to inform your suggestions. The imagery should feel authentically on-brand.
+      IMPORTANT: Use this product information to inform your suggestions! The product name,
+      description, and tags provide crucial context about how this product should be marketed.
       ` : ''}
       
-      STEP 2 - CATEGORY ANALYSIS:
-      Determine which content types work best for THIS specific product:
-      - lifestyle: Real moments with real people using/wearing the product
-      - product: Beauty shots, flat lays, detail photography
-      - editorial: Magazine-quality, artistic, dramatic
-      - ugc: User-generated content style, authentic, relatable
-      - seasonal: Holiday/seasonal themed imagery
-      - minimalist: Clean, simple, product-focused
+      ${brandContext ? `
+      =============================================================================
+      BRAND CONTEXT (MATCH THIS STYLE!)
+      =============================================================================
+      ${brandContext}
+      
+      Your suggestions should feel authentically on-brand. Consider:
+      - Who is the target customer? Create scenes that resonate with THEM
+      - What's the brand's aesthetic? Match the photography style and mood
+      - How does this brand communicate? Let that inform the vibe
+      ` : ''}
+      
+      =============================================================================
+      STEP 2 - GENERATE CREATIVE, DIVERSE SUGGESTIONS
+      =============================================================================
       
       ${category ? `
       REQUESTED CATEGORY: ${category.toUpperCase()}
       ${categoryPrompt}
       
-      Generate 5 suggestions specifically for this content type.
+      Generate 5 UNIQUE suggestions for this content type.
       ` : `
       Generate 5 DIVERSE suggestions across different content types.
-      Each suggestion should be in a different category to give variety.
       `}
       
+      VARIETY REQUIREMENT - CRITICAL:
+      ${varietyHint}
+      
+      Each suggestion MUST be distinctly different:
+      - Different locations/environments (don't repeat similar settings)
+      - Different activities or moments
+      - Different times of day or seasons
+      - Different moods and energy levels
+      - Different types of people or situations
+      
+      DO NOT suggest generic scenes like:
+      - "walking through city streets" (too common)
+      - "outdoor adventure" (overused)
+      - "coffee shop moment" (cliché unless very specific)
+      
+      Instead, be SPECIFIC and CREATIVE:
+      - Reference the actual design elements you see in the product
+      - Create scenes that ONLY make sense for THIS product
+      - Think about unexpected but fitting contexts
+      
       CRITICAL REQUIREMENTS:
-      1. Every suggestion must be SPECIFIC to THIS product - not generic
-      2. Consider the product's unique design/features when suggesting scenes
-      3. Make suggestions that would actually work well in social media
-      4. ${brandContext ? 'Ensure all suggestions feel on-brand' : 'Make suggestions versatile and appealing'}
-      5. Each suggestion should be immediately actionable as an image generation prompt
+      1. Every suggestion MUST reference specific visual elements of THIS product
+      2. ${brandContext ? 'Every suggestion MUST feel on-brand for this specific business' : 'Make suggestions versatile and appealing'}
+      3. ${productInfo ? 'Use the product name/description to inform the marketing angle' : 'Let the visual design drive your suggestions'}
+      4. Each description should be detailed enough to generate a great image
+      5. Avoid generic, repetitive lifestyle photography clichés
       
       SUGGESTION FORMAT:
       For each suggestion, provide:
-      - title: Catchy 2-4 word name
-      - description: Detailed scene description (setting, lighting, mood, composition, any people and what they're doing)
-      - reasoning: Why this works for this product (1-2 sentences)
+      - title: Catchy 2-4 word name (make it specific to this product!)
+      - description: Detailed scene description (setting, lighting, mood, composition, what people are doing if any)
+      - reasoning: Why this specific scene works for THIS product and brand (1-2 sentences)
       - category: Which content type this belongs to
     `;
 

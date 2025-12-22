@@ -236,11 +236,15 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
         base64,
       };
 
-      // Store the source product for mockup tracking
+      // Store the source product for mockup tracking (including context for AI suggestions)
       setSourceProduct({
         id: product.id,
         title: product.title,
         handle: product.handle,
+        description: product.description,
+        productType: product.productType,
+        tags: product.tags,
+        vendor: product.vendor,
       });
 
       setDesign(uploadedDesign);
@@ -271,11 +275,15 @@ export const ShopifyApp: React.FC<ShopifyAppProps> = ({ shopName }) => {
         base64,
       };
 
-      // Store the source product for mockup tracking
+      // Store the source product for mockup tracking (including context for AI suggestions)
       setSourceProduct({
         id: product.id,
         title: product.title,
         handle: product.handle,
+        description: product.description,
+        productType: product.productType,
+        tags: product.tags,
+        vendor: product.vendor,
       });
 
       setDesign(uploadedDesign);

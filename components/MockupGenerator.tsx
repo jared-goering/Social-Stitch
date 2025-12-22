@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { UploadedDesign, MockupOption, StyleSuggestion, ModelGender, SavedMockup, SourceProduct, BrandProfile, ContentCategory, CONTENT_CATEGORIES, ProductAnalysisResult, QuotaExceededError, QuotaCheckResult } from '../types';
-import { generateMockupImage, analyzeProductAndSuggestStyles } from '../services/geminiService';
+import { generateMockupImage, analyzeProductAndSuggestStyles, ProductContext } from '../services/geminiService';
 import { saveMockupToFirebase, fetchUserMockups, deleteMockupFromFirebase } from '../services/mockupStorageService';
 import { getBrandProfile } from '../services/brandProfileService';
 import { canGenerateImage } from '../services/subscriptionService';
@@ -411,11 +411,21 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
 
       setIsLoadingSuggestions(true);
       try {
-        // Pass brand profile and selected category for contextual suggestions
+        // Build product context from sourceProduct if available
+        const productContext: ProductContext | undefined = sourceProduct ? {
+          title: sourceProduct.title,
+          description: sourceProduct.description,
+          productType: sourceProduct.productType,
+          tags: sourceProduct.tags,
+          vendor: sourceProduct.vendor,
+        } : undefined;
+        
+        // Pass brand profile, category, and product context for contextual suggestions
         const result = await analyzeProductAndSuggestStyles(
           design.base64, 
           brandProfile || undefined,
-          selectedCategory
+          selectedCategory,
+          productContext
         );
         
         // Store product analysis
@@ -468,7 +478,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     };
 
     fetchSuggestions();
-  }, [design.base64, design.id, brandProfile, selectedCategory]);
+  }, [design.base64, design.id, brandProfile, selectedCategory, sourceProduct]);
 
   // Keyboard navigation for modal
   useEffect(() => {
@@ -917,11 +927,21 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     setIsLoadingSuggestions(true);
     
     try {
-      // Pass brand profile and selected category for contextual suggestions
+      // Build product context from sourceProduct if available
+      const productContext: ProductContext | undefined = sourceProduct ? {
+        title: sourceProduct.title,
+        description: sourceProduct.description,
+        productType: sourceProduct.productType,
+        tags: sourceProduct.tags,
+        vendor: sourceProduct.vendor,
+      } : undefined;
+      
+      // Pass brand profile, category, and product context for contextual suggestions
       const result = await analyzeProductAndSuggestStyles(
         design.base64, 
         brandProfile || undefined,
-        selectedCategory
+        selectedCategory,
+        productContext
       );
       
       // Update product analysis
