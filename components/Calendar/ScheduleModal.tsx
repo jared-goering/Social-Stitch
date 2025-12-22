@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, ChevronLeft, ChevronRight, Facebook, Instagram, Send, Sparkles, CheckCircle } from 'lucide-react';
-import { SocialPlatform, MockupOption } from '../../types';
+import { SocialPlatform, MockupOption, ScheduledPost } from '../../types';
+import { subscribeToScheduledPosts, groupPostsByDate, getLocalDateKey } from '../../services/scheduledPostsService';
 
 interface Props {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export const ScheduleModal: React.FC<Props> = ({
   const [isScheduling, setIsScheduling] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [step, setStep] = useState<'date' | 'time' | 'confirm'>('date');
+  const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -49,6 +51,17 @@ export const ScheduleModal: React.FC<Props> = ({
       setIsSuccess(false);
       setStep('date');
     }
+  }, [isOpen]);
+
+  // Subscribe to scheduled posts to show on calendar
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const unsubscribe = subscribeToScheduledPosts((posts) => {
+      setScheduledPosts(posts);
+    });
+
+    return () => unsubscribe();
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -68,6 +81,15 @@ export const ScheduleModal: React.FC<Props> = ({
   };
 
   const { daysInMonth, startingDay, year, month } = getDaysInMonth(currentMonth);
+
+  // Group posts by date for display
+  const postsByDate = groupPostsByDate(scheduledPosts);
+  
+  // Get posts for a specific day
+  const getPostsForDay = (day: number): ScheduledPost[] => {
+    const dateKey = getLocalDateKey(new Date(year, month, day));
+    return postsByDate.get(dateKey) || [];
+  };
 
   const handleDateSelect = (day: number) => {
     const date = new Date(year, month, day);
@@ -247,6 +269,9 @@ export const ScheduleModal: React.FC<Props> = ({
                                     selectedDate?.getMonth() === month &&
                                     selectedDate?.getFullYear() === year;
                   const isToday = date.toDateString() === new Date().toDateString();
+                  const dayPosts = getPostsForDay(day);
+                  const scheduledCount = dayPosts.filter(p => p.status === 'scheduled').length;
+                  const publishedCount = dayPosts.filter(p => p.status === 'published').length;
                   
                   return (
                     <button
@@ -261,13 +286,45 @@ export const ScheduleModal: React.FC<Props> = ({
                       `}
                     >
                       {day}
-                      {isToday && !isSelected && (
+                      {/* Post indicators */}
+                      {dayPosts.length > 0 && (
+                        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-0.5">
+                          {scheduledCount > 0 && (
+                            <div 
+                              className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-300' : 'bg-amber-500'}`}
+                              title={`${scheduledCount} scheduled`}
+                            />
+                          )}
+                          {publishedCount > 0 && (
+                            <div 
+                              className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-300' : 'bg-emerald-500'}`}
+                              title={`${publishedCount} published`}
+                            />
+                          )}
+                        </div>
+                      )}
+                      {/* Today indicator (only show if no posts) */}
+                      {isToday && !isSelected && dayPosts.length === 0 && (
                         <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-indigo-500" />
                       )}
                     </button>
                   );
                 })}
               </div>
+
+              {/* Legend */}
+              {scheduledPosts.length > 0 && (
+                <div className="flex items-center justify-center gap-4 mb-4 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="text-xs text-slate-500">Scheduled</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-xs text-slate-500">Published</span>
+                  </div>
+                </div>
+              )}
 
               {selectedDate && (
                 <button

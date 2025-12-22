@@ -21,14 +21,19 @@ const API_VERSION = '2024-10';
 // Get Shopify configuration
 const getShopifyConfig = () => {
   const config = functions.config();
+  
+  // For production billing, test should be null (not false)
+  // Only set to true if explicitly configured for testing
+  const isTestMode = config.shopify?.billing_test_mode === 'true' || 
+                     process.env.SHOPIFY_BILLING_TEST_MODE === 'true';
+  
   return {
     apiKey: config.shopify?.api_key || process.env.SHOPIFY_API_KEY || '',
     apiSecret: config.shopify?.api_secret || process.env.SHOPIFY_API_SECRET || '',
     appUrl: config.shopify?.app_url || process.env.SHOPIFY_APP_URL || '',
-    // Test mode for development - charges won't actually bill
-    testMode: config.shopify?.billing_test_mode === 'true' || 
-              process.env.SHOPIFY_BILLING_TEST_MODE === 'true' ||
-              false,
+    // Test mode: true = test charges, null = real charges
+    // Per Shopify docs, must be null (not false) for production billing
+    testMode: isTestMode ? true : null,
   };
 };
 

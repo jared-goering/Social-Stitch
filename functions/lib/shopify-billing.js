@@ -57,14 +57,17 @@ const API_VERSION = '2024-10';
 const getShopifyConfig = () => {
     var _a, _b, _c, _d;
     const config = functions.config();
+    // For production billing, test should be null (not false)
+    // Only set to true if explicitly configured for testing
+    const isTestMode = ((_a = config.shopify) === null || _a === void 0 ? void 0 : _a.billing_test_mode) === 'true' ||
+        process.env.SHOPIFY_BILLING_TEST_MODE === 'true';
     return {
-        apiKey: ((_a = config.shopify) === null || _a === void 0 ? void 0 : _a.api_key) || process.env.SHOPIFY_API_KEY || '',
-        apiSecret: ((_b = config.shopify) === null || _b === void 0 ? void 0 : _b.api_secret) || process.env.SHOPIFY_API_SECRET || '',
-        appUrl: ((_c = config.shopify) === null || _c === void 0 ? void 0 : _c.app_url) || process.env.SHOPIFY_APP_URL || '',
-        // Test mode for development - charges won't actually bill
-        testMode: ((_d = config.shopify) === null || _d === void 0 ? void 0 : _d.billing_test_mode) === 'true' ||
-            process.env.SHOPIFY_BILLING_TEST_MODE === 'true' ||
-            false,
+        apiKey: ((_b = config.shopify) === null || _b === void 0 ? void 0 : _b.api_key) || process.env.SHOPIFY_API_KEY || '',
+        apiSecret: ((_c = config.shopify) === null || _c === void 0 ? void 0 : _c.api_secret) || process.env.SHOPIFY_API_SECRET || '',
+        appUrl: ((_d = config.shopify) === null || _d === void 0 ? void 0 : _d.app_url) || process.env.SHOPIFY_APP_URL || '',
+        // Test mode: true = test charges, null = real charges
+        // Per Shopify docs, must be null (not false) for production billing
+        testMode: isTestMode ? true : null,
     };
 };
 const SUBSCRIPTION_TIERS = {
