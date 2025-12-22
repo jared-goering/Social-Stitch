@@ -212,6 +212,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   
   // Brand profile for AI-enhanced generation
   const [brandProfile, setBrandProfile] = useState<BrandProfile | null>(null);
+  const [isBrandProfileLoaded, setIsBrandProfileLoaded] = useState(false);
 
   // Subscription and quota state
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -372,6 +373,9 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
       } catch (error) {
         // Silently fail - brand profile is optional enhancement
         console.warn('Could not load brand profile:', error);
+      } finally {
+        // Mark as loaded whether it succeeded or not
+        setIsBrandProfileLoaded(true);
       }
     };
     
@@ -379,13 +383,20 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
   }, []);
 
   // Fetch AI suggestions when component mounts, design changes, or category changes
+  // Wait for brand profile to finish loading to prevent double-fetching
   useEffect(() => {
+    // Don't fetch until brand profile check is complete (prevents double-fetch)
+    if (!isBrandProfileLoaded) {
+      return;
+    }
+    
     const fetchSuggestions = async () => {
       // First check in-memory cache for this category
       if (categorySuggestionsCache.has(selectedCategory)) {
         const cached = categorySuggestionsCache.get(selectedCategory);
         if (cached && cached.length > 0) {
           setAiSuggestions(cached);
+          setIsLoadingSuggestions(false);
           return;
         }
       }
@@ -403,6 +414,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
             // Check if we have cached suggestions for this specific category
             if (parsed.categoryCache && parsed.categoryCache[selectedCategory]) {
               setAiSuggestions(parsed.categoryCache[selectedCategory]);
+              setIsLoadingSuggestions(false);
               return;
             }
           }
@@ -478,7 +490,7 @@ export const MockupGenerator: React.FC<Props> = ({ design, onMockupsSelected, on
     };
 
     fetchSuggestions();
-  }, [design.base64, design.id, brandProfile, selectedCategory, sourceProduct]);
+  }, [design.base64, design.id, brandProfile, selectedCategory, sourceProduct, isBrandProfileLoaded]);
 
   // Keyboard navigation for modal
   useEffect(() => {
