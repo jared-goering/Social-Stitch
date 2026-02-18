@@ -1,0 +1,10 @@
+# *
+User-agent: *
+Allow: /
+Disallow: /app
+
+# Host
+Host: https://socialstitch.io
+
+# Sitemaps
+Sitemap: https://socialstitch.io/sitemap.xml

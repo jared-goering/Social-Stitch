@@ -22,7 +22,7 @@ export const generateMockupImage = async (
   gender?: ModelGender
 ): Promise<string> => {
   // Always create a new instance to ensure the latest API key is used
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY environment variable is not set');
   }
@@ -112,7 +112,7 @@ export const generateMockupImage = async (
 export const analyzeGarmentAndSuggestStyles = async (
   base64Design: string
 ): Promise<StyleSuggestion[]> => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY environment variable is not set');
   }
@@ -205,7 +205,7 @@ export const generateSocialCaptions = async (
   options?: CaptionGenerationOptions
 ): Promise<GeneratedCaptions> => {
   // Always create a new instance to ensure the latest API key is used
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.GEMINI_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY environment variable is not set');
   }
